@@ -16,3 +16,22 @@
 *.gif binary
 *.zip binary
 *.ico binary
+
+# ---------------------------------------------------------------------------
+# Keep the *published plugin archive* small.
+#
+# AstrBot's plugin market rejects archives above 16 MB, and the research
+# directory (third party documents + raw snapshots + reports) is ~11 MB on its
+# own. `git archive` and tools built on it honour export-ignore, which the
+# marketplace pipeline uses.
+# ---------------------------------------------------------------------------
+research/ export-ignore
+tests/ export-ignore
+tools/ export-ignore
+.gitignore export-ignore
+.gitattributes export-ignore
+pyproject.toml export-ignore
+data/ export-ignore
+.tools/ export-ignore
+.uv-cache/ export-ignore
+.acl-recovery/ export-ignore

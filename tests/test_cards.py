@@ -26,6 +26,34 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 CARDS = FIXTURES / "cards"
 
 
+def _png_chunk(chunk_type: bytes, data: bytes) -> bytes:
+    return (
+        struct.pack(">I", len(data))
+        + chunk_type
+        + data
+        + struct.pack(">I", zlib.crc32(chunk_type + data) & 0xFFFFFFFF)
+    )
+
+
+def _card_text_chunk(keyword: str, payload: dict) -> bytes:
+    import base64
+
+    encoded = base64.b64encode(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+    return _png_chunk(b"tEXt", keyword.encode("ascii") + b"\x00" + encoded)
+
+
+def _minimal_png(*text_chunks: bytes) -> bytes:
+    ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+    body = b"".join(chunk for chunk in text_chunks if chunk)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + _png_chunk(b"IHDR", ihdr)
+        + body
+        + _png_chunk(b"IDAT", zlib.compress(b"\x00\x00\x00\x00"))
+        + _png_chunk(b"IEND", b"")
+    )
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _fixtures() -> None:
     if not CARDS.is_dir():
@@ -82,6 +110,21 @@ def test_png_card_round_trip() -> None:
     card = load_card(CARDS / "iris.png")
     assert card.name == "Iris"
     assert card.first_mes == load_card(CARDS / "iris.json").first_mes
+
+
+def test_png_prefers_ccv3_over_chara() -> None:
+    """Character Card V3: prefer the ``ccv3`` chunk when both are present."""
+    v2 = {"spec": "chara_card_v2", "spec_version": "2.0", "data": {"name": "Old"}}
+    v3 = {"spec": "chara_card_v3", "spec_version": "3.0", "data": {"name": "New"}}
+
+    both = _minimal_png(_card_text_chunk("chara", v2), _card_text_chunk("ccv3", v3))
+    card = card_from_png(both)
+    assert card.name == "New"
+    assert card.spec == "chara_card_v3"
+
+    # ...and falls back to ``chara`` when ccv3 is absent
+    fallback = card_from_png(_minimal_png(_card_text_chunk("chara", v2)))
+    assert fallback.name == "Old"
 
 
 def test_png_without_metadata_raises() -> None:

@@ -16,6 +16,8 @@ from tavern.st.worldbook import (  # noqa: E402
     LOGIC_NOT_ANY,
     POSITION_AT_DEPTH,
     POSITION_BEFORE_CHAR,
+    POSITION_NAMES,
+    POSITION_OUTLET,
     ActivationState,
     WorldBook,
     WorldBookSettings,
@@ -303,3 +305,48 @@ def test_book_without_metadata_still_parses() -> None:
     assert book.name == ""
     assert len(book.entries) == 1
     assert book.entries[0].content == "y"
+
+
+# ----------------------------------------------------------------------
+# SillyTavern conformance details verified against world-info.js
+# ----------------------------------------------------------------------
+
+
+def test_selective_defaults_to_true() -> None:
+    """ST's newWorldInfoEntryDefinition defaults ``selective`` to true."""
+    entry = entry_from_dict(0, {"key": ["alpha"], "content": "x"})
+    assert entry.selective is True
+    assert entry_from_dict(1, {"key": ["a"], "selective": False}).selective is False
+
+
+def test_match_whole_words_uses_the_global_default() -> None:
+    entry = entry_from_dict(0, {"key": ["alpha"], "content": "x"})
+    assert entry.match_whole_words is None  # unset on the entry
+
+    # the plugin default keeps substring matching (Chinese friendly)
+    loose = activate([WorldBook(name="w", entries=[entry])], ["alphabet"])
+    assert ids(loose) == {0}
+
+    # ST's own default is whole words, which refuses the inner hit
+    strict = activate(
+        [WorldBook(name="w", entries=[entry])],
+        ["alphabet"],
+        settings=WorldBookSettings(match_whole_words=True),
+    )
+    assert ids(strict) == set()
+
+
+def test_scan_depth_zero_does_not_scan_the_chat() -> None:
+    """Depth 0 = only recursed entries and Author's Note are evaluated."""
+    entry = entry_from_dict(0, {"key": ["bell"], "content": "ring"})
+    book = WorldBook(name="w", entries=[entry])
+    assert ids(activate([book], ["a bell rang"])) == {0}
+
+    # a per entry scan_depth of 0 disables the chat scan for that entry
+    entry.scan_depth = 0
+    assert ids(activate([book], ["a bell rang"])) == set()
+
+
+def test_outlet_position_is_defined() -> None:
+    assert POSITION_OUTLET == 7
+    assert POSITION_NAMES[POSITION_OUTLET] == "outlet"

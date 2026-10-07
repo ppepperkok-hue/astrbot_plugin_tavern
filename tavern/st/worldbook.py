@@ -48,6 +48,9 @@ POSITION_ANT_BOTTOM = 3
 POSITION_AT_DEPTH = 4
 POSITION_EM_TOP = 5
 POSITION_EM_BOTTOM = 6
+#: ``outlet`` entries are not injected into the prompt; they can only be pulled
+#: in through a ``{{outlet::name}}`` macro, so the plugin renders them last.
+POSITION_OUTLET = 7
 
 POSITION_NAMES: dict[int, str] = {
     POSITION_BEFORE_CHAR: "before_char",
@@ -57,6 +60,7 @@ POSITION_NAMES: dict[int, str] = {
     POSITION_AT_DEPTH: "at_depth",
     POSITION_EM_TOP: "em_top",
     POSITION_EM_BOTTOM: "em_bottom",
+    POSITION_OUTLET: "outlet",
 }
 
 # --- Selective logic --------------------------------------------------------
@@ -72,6 +76,11 @@ class WorldBookSettings:
 
     #: Fallback scan depth when neither the book nor the entry defines one.
     default_scan_depth: int = 4
+    #: Global ``Match Whole Words`` default, used when an entry leaves
+    #: ``matchWholeWords`` unset (SillyTavern's own default is true; the plugin
+    #: config keeps it false because word boundaries behave badly for Chinese
+    #: and Japanese, where substring matching is what users expect).
+    match_whole_words: bool = False
     #: Recursion is off by default: SillyTavern enables it per book/globally.
     allow_recursion: bool = False
     max_recursion_steps: int = 3
@@ -203,7 +212,9 @@ def entry_from_dict(uid: int, payload: dict[str, Any]) -> WorldInfoEntry:
         content=str(payload.get("content", "") or ""),
         comment=str(payload.get("comment", "") or ""),
         constant=_as_bool(payload.get("constant")),
-        selective=_as_bool(payload.get("selective")),
+        # SillyTavern's ``newWorldInfoEntryDefinition`` defaults ``selective`` to
+        # true (``world-info.js``), so a missing field means "selective on".
+        selective=_as_bool(payload.get("selective", True), True),
         selective_logic=_as_int(payload.get("selectiveLogic"), LOGIC_AND_ANY),
         insertion_order=_as_int(payload.get("order", payload.get("insertion_order")), 100),
         position=_as_int(payload.get("position"), POSITION_BEFORE_CHAR),
@@ -524,15 +535,19 @@ def activate(
     excluded_from_recursion: set[tuple[str, int]] = set()
 
     def scan_depth_for(book: WorldBook, entry_scan_depth: int | None) -> int:
-        if entry_scan_depth:
+        # ``0`` is meaningful ("do not scan the chat"), so compare with None
+        # explicitly instead of relying on truthiness.
+        if entry_scan_depth is not None:
             return entry_scan_depth
-        if book.scan_depth:
+        if book.scan_depth is not None:
             return book.scan_depth
         return settings.default_scan_depth
 
     def scan_text(depth: int) -> str:
+        # SillyTavern: "If set to 0, then only recursed entries and Author's
+        # Note are evaluated", i.e. the chat history is not scanned at all.
         if depth <= 0:
-            return "\n".join(messages)
+            return ""
         return "\n".join(messages[-depth:])
 
     def try_activate(book: WorldBook, entry: WorldInfoEntry, *, via_recursion: bool) -> bool:
@@ -555,7 +570,13 @@ def activate(
             haystack = "\n".join([haystack, *fresh_texts])
 
         case_sensitive = bool(entry.case_sensitive)
-        whole_words = bool(entry.match_whole_words)
+        # ``None`` means "not set on the entry": fall back to the global default
+        # (SillyTavern defaults it to true, this plugin's config to false).
+        whole_words = (
+            settings.match_whole_words
+            if entry.match_whole_words is None
+            else bool(entry.match_whole_words)
+        )
 
         if already_sticky:
             # An entry inside its sticky window is simply held: its own content

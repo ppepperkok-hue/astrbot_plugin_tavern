@@ -2,7 +2,9 @@
 #
 # 「酒馆」指 SillyTavern（https://github.com/SillyTavern/SillyTavern）。
 # 本插件复用了它的角色卡（Character Card V1/V2/V3）、世界书（World Info）
-# 与聊天记录（.jsonl）格式语义，但**不包含**其任何代码或资源。
+# 与聊天记录（.jsonl）格式语义；本项目与酒馆同为 AGPL-3.0 许可，因此也允许
+# 直接移植其实现代码（若发生，会在文件头保留原始版权声明，并记录在
+# THIRD_PARTY_LICENSES.md 中）。
 name: astrbot_plugin_tavern
 display_name: 酒馆角色扮演
 short_desc: 在 QQ/微信里用酒馆的角色卡与世界书聊天
@@ -16,8 +18,9 @@ desc: |
   - 世界书命中内容按轮注入，稳定人设与动态上下文分离，不破坏 prompt 缓存
   - 可选对接已部署的 SillyTavern（读卡片/世界书/聊天，或直接代理生成）
 
-  格式与行为语义参考 SillyTavern（AGPL-3.0），仅借鉴公开的数据格式与交互设计，
-  未复制其代码、素材或预设文本。
+  格式与行为语义来自 SillyTavern（AGPL-3.0）：本项目采用同一许可，
+  以兼容其数据格式，并在需要时可直接复用其实现；相关来源与版权声明见
+  仓库的 THIRD_PARTY_LICENSES.md 与 LICENSE。
 version: 0.1.0
 author: ppepperkok-hue
 repo: https://github.com/ppepperkok-hue/astrbot_plugin_tavern

@@ -19,8 +19,10 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-#: PNG keyword used by SillyTavern to store the base64 encoded card JSON.
-PNG_CARD_KEYWORDS: tuple[str, ...] = ("chara", "ccv3")
+#: PNG keywords used by SillyTavern to store the base64 encoded card JSON.
+#: Character Card V3 says an application that finds both chunks SHOULD prefer
+#: ``ccv3``; ``chara`` (V2) is only the fallback.
+PNG_CARD_KEYWORDS: tuple[str, ...] = ("ccv3", "chara")
 
 #: Values accepted in the ``spec`` field of V2 / V3 cards.
 SPEC_V2 = "chara_card_v2"
