@@ -7,9 +7,17 @@
 
 ## 0. 一句话现状
 
-**全部完成，三个判定机全绿**：世界书引擎（S1，15 fixtures 12 match/0 diverged/3 不可比）、
-角色卡与世界书导入（S3，发文件即导入）、提示词组装层（S2，消息模型 1 条一致、装配 8 个 fixture
-**全一致**），458 项离线测试 + `tools/check.py` 全过。
+**四个判定机全绿，`tools/check.py` 11 步全过。**
+世界书引擎（S1，15 fixtures 12 match/0 diverged/3 不可比）、消息模型（S2，1 条一致）、装配顺序
+（S2，8 个 fixture **全一致**）、provider 报文转换（S4，**121 个 fixture 全一致**）；
+**515 项离线测试通过**（+1 skip，缺时区库）。
+
+在判定机之外还有三条护栏，都接进了 `check.py`：导出覆盖（21/21，防漏移植）、**管理面板路由**
+（7 条，用 AstrBot 自己的匹配器验证）、**指令参数解析**（9 条真实输入，用 AstrBot 自己的
+`CommandFilter` 验证）。后者抓到过一个真 bug，见 §6。
+
+**已经能做的前端与外部对接**：`pages/panel/index.html` 是 AstrBot 面板里的管理页（单文件、
+无需构建）；`tavern/backends/st_import.py` 可以从运行中的酒馆**只读**拉取角色卡、世界书与聊天。
 
 **S2 装配判定机的第三道判定机已经修好**（`diff_assembly.py` 现在 PASS）。**端口一行没改** ——
 那 5 个红着的 fixture 全是判定机自己的缺陷，连交接文件里判定为"疑真端口差异"的
@@ -38,23 +46,32 @@
 
 ```powershell
 cd E:\astrbot_plugin
-python tools/check.py                          # 一把梭：manifest + ruff + pytest + AstrBot 装载 + 真实消息链路
+python tools/check.py                          # 一把梭：11 步，见下
 python tools/st-oracle/diff.py --all           # S1：世界书引擎 vs 真酒馆
 python tools/st-oracle/diff_prompt.py --all    # S2：消息模型 vs 真酒馆
 python tools/st-oracle/diff_assembly.py --all --verbose   # S2：装配顺序 vs 真酒馆（PASS）
+python tools/st-oracle/diff_converters.py --all # S4：provider 报文转换（121 个 fixture）
+python tools/st-oracle/check_converter_coverage.py  # 导出覆盖护栏
+python tools/st-oracle/check_module_wiring.py  # 有测试但没人调用的模块（报告，不拦）
 python tools/st-oracle/gen_adapter.py --check  # 判定机生成树是否漂移
 ```
+
+`tools/check.py` 现在跑的 11 步：`manifest` / `plugin size` / `readme links` / `ruff check` /
+`ruff format` / `pytest` / `astrbot smoke` / `astrbot e2e` / `panel api` / `command params`。
+后四个需要 AstrBot 解释器（`.tools/uv-tools/astrbot/Scripts/python.exe`）。
 
 ### 实测结果（修完之后重跑的）
 
 | 命令 | 结果 |
 |---|---|
-| `python tools/check.py` | **ALL CHECKS PASSED** |
-| `python -m pytest tests` | **458 passed, 1 skipped**（唯一 skip 是 `tests/test_prompt.py:151`，缺时区库） |
+| `python tools/check.py` | **ALL CHECKS PASSED**（11 步） |
+| `python -m pytest tests` | **515 passed, 1 skipped**（唯一 skip 是 `tests/test_prompt.py:151`，缺时区库） |
 | `python -m ruff check .` | All checks passed |
 | `diff.py --all`（S1） | 15 fixtures，**12 match / 0 diverged / 3 not-comparable** → PASS |
 | `diff_prompt.py --all`（S2 消息模型） | 1 fixture，**match** → PASS |
 | `diff_assembly.py --all`（S2 装配） | 8 fixtures，**8 match / 0 diverged / 0 not-comparable** → **PASS** |
+| `diff_converters.py --all`（S4） | 121 fixtures，**121 match / 0 diverged** → **PASS** |
+| `tools/check_plugin_size.py` | 发布包 **约 0.35 MB**，市场 16 MB 上限的 2% → PASS |
 
 三个 `not-comparable` 是**真的比不了**，不是偷懒：两个是加权随机（酒馆用 `Math.random()`，我们没法复刻
 JS 的 RNG 流），一个是 token 预算（酒馆用真 tokenizer，我们只有长度估算）。这三条都写了确定性场景去盯边界。
@@ -194,14 +211,17 @@ ChatCompletion.prototype.add = function (collection, position) {
 
 ## 7. 还没开始的部分
 
-- **S4 提示词格式适配**：移植服务端纯逻辑 `research/_raw/st-src/prompt-converters.js`（1451 行、
-  20 个函数 + `PROMPT_PROCESSING_TYPE` 常量，共 21 个导出）。这块是**新增**，不影响已完成的任何东西。
-  注意：它 `import { getConfigValue, tryParse } from './util.js'`，而 `gen_adapter.py` 的引擎源是硬编码的
-  —— **S4 的第一步是扩生成器，不是抄函数**。
-- **S5 外部酒馆后端加固**：`tavern/backends/sillytavern.py`（cookie/CSRF、失败回退）。
+- ~~**S4 提示词格式适配**~~ —— **已完成**。`tavern/st/prompt_converters.py` 移植了
+  `prompt-converters.js` 的全部 21 个导出，`diff_converters.py` 121 个 fixture 全一致。
+- ~~**S5 外部酒馆后端加固**~~ —— **基础部分已完成**：`tavern/backends/auth.py` 抽出登录/CSRF
+  握手（两个消费者共用），`st_import.py` 提供对运行中酒馆的**只读**读取（角色卡/世界书/聊天），
+  `sillytavern.py` 只剩生成。**依然没有做静默回退**——见 §9。
+- ~~**管理面板**~~ —— **已完成**：`pages/panel/index.html` + `tavern/panel.py`（7 条只读路由）。
 - **群聊**：用户明确说"多群聊先不做"。
 - **已知不兼容**：聊天 `.jsonl` 的 `swipes` 字段只存在 `extra` 里；`integrity` 是我们自己的 SHA-256
   （酒馆会拒绝保存我们的文件）；`outlet`/向量化世界书/计时效果时钟（`chat.length`）未实现。
+- **README 的截图**：`logo.png` 与 `docs/images/flow.png` 是脚本生成的真实图，但**没有聊天截图**——
+  伪造一张不如没有。真截图需要有人跑起来截。
 
 ---
 
@@ -209,17 +229,58 @@ ChatCompletion.prototype.add = function (collection, position) {
 
 ```powershell
 cd E:\astrbot_plugin
-python tools/check.py                        # 基线：ALL CHECKS PASSED
-python tools/st-oracle/diff_assembly.py --all   # 基线：8 match / 0 diverged
-git log --oneline -3                         # 看最新提交
+python tools/check.py                        # 基线：ALL CHECKS PASSED（11 步）
+git log --oneline -5                         # 看最新提交
 ```
 
-S0/S1/S2/S3 都收口了，**主线剩下的就是 §7 里的 S4 与 S5**。建议先做 S4
-（`research/_raw/st-src/prompt-converters.js`，1451 行 / 20 个导出）：它是纯新增，
-不碰已经对齐的任何东西，也最适合先立第三道判定机（把真转换器的输出按 fixture 钉住），
-再照影子抄。
+S0–S4 与 S5 的基础都收口了，判定机四族全绿。剩下的是**产品决定**，不是工程缺口：
+
+- **三份镜像模块没接线**（`wi_keywords` / `wi_scan_state` / `wi_timed`）。它们有测试、是逐字移植，
+  但**没有任何生产调用方**，影响不到任何一个回复——生产走的是 `worldbook.ActivationState` 原生实现。
+  `python tools/st-oracle/check_module_wiring.py` 会如实报出来。建议在 `KNOWN_UNWIRED` 里记下
+  "有意保留为参考实现"，但**删或接都成立**，这是用户该拍的板。
+- **外部酒馆不可用时要不要回退到 AstrBot 模型。** 没做，因为静默回退会在对话中途换掉回答的模型
+  还不告诉人。要做也得是"明确告知 + 可配置"。
 
 **判定机的规矩不变**：改端口之前先让判定机说话；测试跟真引擎打架就改测试；
+
+---
+
+## 9. 这一轮新增的检查（以及它们各抓到过什么）
+
+四条护栏都接进了 `tools/check.py`。它们存在的理由都是同一句话：**没被验证过的东西等于没有**。
+
+| 检查 | 防的是什么 | 实际抓到过 |
+|---|---|---|
+| `check_plugin_size.py` | 市场 16 MB 上限、包内必备文件、开发目录误发 | `HANDOFF.md` 一直在往用户机器上发；`README` 引用了不随包分发的 `research/` |
+| `check_converter_coverage.py` | 「没写夹具」和「没实现」长得一样 | 改个名字就变红，验证过会咬 |
+| `verify_panel.py` | 路由注册了但匹配不上 | `<>` 写成了 `(?P<name>…)` 正则，只会回"未找到该路由" |
+| `verify_cmd_params.py` | 指令收不到参数 | **一个真 bug，见下** |
+| `check_readme_links.py` | README 指向不存在的文件 | `README_EN.md` 在引入它的那次提交上就是死链 |
+| `check_module_wiring.py` | 「有测试」被当成「已完成」 | 报出三份镜像模块没接线（只报告，不拦） |
+
+### 最值得记的一个：所有带参数的 `/tavern` 子指令都收不到参数
+
+AstrBot 从 handler 的**签名**取参数，中间有三个偏移必须同时对上：
+
+1. loader 用 `functools.partial(raw_handler, star_cls)` 绑定实例（`star_manager.py:1273`），
+   `inspect` 会因此少掉一个参数；
+2. `init_handler_md` 再**无条件跳过前两个**参数；
+3. 「贪吃」的尾参数靠 `is GreedyStr` 判定——**和类本身比**，放实例进去会静默退化成「只吃一个词」。
+
+修之前 `handler_params` 是 `{'args': typing.Any}`：AstrBot 看到一个叫 `args` 的参数，而 `Any`
+不能被实例化，于是任何带参数的子指令一调就 `TypeError: Any cannot be instantiated`。
+也就是说 `/tavern use <卡>`、`/tavern history <n>`、`/tavern worldbook on <书>`、
+`worldbook effect …` 在**真 AstrBot 里全都不可达**。
+
+**`tools/astrbot_e2e.py` 没发现，因为它直接调 `on_message`，绕过了指令分发。** 这是真实覆盖缺口，
+`tools/verify_cmd_params.py` 就是补它的：复刻 partial 绑定，用 AstrBot 自己的 `CommandFilter`
+解析 9 条真实输入。
+
+调试这条时的另一个教训：**别把 handler 放进 `type()` 的类字典里当元数据**。
+`functools.partial` 存成类属性后在访问时会被当方法再绑一次，又多吃掉一个参数，于是每次都解析成空。
+用 `SimpleNamespace`（对应 AstrBot 的 `StarHandlerMetadata` 数据对象）。这一点写进了
+`verify_cmd_params.py` 的文档字符串里。
 真引擎中途抛错时，先怀疑 harness，别先怀疑端口 —— §4.3 那 6 条全是这个形状。
 
 **并且**：不要再用 `git checkout -- <file>` 撤探针（§4.1 就是这么丢掉两个文件的）。
