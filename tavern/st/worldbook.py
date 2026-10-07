@@ -147,7 +147,9 @@ class WorldInfoEntry:
     delay: int = 0
     exclude_recursion: bool = False
     prevent_recursion: bool = False
-    delay_until_recursion: bool = False
+    #: ``delayUntilRecursion``: the recursion pass the entry waits for. ``0`` means
+    #: "immediately eligible", ``True`` behaves like ``1`` (world-info.js:4754).
+    delay_until_recursion: int = 0
     display_index: int = 0
     extensions: dict[str, Any] = field(default_factory=dict)
     #: Raw vector, only present in vectorised books.
@@ -258,7 +260,7 @@ def entry_from_dict(uid: int, payload: dict[str, Any]) -> WorldInfoEntry:
         delay=_as_int(payload.get("delay"), 0),
         exclude_recursion=_as_bool(payload.get("excludeRecursion")),
         prevent_recursion=_as_bool(payload.get("preventRecursion")),
-        delay_until_recursion=_as_bool(payload.get("delayUntilRecursion")),
+        delay_until_recursion=_recursion_level(payload.get("delayUntilRecursion")),
         display_index=_as_int(payload.get("displayIndex"), uid),
         extensions=payload.get("extensions") if isinstance(payload.get("extensions"), dict) else {},
         key_vector=_as_float_list(payload.get("keyvector", payload.get("key_vector"))),
@@ -297,9 +299,7 @@ def _apply_entry_decorators(entry: WorldInfoEntry) -> WorldInfoEntry:
     entry.position = _as_int(updated.get("position"), entry.position)
     entry.role = updated.get("role", entry.role)
     entry.scan_depth = _as_optional_int(updated.get("scan_depth"))
-    entry.delay_until_recursion = _as_bool(
-        updated.get("delay_until_recursion"), entry.delay_until_recursion
-    )
+    entry.delay_until_recursion = _recursion_level(updated.get("delay_until_recursion"))
     return entry
 
 
@@ -588,6 +588,23 @@ class ActivationState:
             )
 
 
+def _recursion_level(value: Any) -> int:
+    """Normalise ``delayUntilRecursion`` to its numeric level.
+
+    SillyTavern stores a level there (``true`` behaves like 1, ``2`` waits for the
+    second recursion pass); anything non positive means "immediately eligible".
+    """
+    if value is None or value is False:
+        return 0
+    if value is True:
+        return 1
+    try:
+        level = int(value)
+    except (TypeError, ValueError):
+        return 0
+    return max(level, 0)
+
+
 def _entry_scan_text(entry: WorldInfoEntry) -> str:
     """Text that a recursive pass may match against (comment + content)."""
     return "\n".join(part for part in (entry.comment, entry.content) if part)
@@ -709,13 +726,19 @@ def activate(
         view = _buffer_view(entry, scan_depth_for(book, entry.scan_depth))
         return buffer.get(view, scan_state_value)
 
-    def try_activate(book: WorldBook, entry: WorldInfoEntry, *, via_recursion: bool) -> bool:
+    def try_activate(
+        book: WorldBook, entry: WorldInfoEntry, *, via_recursion: bool, level: int = 0
+    ) -> bool:
         ident = (book.name or book.source_path, entry.uid)
         already_sticky = state.is_sticky(book, entry)
 
-        if entry.delay_until_recursion and not via_recursion:
+        # ``delayUntilRecursion`` is a *level*, not a flag: the entry becomes
+        # eligible once the scan has recursed that many times (a plain ``true``
+        # parses to 1). world-info.js:4754-4759, :5129-5133.
+        required_level = _recursion_level(entry.delay_until_recursion)
+        if level < required_level:
             return False
-        if via_recursion and (entry.prevent_recursion or ident in excluded_from_recursion):
+        if via_recursion and ident in excluded_from_recursion:
             return False
         if via_recursion and entry.exclude_recursion:
             excluded_from_recursion.add(ident)
@@ -791,7 +814,10 @@ def activate(
         if ident not in activated_ids:
             activated_ids.add(ident)
             activated.append((book, entry))
-            if entry.content:
+            # ``preventRecursion`` controls whether this entry's content feeds the
+            # recursion buffer (world-info.js:5080), it does not stop the entry
+            # itself from being activated by a recursion pass.
+            if entry.content and not (via_recursion and entry.prevent_recursion):
                 fresh_texts.append(_entry_scan_text(entry))
             # A fresh fire opens new sticky/cooldown windows; a held fire
             # (the entry was already inside its sticky window) must not, or the
@@ -799,16 +825,18 @@ def activate(
             state.on_activate(book, entry, fresh=not already_sticky)
         return True
 
-    # Pass 1: direct scan.
+    # Pass 1: direct scan (level 0).
     for book, entry in candidates:
-        try_activate(book, entry, via_recursion=False)
+        try_activate(book, entry, via_recursion=False, level=0)
 
-    # Passes 2..N: recursive scanning over the freshly activated content.
+    # Passes 2..N: recursive scanning over the freshly activated content. The
+    # first recursion pass runs at level 1, which is what ``delayUntilRecursion``
+    # compares against.
     if settings.allow_recursion and steps_limit > 1:
-        for _ in range(steps_limit - 1):
+        for step in range(1, steps_limit):
             before = len(activated)
             for book, entry in candidates:
-                try_activate(book, entry, via_recursion=True)
+                try_activate(book, entry, via_recursion=True, level=step)
             if len(activated) == before:
                 break
 

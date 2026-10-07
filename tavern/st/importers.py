@@ -46,9 +46,14 @@ V2/V3 ``character_book`` entry (snake_case)  runtime entry (camelCase)
 everything else                              ``extensions.<snake_case>``
 ===========================================  ==============================
 
-:data:`FIELD_MAPPING` is the authoritative table (42 rows); it is derived from
-``endpoints_characters.js:663-722`` (native -> V2) and ``world-info.js:5617-5674``
-(V2 -> native). Tests assert that it covers every key either function touches.
+:data:`FIELD_MAPPING` is the authoritative table (**42 rows**, including the
+``entries`` container itself); it is derived from ``endpoints_characters.js:663-722``
+(native -> V2) and ``world-info.js:5617-5674`` (V2 -> native), and
+``tests/test_importers.py`` asserts that neither JS function touches a field the
+table does not name. Two upstream carries are deliberately *not* table rows
+because they have no V2 counterpart at all: ``addMemo`` (ST derives it with
+``!!entry.comment``) and ``use_regex`` (ST writes a constant ``true``, then drops
+it again on import -- ST keys carry their own ``/re/flags``).
 
 Error handling
 --------------
@@ -205,8 +210,9 @@ RUNTIME_TO_V2_EXTENSIONS: dict[str, str] = {
     "selectiveLogic": "selectiveLogic",
 }
 
-#: The 33 runtime core fields of :data:`FIELD_MAPPING` (everything ``uid`` /
-#: ``extensions`` / book-level ``entries`` excluded), in mapping order.
+#: Every native camelCase row key that maps onto a :class:`WorldInfoEntry`
+#: attribute: the 41 rows of :data:`FIELD_MAPPING` whose ``runtime`` column names a
+#: native field (``entries`` names the container, not a field), minus ``uid``.
 RUNTIME_CORE_FIELDS: tuple[str, ...] = (
     "key",
     "keysecondary",
@@ -247,6 +253,8 @@ RUNTIME_CORE_FIELDS: tuple[str, ...] = (
     "triggers",
     "ignoreBudget",
     "displayIndex",
+    "addMemo",
+    "key_vector",
 )
 
 
@@ -265,9 +273,9 @@ class FieldMapping:
     note: str
 
 
-#: **The** 42 field bidirectional map. Rows follow
-#: ``endpoints_characters.js:670-715`` (native -> V2) so the order is auditable
-#: against the upstream literal.
+#: **The** 42 field bidirectional map (including the ``entries`` container row).
+#: Rows follow ``endpoints_characters.js:670-715`` (native -> V2) so the order is
+#: auditable against the upstream literal.
 FIELD_MAPPING: tuple[FieldMapping, ...] = (
     # --- container -------------------------------------------------------
     FieldMapping("entries", "entries", "book", "V2 list  <->  uid-keyed map"),
@@ -339,10 +347,6 @@ FIELD_MAPPING: tuple[FieldMapping, ...] = (
     FieldMapping("extensions.match_creator_notes", "matchCreatorNotes", "extension", "?? false"),
     FieldMapping("extensions.triggers", "triggers", "extension", "?? []"),
     FieldMapping("extensions.ignore_budget", "ignoreBudget", "extension", "?? false"),
-    # --- legacy runtime-only fields (imported, not written back) ---------
-    FieldMapping("(none)", "addMemo", "extension", "runtime-only: ST derives it from comment"),
-    FieldMapping("(none)", "key_vector", "extension", "runtime-only: vector index data"),
-    FieldMapping("use_regex", "(dropped)", "core", "ST keys always carry their own /re/flags"),
 )
 
 #: ``extensions`` field that the runtime model keeps a copy of, keyed by
@@ -586,91 +590,26 @@ def convert_character_book_entry(
 ) -> WorldInfoEntry:
     """Translate **one** V2/V3 ``character_book.entries[]`` row into a runtime entry.
 
-    Faithful to ``convertCharacterBook`` (``world-info.js:5617-5674``), with one
-    deliberate deviation documented in the module docstring: the runtime
-    ``WorldInfoEntry`` has no ``addMemo`` field, so it is dropped.
+    Faithful to ``convertCharacterBook`` (``world-info.js:5617-5674``). Two
+    documented deviations:
+
+    * the runtime ``WorldInfoEntry`` has no ``addMemo`` field, so that legacy
+      bookkeeping flag is dropped;
+    * ``selective`` is ``entry.selective || false`` (``world-info.js:5634``), not
+      the native default of ``true`` -- a V2 card that omits the field is
+      therefore **not** selective, while an entry created natively in ST is.
 
     ``fallback_id`` is SillyTavern's "not in the spec, but this is needed to find
     the entry in the original data" index (``world-info.js:5622-5624``);
     ``index`` is the array position used by ``display_index``.
     """
     raw = dict(entry) if isinstance(entry, Mapping) else {}
-    extensions = _as_mapping(raw.get("extensions"))
     where = index if index is not None else fallback_id
-
-    position = v2_position_to_number(raw.get("position"), extensions.get("position"))
-    enabled = raw.get("enabled")
-    if enabled is None:
-        # JavaScript ``!undefined === true`` -> a V2 entry without ``enabled`` is
-        # enabled. ``cards.py`` reads ``enabled`` with the same default.
-        disable = False
-    else:
-        disable = not _bool_or(enabled, True)
-
-    runtime_extensions: dict[str, Any] = dict(extensions)
-    # Keep the camelCase view in step with the V2 snake_case keys so the
-    # ``WorldInfoBuffer`` scan flags (``match*``) keep working on imported cards.
-    runtime_extensions.setdefault(
-        "matchPersonaDescription", _get_bool(extensions, "match_persona_description", False)
-    )
-    runtime_extensions.setdefault(
-        "matchCharacterDescription", _get_bool(extensions, "match_character_description", False)
-    )
-    runtime_extensions.setdefault(
-        "matchCharacterPersonality", _get_bool(extensions, "match_character_personality", False)
-    )
-    runtime_extensions.setdefault(
-        "matchCharacterDepthPrompt", _get_bool(extensions, "match_character_depth_prompt", False)
-    )
-    runtime_extensions.setdefault("matchScenario", _get_bool(extensions, "match_scenario", False))
-    runtime_extensions.setdefault(
-        "matchCreatorNotes", _get_bool(extensions, "match_creator_notes", False)
-    )
-
-    return WorldInfoEntry(
-        uid=_int_or(raw.get("id"), fallback_id),
-        keys=_as_key_list(raw.get("keys")),
-        secondary_keys=_as_key_list(raw.get("secondary_keys")),
-        content=_str_or(raw.get("content")),
-        comment=_str_or(raw.get("comment")),
-        constant=_bool_or(raw.get("constant"), False),
-        # ``entry.selective || false`` -- if anything, falsier than native ST.
-        selective=_bool_or(raw.get("selective"), False),
-        insertion_order=_int_or(raw.get("insertion_order"), RUNTIME_DEFAULTS["order"]),
-        position=position,
-        depth=_get_int(extensions, "depth", RUNTIME_DEFAULTS["depth"]),
-        role=_role_from_v2(extensions.get("role", RUNTIME_DEFAULTS["role"])),
-        disable=disable,
-        probability=_get_int(extensions, "probability", RUNTIME_DEFAULTS["probability"]),
-        use_probability=_get_bool(extensions, "useProbability", RUNTIME_DEFAULTS["useProbability"]),
-        ignore_budget=_get_bool(extensions, "ignore_budget", RUNTIME_DEFAULTS["ignoreBudget"]),
-        case_sensitive=extensions.get("case_sensitive"),
-        match_whole_words=extensions.get("match_whole_words"),
-        scan_depth=extensions.get("scan_depth"),
-        group=_get_str(extensions, "group", RUNTIME_DEFAULTS["group"]),
-        group_weight=_get_int(extensions, "group_weight", RUNTIME_DEFAULTS["groupWeight"]),
-        group_override=_get_bool(extensions, "group_override", RUNTIME_DEFAULTS["groupOverride"]),
-        use_group_scoring=extensions.get("use_group_scoring"),
-        automation_id=_get_str(extensions, "automation_id", RUNTIME_DEFAULTS["automationId"]),
-        vectorized=_get_bool(extensions, "vectorized", RUNTIME_DEFAULTS["vectorized"]),
-        sticky=extensions.get("sticky"),
-        cooldown=extensions.get("cooldown"),
-        delay=extensions.get("delay"),
-        exclude_recursion=_get_bool(
-            extensions, "exclude_recursion", RUNTIME_DEFAULTS["excludeRecursion"]
-        ),
-        prevent_recursion=_get_bool(
-            extensions, "prevent_recursion", RUNTIME_DEFAULTS["preventRecursion"]
-        ),
-        delay_until_recursion=_get_bool(
-            extensions, "delay_until_recursion", RUNTIME_DEFAULTS["delayUntilRecursion"]
-        ),
-        selective_logic=_get_int(extensions, "selectiveLogic", RUNTIME_DEFAULTS["selectiveLogic"]),
-        outlet_name=_get_str(extensions, "outlet_name", RUNTIME_DEFAULTS["outletName"]),
-        display_index=_get_int(extensions, "display_index", where),
-        extensions=runtime_extensions,
-        key_vector=[],
-    )
+    runtime = _native_row_to_runtime(_runtime_row_v2(raw, fallback_id, where), fallback_id)
+    # ``addMemo`` is the only runtime-visible extension ST synthesises rather than
+    # copies; keep it out of ``extensions`` so an export cannot echo it back.
+    runtime.extensions.pop("addMemo", None)
+    return runtime
 
 
 #: Transient fields that the runtime model carries but a native ST entry does not.
@@ -808,49 +747,6 @@ _EXTRA_RUNTIME_DEFAULTS: dict[str, Any] = {
     "displayIndex": 0,
 }
 
-#: Native camelCase field -> snake_case :class:`WorldInfoEntry` attribute. This is
-#: ``originalWIDataKeyMap`` read backwards plus the seven core fields.
-_NATIVE_TO_RUNTIME: dict[str, str] = {
-    "key": "keys",
-    "keysecondary": "secondary_keys",
-    "comment": "comment",
-    "content": "content",
-    "constant": "constant",
-    "selective": "selective",
-    "order": "insertion_order",
-    "disable": "disable",
-    "position": "position",
-    "depth": "depth",
-    "role": "role",
-    "probability": "probability",
-    "useProbability": "use_probability",
-    "vectorized": "vectorized",
-    "sticky": "sticky",
-    "cooldown": "cooldown",
-    "delay": "delay",
-    "group": "group",
-    "groupWeight": "group_weight",
-    "outletName": "outlet_name",
-    "automationId": "automation_id",
-    "scanDepth": "scan_depth",
-    "caseSensitive": "case_sensitive",
-    "matchWholeWords": "match_whole_words",
-    "useGroupScoring": "use_group_scoring",
-    "displayIndex": "display_index",
-    "selectiveLogic": "selective_logic",
-    "ignoreBudget": "ignore_budget",
-    "excludeRecursion": "exclude_recursion",
-    "preventRecursion": "prevent_recursion",
-    "delayUntilRecursion": "delay_until_recursion",
-    "groupOverride": "group_override",
-    "matchPersonaDescription": "match_persona_description",
-    "matchCharacterDescription": "match_character_description",
-    "matchCharacterPersonality": "match_character_personality",
-    "matchCharacterDepthPrompt": "match_character_depth_prompt",
-    "matchScenario": "match_scenario",
-    "matchCreatorNotes": "match_creator_notes",
-}
-
 #: Fields whose value a native row carries as a plain data field, not as a
 #: dedicated runtime attribute; they live in ``WorldInfoEntry.extensions``.
 _MATCH_FLAG_FIELDS: tuple[str, ...] = (
@@ -861,6 +757,43 @@ _MATCH_FLAG_FIELDS: tuple[str, ...] = (
     "matchScenario",
     "matchCreatorNotes",
 )
+
+#: Camel ``extensions`` keys that a V2 book may carry (``convertWorldInfoToCharacterBook``
+#: writes all of them) but that ``WorldInfoEntry`` has no attribute for. They are
+#: still mirrored into ``extensions`` so the exporter can put them back untouched.
+_EXTENSION_ONLY_FIELDS: tuple[str, ...] = ("outletName", "addMemo", "key_vector")
+
+#: ``extensions`` keys that ``WorldInfoBuffer`` reads with their camelCase names
+#: (``_buffer_view`` in ``worldbook.py``). Imported card books are written with
+#: this exact set inside ``WorldInfoEntry.extensions`` so per-entry scan flags
+#: survive a V2 import instead of silently resetting to their defaults.
+_BUFFER_EXTENSION_KEYS: tuple[str, ...] = (
+    "selectiveLogic",
+    "excludeRecursion",
+    "preventRecursion",
+    "delayUntilRecursion",
+    "displayIndex",
+    "depth",
+    "probability",
+    "useProbability",
+    "position",
+    "role",
+    "outletName",
+    "group",
+    "groupOverride",
+    "groupWeight",
+    "scanDepth",
+    "caseSensitive",
+    "matchWholeWords",
+    "useGroupScoring",
+    "automationId",
+    "vectorized",
+    "sticky",
+    "cooldown",
+    "delay",
+    "triggers",
+    "ignoreBudget",
+) + _MATCH_FLAG_FIELDS
 
 #: ``extensions`` keys that ``WorldInfoBuffer`` reads with their camelCase names
 #: (``_buffer_view`` in ``worldbook.py``). Imported card books are written with
@@ -987,63 +920,64 @@ def _runtime_row_v2(entry: Mapping[str, Any], index: int, where: int) -> dict[st
 def _native_row_to_runtime(row: Mapping[str, Any], index: int) -> WorldInfoEntry:
     """Build a runtime entry directly from a native camelCase row.
 
-    Used by both :func:`_entries_to_native` (so an already-native entry survives
-    an import untouched) and by the reverse exporter; it is the one place that
-    knows the native camelCase <-> :class:`WorldInfoEntry` attribute mapping.
+    This is the one place that knows the camelCase row <-> :class:`WorldInfoEntry`
+    attribute mapping, so both :func:`convert_character_book_entry` (V2 import) and
+    :func:`_entries_to_native` (native/Agnai/Risu/Novel import) go through it.
+
+    ``outletName`` deserves a note: SillyTavern keeps it inside the entry's
+    ``extensions`` object and :class:`WorldInfoEntry` has no attribute for it, so
+    it is preserved there and can still be exported (``exporters.py`` reads it
+    back with the very same key).
     """
     extensions = _as_mapping(row.get("extensions"))
     for camel in _MATCH_FLAG_FIELDS:
         if camel in row and camel not in extensions:
             extensions[camel] = _bool_or(row[camel], False)
+    if isinstance(row.get("outletName"), str) or _is_number(row.get("outletName")):
+        extensions["outletName"] = _str_or(row.get("outletName"))
 
-    kwargs: dict[str, Any] = {}
-    for camel, attribute in _NATIVE_TO_RUNTIME.items():
-        kwargs[attribute] = row.get(camel)
-    kwargs["keys"] = _as_key_list(row.get("key", kwargs.get("keys")))
-    kwargs["secondary_keys"] = _as_key_list(row.get("keysecondary", kwargs.get("secondary_keys")))
-    kwargs["content"] = _str_or(row.get("content"))
-    kwargs["comment"] = _str_or(row.get("comment"))
-    kwargs["constant"] = _bool_or(row.get("constant"), False)
-    kwargs["selective"] = _bool_or(row.get("selective"), RUNTIME_DEFAULTS["selective"])
-    kwargs["insertion_order"] = _int_or(row.get("order"), RUNTIME_DEFAULTS["order"])
-    kwargs["disable"] = _bool_or(row.get("disable"), False)
-    kwargs["position"] = _int_or(row.get("position"), POSITION_BEFORE_CHAR)
-    kwargs["depth"] = _int_or(row.get("depth"), RUNTIME_DEFAULTS["depth"])
-    kwargs["probability"] = _int_or(row.get("probability"), RUNTIME_DEFAULTS["probability"])
-    kwargs["use_probability"] = _bool_or(
-        row.get("useProbability"), RUNTIME_DEFAULTS["useProbability"]
+    return WorldInfoEntry(
+        uid=_int_or(row.get("uid", row.get("id")), index),
+        keys=_as_key_list(row.get("key")),
+        secondary_keys=_as_key_list(row.get("keysecondary")),
+        content=_str_or(row.get("content")),
+        comment=_str_or(row.get("comment")),
+        constant=_bool_or(row.get("constant"), False),
+        selective=_bool_or(row.get("selective"), RUNTIME_DEFAULTS["selective"]),
+        insertion_order=_int_or(row.get("order"), RUNTIME_DEFAULTS["order"]),
+        position=_int_or(row.get("position"), POSITION_BEFORE_CHAR),
+        depth=_int_or(row.get("depth"), RUNTIME_DEFAULTS["depth"]),
+        role=row.get("role") if "role" in row else None,
+        disable=_bool_or(row.get("disable"), False),
+        probability=_int_or(row.get("probability"), RUNTIME_DEFAULTS["probability"]),
+        use_probability=_bool_or(row.get("useProbability"), RUNTIME_DEFAULTS["useProbability"]),
+        ignore_budget=_bool_or(row.get("ignoreBudget"), False),
+        case_sensitive=row.get("caseSensitive"),
+        match_whole_words=row.get("matchWholeWords"),
+        scan_depth=row.get("scanDepth"),
+        group=_str_or(row.get("group")),
+        group_weight=_int_or(row.get("groupWeight"), 100),
+        group_override=_bool_or(row.get("groupOverride"), False),
+        use_group_scoring=row.get("useGroupScoring"),
+        automation_id=_str_or(row.get("automationId")),
+        vectorized=_bool_or(row.get("vectorized"), False),
+        sticky=row.get("sticky"),
+        cooldown=row.get("cooldown"),
+        delay=row.get("delay"),
+        exclude_recursion=_bool_or(row.get("excludeRecursion"), False),
+        prevent_recursion=_bool_or(row.get("preventRecursion"), False),
+        delay_until_recursion=_bool_or(row.get("delayUntilRecursion"), False),
+        selective_logic=_int_or(
+            row.get("selectiveLogic"), _EXTRA_RUNTIME_DEFAULTS["selectiveLogic"]
+        ),
+        display_index=_int_or(row.get("displayIndex"), index),
+        extensions=extensions,
+        key_vector=[],
     )
-    kwargs["selective_logic"] = _int_or(row.get("selectiveLogic"), 0)
-    kwargs["group_weight"] = _int_or(row.get("groupWeight"), 100)
-    kwargs["display_index"] = _int_or(row.get("displayIndex"), index)
-    kwargs["outlet_name"] = _str_or(row.get("outletName"))
-    kwargs["automation_id"] = _str_or(row.get("automationId"))
-    kwargs["group"] = _str_or(row.get("group"))
-    kwargs["sticky"] = row.get("sticky")
-    kwargs["cooldown"] = row.get("cooldown")
-    kwargs["delay"] = row.get("delay")
-    kwargs["scan_depth"] = row.get("scanDepth")
-    kwargs["case_sensitive"] = row.get("caseSensitive")
-    kwargs["match_whole_words"] = row.get("matchWholeWords")
-    kwargs["use_group_scoring"] = row.get("useGroupScoring")
-    kwargs["role"] = row.get("role")
-    for attribute in (
-        "vectorized",
-        "ignore_budget",
-        "exclude_recursion",
-        "prevent_recursion",
-        "delay_until_recursion",
-        "group_override",
-    ):
-        kwargs[attribute] = _bool_or(kwargs.get(attribute), False)
-    kwargs["uid"] = _int_or(row.get("uid"), index)
-    kwargs["extensions"] = extensions
-    kwargs["key_vector"] = []
-    return WorldInfoEntry(**kwargs)
 
 
 def _runtime_row_native(runtime: WorldInfoEntry) -> dict[str, Any]:
-    """Flatten a runtime entry back into a native camelCase row (uid kept in place)."""
+    """Flatten a runtime entry back into a native camelCase row (uid included)."""
     return {
         "uid": runtime.uid,
         "key": list(runtime.keys),
@@ -1065,7 +999,7 @@ def _runtime_row_native(runtime: WorldInfoEntry) -> dict[str, Any]:
         "delay": runtime.delay,
         "group": runtime.group,
         "groupWeight": runtime.group_weight,
-        "outletName": runtime.outlet_name,
+        "outletName": _str_or(runtime.extensions.get("outletName")),
         "automationId": runtime.automation_id,
         "scanDepth": runtime.scan_depth,
         "caseSensitive": runtime.case_sensitive,

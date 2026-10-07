@@ -189,21 +189,50 @@ def test_recursion_pulls_in_chained_entries() -> None:
     assert ids(on) == {0, 1}
 
 
-def test_prevent_recursion_marks_entry_excluded() -> None:
+def test_prevent_recursion_only_stops_the_buffer_feed() -> None:
+    """``preventRecursion`` keeps an entry out of the recursion buffer, not out of
+    the scan: the entry itself still activates once its level is reached
+    (world-info.js:5080 vs :4830)."""
     first = entry_from_dict(0, {"key": ["anchor"], "content": "secret word kraken"})
     second = entry_from_dict(
         1,
         {
             "key": ["kraken"],
-            "content": "Kraken lore.",
+            "content": "Kraken lore mentioning leviathan.",
             "preventRecursion": True,
-            "delayUntilRecursion": True,
         },
     )
-    book = WorldBook(name="chain", entries=[first, second])
+    third = entry_from_dict(2, {"key": ["leviathan"], "content": "Leviathan lore."})
+    book = WorldBook(name="chain", entries=[first, second, third])
     result = activate([book], ["the anchor"], settings=WorldBookSettings(allow_recursion=True))
-    # delayUntilRecursion + preventRecursion: the chained entry stays out.
-    assert ids(result) == {0}
+    # entry 1 activates by recursion; its own content never reaches the buffer,
+    # so entry 2 (which would need it) stays out
+    assert ids(result) == {0, 1}
+
+
+def test_delay_until_recursion_is_a_level() -> None:
+    """``delayUntilRecursion`` waits for the Nth recursion pass, and a plain
+    ``true`` means level 1 (world-info.js:4754-4759)."""
+    seed = entry_from_dict(0, {"key": ["anchor"], "content": "mentions alpha and beta"})
+    level1 = entry_from_dict(
+        1, {"key": ["alpha"], "content": "level one", "delayUntilRecursion": True}
+    )
+    level2 = entry_from_dict(2, {"key": ["beta"], "content": "level two", "delayUntilRecursion": 2})
+    book = WorldBook(name="levels", entries=[seed, level1, level2])
+
+    # a single recursion pass reaches level 1 only
+    one_pass = activate(
+        [book],
+        ["the anchor"],
+        settings=WorldBookSettings(allow_recursion=True, max_recursion_steps=2),
+    )
+    assert ids(one_pass) == {0, 1}
+
+    # without recursion neither delayed entry may fire
+    no_recursion = activate(
+        [book], ["the anchor"], settings=WorldBookSettings(allow_recursion=False)
+    )
+    assert ids(no_recursion) == {0}
 
 
 def test_sticky_cooldown_delay_state_machine() -> None:

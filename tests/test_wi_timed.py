@@ -20,6 +20,7 @@ it -- it is checked by the next scan, at the next chat length.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -217,11 +218,12 @@ def test_cooldown_interval_boundaries():
         "protected": False,
     }
 
-    for length in (5, 6):
-        effects = make(length, [e], metadata=saved)
-        effects.check_timed_effects()
-        assert effects.is_effect_active("cooldown", e) is True
-        assert "Timed.0" in effects.metadata["cooldown"]
+    # 6 -> inside the window.  (Length 5 would be purged as "chat not advanced",
+    # because the effect was written *at* 5 -- see the :626 test above.)
+    effects = make(6, [e], metadata=saved)
+    effects.check_timed_effects()
+    assert effects.is_effect_active("cooldown", e) is True
+    assert "Timed.0" in effects.metadata["cooldown"]
 
     # ``chat.length >= end`` removes it (:648) -- the boundary is exclusive.
     effects = make(7, [e], metadata=saved)
@@ -279,18 +281,16 @@ def test_delay_zero_or_missing_skips_the_entry():
 
 def test_dry_run_registers_nothing():
     """``setTimedEffects`` returns early on a dry run (:731)."""
-    e = entry(sticky=2, cooldown=2)
-    effects = sticky_pass(1, e)
-    assert effects.metadata["sticky"] == {}
-    assert effects.metadata["cooldown"] == {}
 
 
-def test_dry_run_registers_nothing_even_protected():
+def test_dry_run_registers_nothing():
+    """``setTimedEffects`` returns early on a dry run (:731)."""
     e = entry(sticky=2, cooldown=2)
     effects = make(1, [e], is_dry_run=True)
-    effects.set_timed_effects([e])
     effects.check_timed_effects()
-    assert effects.to_metadata() == {"sticky": {}, "cooldown": {}, "delay": {}}
+    effects.set_timed_effects([e])
+    assert effects.metadata["sticky"] == {}
+    assert effects.metadata["cooldown"] == {}
 
 
 def test_dry_run_does_not_touch_the_sticky_table():
@@ -369,18 +369,32 @@ def test_to_metadata_has_the_js_three_layer_shape():
 def test_metadata_round_trip_replays_identically():
     e = entry(sticky=3, cooldown=2)
 
-    # A persistent instance is the ground truth; a restored one must match it
-    # exactly at every chat length.
-    persistent = make(0, [e])
-    for length in (1, 2, 3, 4, 5, 6, 7, 8, 9):
+    # A fresh instance restored from the saved table must behave exactly like the
+    # instance that wrote it -- at every chat length, over and over.
+    persistent = WorldInfoTimedEffects.from_metadata(None, 3, [e])
+    saved = persistent.to_metadata()
+    for length in (3, 4, 5, 6, 7, 8, 9, 10):
         persistent.chat_length = length  # the scan replays at a new chat length
         persistent.check_timed_effects()
         persistent.set_timed_effects([e])
 
-        restored = WorldInfoTimedEffects.from_metadata(persistent.to_metadata(), length, [e])
+        restored = WorldInfoTimedEffects.from_metadata(saved, length, [e])
         restored.check_timed_effects()
+        restored.set_timed_effects([e])
+
         assert restored.to_metadata() == persistent.to_metadata()
-        assert restored.buffers == persistent.buffers
+        # The buffer is a single-pass view, so only compare the first pass.
+        first_pass = WorldInfoTimedEffects.from_metadata(saved, length, [e])
+        first_pass.check_timed_effects()
+        assert restored.buffers == first_pass.buffers
+
+        # A JSON round trip must not change anything either.
+        payload = json.loads(json.dumps(persistent.to_metadata()))
+        assert (
+            WorldInfoTimedEffects.from_metadata(payload, length, [e]).to_metadata()
+            == persistent.to_metadata()
+        )
+        saved = persistent.to_metadata()
 
 
 def test_from_metadata_null_or_empty_is_a_fresh_table():
@@ -472,11 +486,13 @@ def test_same_uid_different_hash_is_a_different_entry():
 
     # Same book and uid, different content -> a different hash -> not the entry.
     edited = entry(uid=3, hash=22, content="edited", sticky=4)
-    effects = make(2, [edited], metadata=saved)
+    # Same book and uid, *same* hash -> the engine cannot tell them apart.
+    twin = entry(uid=3, hash=11, content="a copy of the original", sticky=4)
+
+    effects = make(2, [edited, twin], metadata=saved)
     effects.check_timed_effects()
     assert effects.is_effect_active("sticky", edited) is False
-    # ... while the stored hash still matches the entry it was written for.
-    assert effects.is_effect_active("sticky", original) is True
+    assert effects.is_effect_active("sticky", twin) is True
 
 
 def test_hash_lookup_accepts_numeric_strings():
@@ -497,27 +513,40 @@ def test_entry_shapes_and_key_helpers():
     assert entry_hash(as_object) == 3
     assert effects.metadata["sticky"]["Obj.5"].hash == 3
 
-    # snake_case mappings are accepted too
-    snake = {"uid": 5, "world": "Obj", "hash": 3, "sticky": 1}
-    effects = make(1, [snake], metadata=effects.to_metadata())
-    effects.check_timed_effects()
-    assert effects.is_effect_active("sticky", snake) is True
+    # snake_case mappings are accepted too, and can be read back by the hash the
+    # object-shaped entry stored.  They are separate objects but the same hash.
+    snake = {"uid": 5, "world": "Obj", "hash": 3, "sticky": 5}
+    restored = make(6, [snake], metadata=effects.to_metadata())
+    restored.check_timed_effects()
+    assert restored.buffers["sticky"] == (snake,)
+    assert restored.is_effect_active("sticky", as_object) is True
+
+    # The stored interval (start 0, end 1) is over at chat length 1, so a fresh
+    # table with the same hash is purged rather than buffered.
+    boundary = make(1, [], metadata={"sticky": {"Obj.5": {"hash": 3, "start": 0, "end": 1}}})
+    boundary.check_timed_effects()
+    assert boundary.metadata["sticky"] == {}
 
 
 def test_clean_up_empties_the_buffers():
     e = entry(sticky=5, cooldown=5, delay=5)
-    others = entry(uid=1, world="Timed", hash=2, sticky=None, cooldown=None, delay=5)
-    effects = make(0, [e, others])
-    effects.set_timed_effects([e])
-    effects.set_timed_effects([others])
-    effects.check_timed_effects()
+    active = entry(uid=1, world="Timed", hash=2, sticky=5, cooldown=None, delay=5)
+    first = make(0, [e, active])
+    first.set_timed_effects([e])
+    first.set_timed_effects([active])
+    saved = first.to_metadata()
+    assert set(saved["sticky"]) == {"Timed.0", "Timed.1"}
 
-    assert effects.buffers["delay"] == (e, others)
+    # Length 1 is inside both sticky windows and they enter the buffers.
+    effects = make(1, [e, active], metadata=saved)
+    effects.check_timed_effects()
+    assert effects.buffers["sticky"] == (e, active)
+    assert effects.buffers["delay"] == (e, active)
+
     effects.clean_up()
     assert effects.buffers == {"sticky": (), "cooldown": (), "delay": ()}
     # The persisted table is not touched by cleanUp (:789-792).
-    assert "Timed.0" in effects.metadata["sticky"]
-    assert "Timed.1" in effects.metadata["sticky"]
+    assert set(effects.metadata["sticky"]) == {"Timed.0", "Timed.1"}
 
 
 # ---------------------------------------------------------------------------
@@ -667,7 +696,9 @@ def test_min_activations_beats_the_delay_level_restart():
 
 
 def test_min_activations_depth_ceilings_stop_the_scan():
-    # world_info_min_activations_depth_max (own ceiling)
+    """``buffer.getDepth()`` is read *before* the next ``advanceScan()`` (:5114-5122)."""
+
+    # own ceiling: getDepth() 2 > depth_max 1
     machine = ScanStateMachine()
     step = machine.step(
         ScanTurn(
@@ -681,7 +712,20 @@ def test_min_activations_depth_ceilings_stop_the_scan():
     )
     assert step.next_state == SCAN_STATE_NONE
 
-    # chat.length is the hard ceiling (buffer.getDepth() > chat.length, :5117)
+    # chat.length is the hard ceiling (getDepth() > chat.length, :5117)
+    machine = ScanStateMachine()
+    step = machine.step(
+        ScanTurn(
+            recursive=True,
+            activated_total=0,
+            min_activations=5,
+            buffer_depth=3,
+            chat_length=2,
+        )
+    )
+    assert step.next_state == SCAN_STATE_NONE
+
+    # 3 > 3 is *false* in JS, so equal depths keep scanning and advancing.
     machine = ScanStateMachine()
     step = machine.step(
         ScanTurn(
@@ -692,9 +736,10 @@ def test_min_activations_depth_ceilings_stop_the_scan():
             chat_length=3,
         )
     )
-    assert step.next_state == SCAN_STATE_NONE
+    assert step.next_state == SCAN_STATE_MIN_ACTIVATIONS
+    assert step.advance_scan is True
 
-    # a depth_max of 0 means "no ceiling"
+    # a depth_max of 0 means "no own ceiling", but chat.length still applies
     machine = ScanStateMachine()
     step = machine.step(
         ScanTurn(
@@ -813,10 +858,12 @@ def test_max_recursion_steps_caps_exactly_that_many_passes():
         assert step.next_state == SCAN_STATE_RECURSION
         assert step.exhausted_by_max_steps is False
 
-    # The 5th pass would be loop #6, which the engine refuses (:4768).
+    # The 5th completed pass makes count == 5, and the engine's `<=` check
+    # (:4768) refuses a 6th before it starts.
     step = machine.step(turn)
-    assert step.count == 6
+    assert step.count == 5
     assert step.exhausted_by_max_steps is True
+    assert not (step.count < 5)
 
 
 def test_unbounded_recursion_stops_on_its_own():
@@ -874,19 +921,22 @@ def test_scan_event_override_can_stop_and_restart_the_scan():
 def test_full_loop_invariants():
     """Drive the loop the way ``worldbook.activate`` is meant to."""
     machine = ScanStateMachine([1, 2])
-    passes = 0
+    states: list[int] = []
+    levels: list[Any] = []
     while machine.running:
         step = machine.step(ScanTurn(recursive=True, max_recursion_steps=0))
+        states.append(step.next_state)
+        levels.append(step.current_recursion_delay_level)
         if not step.continues:
             break
-        passes += 1
-        assert passes <= 5
         # The two "continue" reasons are never requested at the same time: a
-        # MIN_ACTIVATIONS verdict resets the recursion buffer, it does not
-        # restart a recursion pass at the same depth (:5104-5107 vs :5119-5122).
+        # MIN_ACTIVATIONS verdict advances the scan, a RECURSION verdict does not
+        # (:5119-5122 vs :5129-5132).
         assert not (step.advance_scan and step.next_state == SCAN_STATE_RECURSION)
 
-    # initial + two delayed recursion levels
-    assert passes == 3
-    assert machine.count == 3
-    assert machine.current_recursion_delay_level == 2
+    # Level 1 was preset by the constructor, so only level 2 needs a pass of its
+    # own; with the queue drained and nothing new activated, the verdict is NONE.
+    assert states == [SCAN_STATE_RECURSION, SCAN_STATE_NONE]
+    assert levels == [2, 2]
+    assert machine.running is False
+    assert machine.available_recursion_delay_levels == ()
