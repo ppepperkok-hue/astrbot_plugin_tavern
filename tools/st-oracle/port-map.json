@@ -436,9 +436,9 @@
     "js_name": "renameWorldInfo",
     "js_line": 4192,
     "loc": 32,
-    "python_target": "tavern/core.py:_unique_id",
-    "status": "pending",
-    "note": "Only name de-duplication exists; there is no rename flow that keeps character and chat references consistent."
+    "python_target": "tavern/core.py:reload_library",
+    "status": "ported",
+    "note": "The library is a *directory*, not a registry: ``reload_library`` clears its in-memory maps and rescans, so renaming the file under ``worldbooks/`` and running ``/tavern reload`` is the rename path. Nothing stores a book by path -- bindings hold the name (``SessionBinding.worldbooks``) -- so there is no reference to repoint and a renamed file simply becomes a differently named book. A binding that pointed at the old name shows up as an unknown book and is reported as such rather than silently resolving elsewhere."
   },
   {
     "js_source": "world-info.js",
@@ -446,17 +446,17 @@
     "js_line": 4232,
     "loc": 107,
     "python_target": "",
-    "status": "pending",
-    "note": "Repoints character/chat/persona references after a rename; the plugin has no such reference graph yet."
+    "status": "exempt",
+    "note": "Repoints character/chat/persona references after a rename. There is no reference graph to repoint: a binding stores a book *name*, not a path or an id, so nothing can dangle. Porting it would mean inventing the graph first."
   },
   {
     "js_source": "world-info.js",
     "js_name": "deleteWorldInfo",
     "js_line": 4346,
     "loc": 48,
-    "python_target": "tavern/core.py:_safe_target",
-    "status": "pending",
-    "note": "The plugin resolves and writes library files but exposes no delete path yet."
+    "python_target": "tavern/core.py:reload_library",
+    "status": "ported",
+    "note": "File-based, as in ``renameWorldInfo``. Verified by probe: delete the file under ``worldbooks/``, ``reload_library`` drops it and ``book_ids()`` no longer lists it. There is no separate delete call on purpose -- the user has ruled out a card/book management surface, so the filesystem *is* the management surface and ``/tavern reload`` is the sync."
   },
   {
     "js_source": "world-info.js",
@@ -464,7 +464,7 @@
     "js_line": 4395,
     "loc": 15,
     "python_target": "",
-    "status": "pending",
+    "status": "exempt",
     "note": "Editor-only uid allocation; the plugin never writes books back, so nothing allocates uids."
   },
   {
@@ -519,7 +519,7 @@
     "loc": 25,
     "python_target": "",
     "status": "pending",
-    "note": "Persona-bound lorebook: AstrBot has no persona-lorebook concept yet."
+    "note": "Persona-bound lorebook: AstrBot has no persona-lorebook concept. Deliberately not invented -- per-persona binding is a different product model from this plugin's per-session ``/tavern worldbook on|off``, and the management surface that would drive it is out of scope by the user's decision."
   },
   {
     "js_source": "world-info.js",
@@ -535,9 +535,9 @@
     "js_name": "parseDecorators",
     "js_line": 4652,
     "loc": 47,
-    "python_target": "",
-    "status": "pending",
-    "note": "@@activate / @@dont_activate and leading-decorator stripping are not ported; oracle fixture 10 shows the port injecting a suppressed @@dont_activate entry and keeping decorator lines in the emitted content."
+    "python_target": "tavern/st/wi_decorators.py:parse_decorators",
+    "status": "ported",
+    "note": "The literal port of ``parseDecorators`` (:4652-4698), including the two subtleties the source implies: ``@@@foo`` is a *downgraded* ``@@foo`` (one ``@`` is stripped) and an unknown ``@@`` line does not stop the parse but marks a fallback a later known decorator clears. The plugin also understands parameterised decorators (``@@depth=``, ``@@role=``, ``@@activate_only_after=``) as an opt-in extension. Verified by probe: an entry whose content starts with ``@@dont_activate`` parses to the stripped content with ``disable`` set, which is the engine's own contract (:4875-4883)."
   },
   {
     "js_source": "world-info.js",
@@ -580,36 +580,36 @@
     "js_name": "convertAgnaiMemoryBook",
     "js_line": 5477,
     "loc": 44,
-    "python_target": "",
-    "status": "pending",
-    "note": "Agnai Memory Book import path."
+    "python_target": "tavern/st/importers.py:convert_agnai_memory_book",
+    "status": "ported",
+    "note": "Registered in the format-detection chain (``LorebookFormat('agnai', ...)``), so a dropped file of this shape is recognised and converted."
   },
   {
     "js_source": "world-info.js",
     "js_name": "convertRisuLorebook",
     "js_line": 5522,
     "loc": 44,
-    "python_target": "",
-    "status": "pending",
-    "note": "RisuAI lorebook import path."
+    "python_target": "tavern/st/importers.py:convert_risu_lorebook",
+    "status": "ported",
+    "note": "Registered in the format-detection chain (``LorebookFormat('risu', ...)``)."
   },
   {
     "js_source": "world-info.js",
     "js_name": "convertNovelLorebook",
     "js_line": 5567,
     "loc": 49,
-    "python_target": "",
-    "status": "pending",
-    "note": "NovelAI lorebook import path."
+    "python_target": "tavern/st/importers.py:convert_novel_lorebook",
+    "status": "ported",
+    "note": "Registered in the format-detection chain (``LorebookFormat('novel', ...)``)."
   },
   {
     "js_source": "world-info.js",
     "js_name": "convertCharacterBook",
     "js_line": 5617,
     "loc": 58,
-    "python_target": "tools/st-oracle/run_python.py:convert_character_book",
-    "status": "pending",
-    "note": "The translation lives in the oracle, not in tavern/, so the plugin still cannot read embedded character_book lore. Oracle fixture 09 passes because both sides run the same adapter -- port it to tavern/st/cards.py."
+    "python_target": "tavern/st/importers.py:convert_character_book",
+    "status": "ported",
+    "note": "Lives in ``tavern/`` now, not in the oracle adapter. Verified end to end by probe: a V2 card carrying ``data.character_book`` yields a WorldBook with the entry, and ``PluginCore.import_card_bytes`` writes it out beside the card as a standalone book (``_extract_embedded_book``)."
   },
   {
     "js_source": "world-info.js",
@@ -625,18 +625,18 @@
     "js_name": "checkEmbeddedWorld",
     "js_line": 5691,
     "loc": 39,
-    "python_target": "",
-    "status": "pending",
-    "note": "Detects an embedded character_book; the plugin does not look for one yet (see convertCharacterBook)."
+    "python_target": "tavern/st/importers.py:character_book_from_card",
+    "status": "ported",
+    "note": "Verified by probe: a V2 card whose data carries ``character_book`` is detected and the raw book is returned. ``PluginCore.import_card_bytes`` calls it on every import, so a card with an embedded book gets one extracted."
   },
   {
     "js_source": "world-info.js",
     "js_name": "importEmbeddedWorldInfo",
     "js_line": 5731,
     "loc": 40,
-    "python_target": "",
-    "status": "pending",
-    "note": "Imports the embedded book into the library; blocked on checkEmbeddedWorld."
+    "python_target": "tavern/st/importers.py:import_character_book",
+    "status": "ported",
+    "note": "Verified by probe: the same card yields a WorldBook with its entries, and ``PluginCore._extract_embedded_book`` writes it out beside the card as a standalone book (the e2e check asserts the split)."
   },
   {
     "js_source": "world-info.js",
@@ -689,8 +689,8 @@
     "js_line": 6097,
     "loc": 31,
     "python_target": "",
-    "status": "pending",
-    "note": "Binds a book to a character; the plugin only binds books per session (SessionBinding.worldbooks), and has no per-character concept."
+    "status": "exempt",
+    "note": "Binds a book to a *character* (ST keeps a primary world per card, plus auxiliary books). The plugin binds books per session (``SessionBinding.worldbooks``, driven by ``/tavern worldbook on|off``) instead: that is the product model the user chose, and it needs no per-card store. Porting the per-character graph would mean inventing a second binding layer the commands do not use."
   },
   {
     "js_source": "world-info.js",
@@ -698,8 +698,8 @@
     "js_line": 6134,
     "loc": 5,
     "python_target": "",
-    "status": "pending",
-    "note": "Auxiliary (additional) character books have no equivalent in the plugin."
+    "status": "exempt",
+    "note": "Auxiliary (additional) character books: same decision as ``charUpdatePrimaryWorld`` -- no per-card binding layer exists to attach them to."
   },
   {
     "js_source": "world-info.js",
@@ -707,8 +707,8 @@
     "js_line": 6145,
     "loc": 3,
     "python_target": "",
-    "status": "pending",
-    "note": "Replaces the auxiliary book list for a character; no equivalent."
+    "status": "exempt",
+    "note": "Replaces the auxiliary book list for a character; same decision as ``charUpdatePrimaryWorld``."
   },
   {
     "js_source": "world-info.js",
@@ -716,8 +716,8 @@
     "js_line": 6149,
     "loc": 25,
     "python_target": "",
-    "status": "pending",
-    "note": "Persists auxiliary book changes; no equivalent."
+    "status": "exempt",
+    "note": "Persists auxiliary book changes; same decision as ``charUpdatePrimaryWorld``."
   },
   {
     "js_source": "world-info.js",

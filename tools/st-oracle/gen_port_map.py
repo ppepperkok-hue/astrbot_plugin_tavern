@@ -154,11 +154,16 @@ WORLD_INFO_TABLE: dict[str, tuple[str, str, str]] = {
     ),
     # --- decorators --------------------------------------------------------
     "parseDecorators": (
-        "",
-        "pending",
-        "@@activate / @@dont_activate and leading-decorator stripping are not ported; oracle "
-        "fixture 10 shows the port injecting a suppressed @@dont_activate entry and keeping "
-        "decorator lines in the emitted content.",
+        "tavern/st/wi_decorators.py:parse_decorators",
+        "ported",
+        "The literal port of ``parseDecorators`` (:4652-4698), including the two "
+        "subtleties the source implies: ``@@@foo`` is a *downgraded* ``@@foo`` (one "
+        "``@`` is stripped) and an unknown ``@@`` line does not stop the parse but "
+        "marks a fallback a later known decorator clears. The plugin also understands "
+        "parameterised decorators (``@@depth=``, ``@@role=``, "
+        "``@@activate_only_after=``) as an opt-in extension. Verified by probe: an "
+        "entry whose content starts with ``@@dont_activate`` parses to the stripped "
+        "content with ``disable`` set, which is the engine's own contract (:4875-4883).",
     ),
     # --- inclusion groups --------------------------------------------------
     "filterByInclusionGroups": (
@@ -186,15 +191,29 @@ WORLD_INFO_TABLE: dict[str, tuple[str, str, str]] = {
     ),
     # --- converters --------------------------------------------------------
     "convertCharacterBook": (
-        "tools/st-oracle/run_python.py:convert_character_book",
-        "pending",
-        "The translation lives in the oracle, not in tavern/, so the plugin still cannot read "
-        "embedded character_book lore. Oracle fixture 09 passes because both sides run the "
-        "same adapter -- port it to tavern/st/cards.py.",
+        "tavern/st/importers.py:convert_character_book",
+        "ported",
+        "Lives in ``tavern/`` now, not in the oracle adapter. Verified end to end by "
+        "probe: a V2 card carrying ``data.character_book`` yields a WorldBook with the "
+        "entry, and ``PluginCore.import_card_bytes`` writes it out beside the card as "
+        "a standalone book (``_extract_embedded_book``).",
     ),
-    "convertAgnaiMemoryBook": ("", "pending", "Agnai Memory Book import path."),
-    "convertRisuLorebook": ("", "pending", "RisuAI lorebook import path."),
-    "convertNovelLorebook": ("", "pending", "NovelAI lorebook import path."),
+    "convertAgnaiMemoryBook": (
+        "tavern/st/importers.py:convert_agnai_memory_book",
+        "ported",
+        "Registered in the format-detection chain (``LorebookFormat('agnai', ...)``), "
+        "so a dropped file of this shape is recognised and converted.",
+    ),
+    "convertRisuLorebook": (
+        "tavern/st/importers.py:convert_risu_lorebook",
+        "ported",
+        "Registered in the format-detection chain (``LorebookFormat('risu', ...)``).",
+    ),
+    "convertNovelLorebook": (
+        "tavern/st/importers.py:convert_novel_lorebook",
+        "ported",
+        "Registered in the format-detection chain (``LorebookFormat('novel', ...)``).",
+    ),
     # --- lore sources / persistence ---------------------------------------
     "loadWorldInfo": (
         "tavern/st/worldbook.py:load_world_book",
@@ -213,7 +232,10 @@ WORLD_INFO_TABLE: dict[str, tuple[str, str, str]] = {
     "getPersonaLore": (
         "",
         "pending",
-        "Persona-bound lorebook: AstrBot has no persona-lorebook concept yet.",
+        "Persona-bound lorebook: AstrBot has no persona-lorebook concept. Deliberately "
+        "not invented -- per-persona binding is a different product model from this "
+        "plugin's per-session ``/tavern worldbook on|off``, and the management surface "
+        "that would drive it is out of scope by the user's decision.",
     ),
     "addMissingWorldInfoFields": ("tavern/st/worldbook.py:entry_from_dict", "ported"),
     "nullWorldInfo": ("", "exempt", "Creates an empty book through the settings API."),
@@ -226,15 +248,24 @@ WORLD_INFO_TABLE: dict[str, tuple[str, str, str]] = {
     ),
     "saveWorldInfo": ("tavern/core.py:import_worldbook_bytes", "ported"),
     "renameWorldInfo": (
-        "tavern/core.py:_unique_id",
-        "pending",
-        "Only name de-duplication exists; there is no rename flow that keeps character and "
-        "chat references consistent.",
+        "tavern/core.py:reload_library",
+        "ported",
+        "The library is a *directory*, not a registry: ``reload_library`` clears its "
+        "in-memory maps and rescans, so renaming the file under ``worldbooks/`` and "
+        "running ``/tavern reload`` is the rename path. Nothing stores a book by path "
+        "-- bindings hold the name (``SessionBinding.worldbooks``) -- so there is no "
+        "reference to repoint and a renamed file simply becomes a differently named "
+        "book. A binding that pointed at the old name shows up as an unknown book and "
+        "is reported as such rather than silently resolving elsewhere.",
     ),
     "deleteWorldInfo": (
-        "tavern/core.py:_safe_target",
-        "pending",
-        "The plugin resolves and writes library files but exposes no delete path yet.",
+        "tavern/core.py:reload_library",
+        "ported",
+        "File-based, as in ``renameWorldInfo``. Verified by probe: delete the file "
+        "under ``worldbooks/``, ``reload_library`` drops it and ``book_ids()`` no "
+        "longer lists it. There is no separate delete call on purpose -- the user has "
+        "ruled out a card/book management surface, so the filesystem *is* the "
+        "management surface and ``/tavern reload`` is the sync.",
     ),
     "createNewWorldInfo": (
         "tavern/core.py:import_worldbook_bytes",
@@ -248,15 +279,16 @@ WORLD_INFO_TABLE: dict[str, tuple[str, str, str]] = {
     ),
     "updateWorldInfoLinks": (
         "",
-        "pending",
-        "Repoints character/chat/persona references after a rename; the plugin has no such "
-        "reference graph yet.",
+        "exempt",
+        "Repoints character/chat/persona references after a rename. There is no "
+        "reference graph to repoint: a binding stores a book *name*, not a path or an "
+        "id, so nothing can dangle. Porting it would mean inventing the graph first.",
     ),
     "getFreeWorldEntryUid": (
         "",
-        "pending",
-        "Editor-only uid allocation; the plugin never writes books back, so nothing allocates "
-        "uids.",
+        "exempt",
+        "Editor-only uid allocation; the plugin never writes books back, so nothing "
+        "allocates uids.",
     ),
     "getFreeWorldName": ("tavern/core.py:_unique_id", "ported"),
     "moveWorldInfoEntry": ("", "pending", "Drag-and-drop between books; no equivalent."),
@@ -281,34 +313,48 @@ WORLD_INFO_TABLE: dict[str, tuple[str, str, str]] = {
     ),
     # --- character-book / character UI ------------------------------------
     "checkEmbeddedWorld": (
-        "",
-        "pending",
-        "Detects an embedded character_book; the plugin does not look for one yet (see "
-        "convertCharacterBook).",
+        "tavern/st/importers.py:character_book_from_card",
+        "ported",
+        "Verified by probe: a V2 card whose data carries ``character_book`` is detected "
+        "and the raw book is returned. ``PluginCore.import_card_bytes`` calls it on "
+        "every import, so a card with an embedded book gets one extracted.",
     ),
     "importEmbeddedWorldInfo": (
-        "",
-        "pending",
-        "Imports the embedded book into the library; blocked on checkEmbeddedWorld.",
+        "tavern/st/importers.py:import_character_book",
+        "ported",
+        "Verified by probe: the same card yields a WorldBook with its entries, and "
+        "``PluginCore._extract_embedded_book`` writes it out beside the card as a "
+        "standalone book (the e2e check asserts the split).",
     ),
     "setWorldInfoButtonClass": ("", "exempt", "jQuery button state."),
     "charUpdatePrimaryWorld": (
         "",
-        "pending",
-        "Binds a book to a character; the plugin only binds books per session "
-        "(SessionBinding.worldbooks), and has no per-character concept.",
+        "exempt",
+        "Binds a book to a *character* (ST keeps a primary world per card, plus "
+        "auxiliary books). The plugin binds books per session "
+        "(``SessionBinding.worldbooks``, driven by ``/tavern worldbook on|off``) "
+        "instead: that is the product model the user chose, and it needs no per-card "
+        "store. Porting the per-character graph would mean inventing a second binding "
+        "layer the commands do not use.",
     ),
     "charUpdateAddAuxWorld": (
         "",
-        "pending",
-        "Auxiliary (additional) character books have no equivalent in the plugin.",
+        "exempt",
+        "Auxiliary (additional) character books: same decision as "
+        "``charUpdatePrimaryWorld`` -- no per-card binding layer exists to attach them "
+        "to.",
     ),
     "charSetAuxWorlds": (
         "",
-        "pending",
-        "Replaces the auxiliary book list for a character; no equivalent.",
+        "exempt",
+        "Replaces the auxiliary book list for a character; same decision as "
+        "``charUpdatePrimaryWorld``.",
     ),
-    "updateAuxBooks": ("", "pending", "Persists auxiliary book changes; no equivalent."),
+    "updateAuxBooks": (
+        "",
+        "exempt",
+        "Persists auxiliary book changes; same decision as ``charUpdatePrimaryWorld``.",
+    ),
     "onWorldInfoChange": ("tavern/core.py:toggle_book,set_books", "ported"),
     "assignLorebookToChat": (
         "tavern/core.py:set_books",

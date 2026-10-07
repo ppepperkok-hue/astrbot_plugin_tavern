@@ -347,6 +347,49 @@ def test_context_budget_keeps_depth_injection_coherent(tmp_path: Path) -> None:
     assert turn.request.messages
 
 
+def test_reload_library_forgets_a_deleted_file(tmp_path: Path) -> None:
+    """The library is a directory, so deletion is "remove the file, reload".
+
+    This is the documented delete/rename path (see ``port-map.json``'s
+    ``deleteWorldInfo`` row) and it only works because ``reload_library`` clears
+    its maps and rescans instead of merging into what it already had. A future
+    change to an incremental reload would silently turn a deleted book into a
+    ghost that ``/tavern list`` keeps offering, so it is pinned here rather than
+    left to the docstring.
+    """
+    core = make_core(tmp_path)
+    seed_book(core)
+    assert core.book_ids() == ["Lighthouse Lore"]
+
+    (core.config.worldbooks_dir / "lighthouse.json").unlink()
+    core.reload_library()
+    assert core.book_ids() == []
+
+    # ...and a rename is the same mechanism, not a separate code path. Note what
+    # the *name* tracks: a book's identity comes from its own ``name`` field, not
+    # from the filename, so renaming the file alone keeps the same book under the
+    # same name -- the file move is how you would re-file it, and editing the
+    # book's ``name`` (or importing a renamed copy) is how you rename the book.
+    # That is why ``updateWorldInfoLinks`` has nothing to repoint.
+    seed_book(core)
+    original = core.config.worldbooks_dir / "lighthouse.json"
+    original.rename(core.config.worldbooks_dir / "refiled.json")
+    core.reload_library()
+    assert core.book_ids() == ["Lighthouse Lore"], "identity comes from the book's own name"
+
+    # A *second* book of the same name is de-duplicated into a distinct id rather
+    # than overwriting the first, which is what makes the id list safe to bind to.
+    (core.config.worldbooks_dir / "refiled.json").write_bytes(
+        (FIXTURES / "worldbooks" / "lighthouse.json").read_bytes()
+    )
+    (core.config.worldbooks_dir / "second.json").write_bytes(
+        (FIXTURES / "worldbooks" / "lighthouse.json").read_bytes()
+    )
+    core.reload_library()
+    assert len(core.book_ids()) == 2
+    assert core.book_ids() != ["Lighthouse Lore", "Lighthouse Lore"]
+
+
 def test_reload_library_picks_up_new_files(tmp_path: Path) -> None:
     core = make_core(tmp_path)
     assert core.card_ids() == []
