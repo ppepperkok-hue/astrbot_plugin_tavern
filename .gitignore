@@ -22,3 +22,7 @@ research/docs/
 *.log
 .DS_Store
 Thumbs.db
+
+# Local integration-test toolchain (AstrBot install, uv cache)
+.tools/
+.uv-cache/

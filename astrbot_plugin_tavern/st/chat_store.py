@@ -315,7 +315,9 @@ def _nested_timed(flat: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
         if not isinstance(state, dict):
             continue
         bucket = _as_str(state.get(_BUCKET_KEY)) or TIMED_BUCKETS[0]
-        entry = {name: state[name] for name in ("hash", "start", "end", "protected") if name in state}
+        entry = {
+            name: state[name] for name in ("hash", "start", "end", "protected") if name in state
+        }
         if isinstance(state.get("extra"), dict):
             entry.update(state["extra"])
         nested.setdefault(bucket, {})[key] = entry
