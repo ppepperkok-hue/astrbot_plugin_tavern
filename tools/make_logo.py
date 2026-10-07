@@ -2,13 +2,18 @@
 
     python tools/make_logo.py
 
-Committed as a script so the asset is reproducible rather than a binary nobody can
-regenerate or adjust. Uses Pillow, which is a *developer* dependency only -- the
-plugin itself does not need it (the card importer treats Pillow as optional).
+**This is the placeholder, not the final asset.** It draws a lantern from primitives --
+a shape chosen for "a small light you carry with you", which is the point of running a
+character card inside a chat app rather than a separate browser window. It reads as an
+unidentifiable gold object at small sizes, so it is meant to be replaced by a real
+design; when that happens, delete this script rather than leaving a generator that no
+longer matches the file it claims to produce.
 
-The mark is a lantern: the plugin's own fixtures are about a lighthouse, and a
-lantern reads as "a small light you carry with you", which is the point of running a
-character card inside a chat app instead of a separate browser window.
+AstrBot's own requirement for a plugin logo (`star_manager.py:213`, `:1171`, `:1376`):
+the file must be named exactly ``logo.png`` and live in the **plugin root**; nothing
+about its contents is enforced. The documented guidance is a **1:1 aspect ratio** with a
+**recommended size of 256x256**, which is what this writes -- rendering at that size
+rather than scaling a larger canvas down, so the committed bytes are the real asset.
 """
 
 from __future__ import annotations
@@ -20,7 +25,10 @@ from PIL import Image, ImageDraw, ImageFilter
 
 REPO = Path(__file__).resolve().parent.parent
 OUT = REPO / "logo.png"
-SIZE = 512
+
+#: The documented recommendation, used as the actual canvas size. A square is required;
+#: the number is not, but matching the recommendation removes a question.
+SIZE = 256
 
 #: Warm ink background, amber light. Kept deliberately few, because a logo is read at
 #: 40px in a market list before it is ever seen large.
@@ -41,80 +49,97 @@ def glow_layer() -> Image.Image:
     """
     layer = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
     draw = ImageDraw.Draw(layer, "RGBA")
-    cx, cy = SIZE / 2, SIZE / 2
+    centre = SIZE / 2
     for step in range(26, 0, -1):
-        radius = 92 + step * 9
+        radius = SIZE * 0.18 + step * SIZE * 0.018
         alpha = int(GLOW[3] * (step / 26) ** 2)
         draw.ellipse(
-            [cx - radius, cy - radius, cx + radius, cy + radius],
+            [centre - radius, centre - radius, centre + radius, centre + radius],
             fill=(GLOW[0], GLOW[1], GLOW[2], alpha),
         )
-    return layer.filter(ImageFilter.GaussianBlur(26))
+    return layer.filter(ImageFilter.GaussianBlur(SIZE * 0.05))
 
 
 def draw_mark(image: Image.Image) -> None:
-    cx, cy = SIZE / 2, SIZE / 2
+    centre = SIZE / 2
+    unit = SIZE / 512  # the original geometry was authored at 512; scale it
 
     # Rounded background first, then the halo inside it.
     draw = ImageDraw.Draw(image, "RGBA")
-    draw.rounded_rectangle([0, 0, SIZE - 1, SIZE - 1], radius=96, fill=BG)
+    draw.rounded_rectangle([0, 0, SIZE - 1, SIZE - 1], radius=96 * unit, fill=BG)
     image.alpha_composite(glow_layer())
-
-    # Everything crisp goes on the same drawing context as the background.
     draw = ImageDraw.Draw(image, "RGBA")
 
+    cx = cy = centre
+
+    def box(*values: float) -> list[float]:
+        return [value * unit for value in values]
+
     # Lantern silhouette: a body, a lid, a handle.
-    body = [cx - 86, cy - 70, cx + 86, cy + 116]
-    draw.rounded_rectangle(body, radius=26, fill=INK, outline=FRAME, width=10)
-
-    # Lid.
     draw.rounded_rectangle(
-        [cx - 104, cy - 104, cx + 104, cy - 66], radius=16, fill=INK, outline=FRAME, width=10
+        box(cx - 86, cy - 70, cx + 86, cy + 116),
+        radius=26 * unit,
+        fill=INK,
+        outline=FRAME,
+        width=max(1, round(10 * unit)),
     )
-
-    # Handle: an arc above the lid.
+    draw.rounded_rectangle(
+        box(cx - 104, cy - 104, cx + 104, cy - 66),
+        radius=16 * unit,
+        fill=INK,
+        outline=FRAME,
+        width=max(1, round(10 * unit)),
+    )
     draw.arc(
-        [cx - 66, cy - 186, cx + 66, cy - 84],
+        box(cx - 66, cy - 186, cx + 66, cy - 84),
         start=200,
         end=340,
         fill=FRAME,
-        width=12,
+        width=max(1, round(12 * unit)),
     )
 
-    # Flame, a teardrop made of two arcs plus an ellipse.
-    flame_w, flame_h = 42, 78
-    flame_box = [cx - flame_w, cy + 4 - flame_h, cx + flame_w, cy + 4 + flame_h]
-    draw.ellipse(flame_box, fill=FLAME)
+    # Flame, a teardrop made of an ellipse plus a triangle.
+    flame_w, flame_h = 42 * unit, 78 * unit
+    draw.ellipse(
+        [cx - flame_w, cy + 4 * unit - flame_h, cx + flame_w, cy + 4 * unit + flame_h],
+        fill=FLAME,
+    )
     draw.polygon(
         [
-            (cx, cy + 4 - flame_h - 34),
-            (cx - flame_w * 0.62, cy + 4 - flame_h * 0.30),
-            (cx + flame_w * 0.62, cy + 4 - flame_h * 0.30),
+            (cx, cy + 4 * unit - flame_h - 34 * unit),
+            (cx - flame_w * 0.62, cy + 4 * unit - flame_h * 0.30),
+            (cx + flame_w * 0.62, cy + 4 * unit - flame_h * 0.30),
         ],
         fill=FLAME,
     )
-
-    # The wick's cool core, so the flame does not read as a plain blob.
-    core = 13
-    draw.ellipse([cx - core, cy + 22 - core, cx + core, cy + 22 + core], fill=(255, 250, 225, 255))
+    core = 13 * unit
+    draw.ellipse(
+        [cx - core, cy + 22 * unit - core, cx + core, cy + 22 * unit + core],
+        fill=(255, 250, 225, 255),
+    )
 
     # Base, a thin plinth that also anchors the glow.
     draw.rounded_rectangle(
-        [cx - 98, cy + 116, cx + 98, cy + 142], radius=12, fill=INK, outline=FRAME, width=9
+        box(cx - 98, cy + 116, cx + 98, cy + 142),
+        radius=12 * unit,
+        fill=INK,
+        outline=FRAME,
+        width=max(1, round(9 * unit)),
     )
 
-    # Two light motes for a little life at large sizes.
+    # Two light motes, for a little life at large sizes.
     for angle, distance, radius in ((-0.62, 150, 7), (0.85, 168, 5)):
-        mx = cx + math.cos(angle) * distance * 1.1
-        my = cy + math.sin(angle) * distance * 0.72
-        draw.ellipse([mx - radius, my - radius, mx + radius, my + radius], fill=GLOW)
+        mx = cx + math.cos(angle) * distance * unit * 1.1
+        my = cy + math.sin(angle) * distance * unit * 0.72
+        r = radius * unit
+        draw.ellipse([mx - r, my - r, mx + r, my + r], fill=GLOW)
 
 
 def main() -> None:
     image = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
     draw_mark(image)
-    image.save(OUT)
-    print(f"wrote {OUT} ({OUT.stat().st_size:,} bytes, {SIZE}x{SIZE})")
+    image.save(OUT, optimize=True)
+    print(f"wrote {OUT} ({OUT.stat().st_size:,} bytes, {SIZE}x{SIZE}, 1:1)")
 
     # The market shows this at roughly 40px; check the small size is still legible by
     # writing a preview next to the source (git-ignored scratch, not shipped).
