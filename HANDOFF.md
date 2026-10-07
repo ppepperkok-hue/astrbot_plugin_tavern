@@ -7,9 +7,13 @@
 
 ## 0. 一句话现状
 
-**插件本体是可用的**：世界书引擎与真酒馆逐字对齐（判定机 PASS），角色卡/世界书导入已接通（发文件即导入），
-提示词组装层已移植完并有 458 项离线测试。**唯一没修好的是 S2 装配层的第三道判定机**
-（`diff_assembly.py`），它还红着，6 处差异，且已经确认其中至少一处可能是真端口差异。
+**全部完成，三个判定机全绿**：世界书引擎（S1，14 fixtures 11 match/0 diverged/3 不可比）、
+角色卡与世界书导入（S3，发文件即导入）、提示词组装层（S2，消息模型 1 条一致、装配 8 个 fixture
+**全一致**），458 项离线测试 + `tools/check.py` 全过。
+
+**S2 装配判定机的第三道判定机已经修好**（`diff_assembly.py` 现在 PASS）。**端口一行没改** ——
+那 5 个红着的 fixture 全是判定机自己的缺陷，连交接文件里判定为"疑真端口差异"的
+`04-continue-prefill` 也不是。§4 有完整的 14 条缺陷清单与证据。
 
 ---
 
@@ -19,7 +23,7 @@
 |---|---|
 | 工作目录 | `E:\astrbot_plugin` |
 | 远端 | `https://github.com/ppepperkok-hue/astrbot_plugin_tavern`（公开，`git push` 走 `gh` 凭据助手） |
-| 分支 / 最新提交 | `main` / `3c6f3c5`（工作区干净） |
+| 分支 / 最新提交 | `main` / `e6836d2`（写这份文件时；判定机修好之后又有新提交） |
 | 许可证 | AGPL-3.0（为了让酒馆源码可以被直接翻译复用；每个移植文件头都有出处声明） |
 | Python | 3.11.9；AstrBot 4.28.2 装在 `.tools/uv-tools/astrbot/`（用它的 python 跑 AstrBot 相关脚本） |
 | Node | v22.22.1（判定机需要） |
@@ -37,11 +41,11 @@ cd E:\astrbot_plugin
 python tools/check.py                          # 一把梭：manifest + ruff + pytest + AstrBot 装载 + 真实消息链路
 python tools/st-oracle/diff.py --all           # S1：世界书引擎 vs 真酒馆
 python tools/st-oracle/diff_prompt.py --all    # S2：消息模型 vs 真酒馆
-python tools/st-oracle/diff_assembly.py --all --verbose   # S2：装配顺序 vs 真酒馆（当前 FAIL）
+python tools/st-oracle/diff_assembly.py --all --verbose   # S2：装配顺序 vs 真酒馆（PASS）
 python tools/st-oracle/gen_adapter.py --check  # 判定机生成树是否漂移
 ```
 
-### 实测结果（写这份文件时刚跑过）
+### 实测结果（修完之后重跑的）
 
 | 命令 | 结果 |
 |---|---|
@@ -50,7 +54,7 @@ python tools/st-oracle/gen_adapter.py --check  # 判定机生成树是否漂移
 | `python -m ruff check .` | All checks passed |
 | `diff.py --all`（S1） | 14 fixtures，**11 match / 0 diverged / 3 not-comparable** → PASS |
 | `diff_prompt.py --all`（S2 消息模型） | 1 fixture，**match** → PASS |
-| `diff_assembly.py --all`（S2 装配） | 8 fixtures，**3 match / 5 diverged / 6 divergences** → **FAIL** |
+| `diff_assembly.py --all`（S2 装配） | 8 fixtures，**8 match / 0 diverged / 0 not-comparable** → **PASS** |
 
 三个 `not-comparable` 是**真的比不了**，不是偷懒：两个是加权随机（酒馆用 `Math.random()`，我们没法复刻
 JS 的 RNG 流），一个是 token 预算（酒馆用真 tokenizer，我们只有长度估算）。这三条都写了确定性场景去盯边界。
@@ -83,16 +87,17 @@ JS 的 RNG 流），一个是 token 预算（酒馆用真 tokenizer，我们只�
 `tavern/st/chat_completion.py`：`TokenHandler` / `Message` / `MessageCollection` / `ChatCompletion`
 四类，`diff_prompt.py` 与真 `openai.js` 逐字段一致，30 项离线测试。
 
-### S2 装配层 —— 本体完成，判定机未恢复
+### S2 装配层 —— 完成，判定机 8/8
 `tavern/st/prompt_build.py`（约 1750 行）+ `tests/test_prompt_build.py`（64 项，全绿）。
 `populationInjectionPrompts` / `populateChatHistory` / `populateDialogueExamples` /
 `populateChatCompletion` / `preparePromptsForChatCompletion` 逐个函数对照移植。
+装配判定机 `diff_assembly.py` 8 个 fixture **全一致**；**这一轮端口侧一行没改**（见 §4）。
 
 ---
 
-## 4. 唯一没修好的东西：S2 装配判定机
+## 4. S2 装配判定机：已修好（端口一行没改）
 
-### 4.1 事情经过（必须知道，否则会重复踩）
+### 4.1 事情经过（留着当教训）
 
 1. 一个工人移植完装配层，并把判定机跑到 **8 fixtures 全 match**——但那版 harness **没有提交**。
 2. 我为了回退自己的一个实验，对那两个 harness 文件执行了 `git checkout -- <file>`，
@@ -100,10 +105,11 @@ JS 的 RNG 流），一个是 token 预算（酒馆用真 tokenizer，我们只�
 3. 我按同样思路重建：`gen_adapter.py` 现在把真的 `Prompt`/`PromptCollection`/`INJECTION_POSITION`
    从快照里按花括号配对抽出来（逐字，加上它们读的 `DEFAULT_DEPTH`/`DEFAULT_ORDER`），
    `getExtensionPrompt*` 也给真值覆盖；`run_assembly.mjs` 不再运行时改写生成树。
-4. 重建过程中又修掉 8 个 **harness 侧**缺陷（见 §4.2），差异从"8 个 fixture 全 node-error"
+4. 重建过程中修掉 8 个 **harness 侧**缺陷（§4.2），差异从"8 个 fixture 全 node-error"
    降到 3 match / 5 diverged / 6 处差异。
+5. **收尾**：又修掉 6 个 harness 侧缺陷（§4.3），5 个红 fixture 全部转绿 —— **8 match / 0 diverged**。
 
-### 4.2 已经修掉的 8 个 harness 缺陷（每个都曾冤枉端口）
+### 4.2 重建时修掉的 8 个 harness 缺陷（每个都曾冤枉端口）
 
 | # | 缺陷 | 证据 |
 |---|---|---|
@@ -116,26 +122,30 @@ JS 的 RNG 流），一个是 token 预算（酒馆用真 tokenizer，我们只�
 | 7 | `messageExamples` 是**消息块数组**，块内条目正文在 `content` | fixture 实际形状 |
 | 8 | `isValidName`/`sanitizeName` 用了近似实现 | 逐字应为 `^[a-zA-Z0-9_]{1,64}$` 与 `[^a-zA-Z0-9_] → _` + 64 截断（`PromptManager.js:1343-1351`） |
 
-### 4.3 剩下 6 处差异，已逐条看过
+### 4.3 收尾修掉的 6 个 harness 缺陷（这才是那 5 个红 fixture 的真正原因）
 
-| fixture | 现象 | 初判 |
-|---|---|---|
-| `01-order` | 真引擎少给一部分历史，端口给了 | 疑 harness（参考侧没喂够），**需探针证实** |
-| `03-pin-examples` | 真引擎不给 `[Example Chat]` 块，端口给了 | 同上 |
-| `07-examples-budget` | 同上 | 同上 |
-| `08-continue-nudge` | 上述 + `continueNudge` 那一条 | 同上 |
-| `04-continue-prefill` | 端口**无条件**套用 `assistant_prefill`，真引擎对补全来源有条件 | **疑真端口差异**，要核 `openai.js:1318-1331` |
+| # | 缺陷 | 怎么证实的 | 影响面 |
+|---|---|---|---|
+| 9 | **可选的系统提示词压根没进集合**。`preparePromptsForChatCompletion` 总会把 `impersonate`(1382)、`quietPrompt`(1383)、`bias`(1385)、`enhanceDefinitions`(2049) 并进来，而 fixture 只声明它要考的那些。`populateChatCompletion` 用**裸 `prompts.get()`** 读前两个（`1224/1229`），于是**真引擎自己抛 TypeError**，装配在 `main` 之后当场中断，截断的快照看起来就像"端口多给了" | 探针打印 `prompts.get` 的每次落空：`[["main","main"],["impersonate","MISS->undefined"]]` | `01/03/04/07/08` 全部 |
+| 10 | **`cyclePrompt` 从来没传进去**，真引擎的 `continueNudge` 分支（`907-927`）永远不走，端口的却走 | 探针：端口有多出的一条 nudge，真引擎没有 | `08` |
+| 11 | **`new_example_chat_prompt` 被写成了 `'[Start a new Chat]'`**（harness 把新聊天串套到了示例横幅上），横幅 token 数被改，31 的预算就丢错了组 | 读 `openai.js:108-111`：四个横幅字面量各不相同 | `03/07` |
+| 12 | **`Message.createAsync` 没接管计数器**，示例条目 token 恒为 0（引擎在 `createAsync` 里还会顺手填 content，所以正文也是空的） | 探针：`canAffordAll need=0`、`content=""` | `01/03/07` |
+| 13 | **示例正文按 `mes` 传**，而 `populateDialogueExamples` 读 `content`（`1116`）；真引擎条目变空后被 `getChat()` 丢掉（`4125`） | 探针：真引擎 `insert dialogueExamples 0-0 content=""` | `01/03/07` |
+| 14 | **计数器用的是引擎桩**（1.5 字符/token，`newMainChat`=19），端口是 `len//3`（=8）。两套货币比同一个 31 的预算，结论必然不同 | 端口/真引擎同一条消息的 token 数对照 | `03/07` |
 
-### 4.4 下一步该怎么做（按顺序，别跳）
+**关于 `04-continue-prefill`**：交接文件原来判定它"疑真端口差异"，**这个判断是错的**。
+端口 `prompt_build.py:1194-1209` 已经照抄了 `openai.js:1318-1331` 的门控
+（`isAssistantRole and supportsAssistantPrefill`，来源必须是 `claude`）。它红，是因为
+真引擎压根没跑到那一行（缺陷 9）。真引擎能跑完之后，两边逐字一致。
 
-1. `assembly-04`：读 `openai.js:1318-1331`，确认 `continue_prefill` 是否真的按补全来源门控。
-   若真，改 `tavern/st/prompt_build.py`，**这是端口侧该改的一处**。
-2. `assembly-03`/`07`：给 `populateDialogueExamples` 的参考侧加探针（照 §4.5 的方法），
-   确认是 harness 没喂够还是端口多给。**先证明，再动手。**
-3. `assembly-01`/`08`：同上，针对 `populateChatHistory` 的参考侧输入。
-4. 全绿后重跑 §2 全部命令，并把 `tools/st-oracle/STATUS-S2.md` 的维修框改成"已恢复"。
+### 4.4 顺带补上的护栏
 
-### 4.5 探针法（这轮唯一有效的手段）
+`diff_assembly.py` 从重建起就在读 `comparable.chat.ok`，但**从来没人写这个键** ——
+护栏是死的。那时候真引擎中途抛错，会拿"截断的真引擎"去比"完整的端口"，然后判端口有罪。
+现在 `run_assembly.mjs` 会发布它（带 reason），并且**验证过它真的会触发**：
+把可选提示词的补位关掉，真引擎抛 TypeError，该键回 `false` 且 reason 里带着那句 TypeError。
+
+### 4.5 探针法（这轮唯一有效的手段，附可复现命令）
 
 在 `run_assembly.mjs` 里 monkeypatch 真引擎的方法来记录调用，例如：
 
@@ -147,8 +157,11 @@ ChatCompletion.prototype.add = function (collection, position) {
 };
 ```
 
-**记得用完就 `git checkout -- tools/st-oracle/run_assembly.mjs` 撤掉探针**（但注意 §4.1 的教训：
-撤之前先确认没有别人未提交的改动）。
+这轮真正好用的做法是**在 `prompts.get` 上包一层，把每次落空打出来**（一次就定位了缺陷 9），
+以及**把 `canAffordAll` / `insert` / `reserveBudget` 全部包一层打印 token 账**（一次定位了 12/14）。
+
+**探针用完要撤**，但别再 `git checkout` 撤（§4.1 的教训）。**这次把探针写成独立文件**
+（`tools/st-oracle/_probe*.mjs`），用完直接 `Remove-Item` 删掉，不去碰要保留的文件。
 
 ---
 
@@ -172,7 +185,7 @@ ChatCompletion.prototype.add = function (collection, position) {
 |---|---|
 | `research/PORTING-PLAN.md` | 分步计划（S0 判定机 → S1 世界书 → S2 组装 → S3 导入 → S4 provider → S5 外部酒馆后端） |
 | `research/08-s2-prompt-brief.md` | S2 的源映射、接口契约、改写理由 |
-| `tools/st-oracle/STATUS-S2.md` | **S2 装配判定机的维修状态**（§4 的详细版，含全部行号） |
+| `tools/st-oracle/STATUS-S2.md` | **S2 装配判定机的维修记录**（§4 的详细版，含全部行号与 14 条缺陷） |
 | `tools/st-oracle/README.md` / `STATUS.md` | 判定机用法与 S1 的不可比点 |
 | `research/07-port-map.md` | S1 的函数级移植映射（81 条） |
 | `research/06-st-official-docs.md` | 酒馆官方文档要点与未核实清单 |
@@ -181,8 +194,10 @@ ChatCompletion.prototype.add = function (collection, position) {
 
 ## 7. 还没开始的部分
 
-- **S4 提示词格式适配**：移植服务端纯逻辑 `research/_raw/st-src/prompt-converters.js`（1451 行、20 个导出）。
-  这块是**新增**，不影响已完成的任何东西，适合在不碰装配判定机的情况下推进。
+- **S4 提示词格式适配**：移植服务端纯逻辑 `research/_raw/st-src/prompt-converters.js`（1451 行、
+  20 个函数 + `PROMPT_PROCESSING_TYPE` 常量，共 21 个导出）。这块是**新增**，不影响已完成的任何东西。
+  注意：它 `import { getConfigValue, tryParse } from './util.js'`，而 `gen_adapter.py` 的引擎源是硬编码的
+  —— **S4 的第一步是扩生成器，不是抄函数**。
 - **S5 外部酒馆后端加固**：`tavern/backends/sillytavern.py`（cookie/CSRF、失败回退）。
 - **群聊**：用户明确说"多群聊先不做"。
 - **已知不兼容**：聊天 `.jsonl` 的 `swipes` 字段只存在 `extra` 里；`integrity` 是我们自己的 SHA-256
@@ -190,16 +205,22 @@ ChatCompletion.prototype.add = function (collection, position) {
 
 ---
 
-## 8. 建议的第一小时
+## 8. 现在的下一步
 
 ```powershell
 cd E:\astrbot_plugin
-python tools/check.py                        # 确认基线是 ALL CHECKS PASSED
-python tools/st-oracle/diff_assembly.py --all   # 确认仍是 3 match / 5 diverged / 6 divergences
-git log --oneline -3                         # 确认在 3c6f3c5
+python tools/check.py                        # 基线：ALL CHECKS PASSED
+python tools/st-oracle/diff_assembly.py --all   # 基线：8 match / 0 diverged
+git log --oneline -3                         # 看最新提交
 ```
 
-然后**只做一件事**：`assembly-04` 的 `assistant_prefill` 门控。那一处最有可能是真端口差异，
-证据最明确（`openai.js:1318-1331`），改动面最小。做完再进入其余五处。
+S0/S1/S2/S3 都收口了，**主线剩下的就是 §7 里的 S4 与 S5**。建议先做 S4
+（`research/_raw/st-src/prompt-converters.js`，1451 行 / 20 个导出）：它是纯新增，
+不碰已经对齐的任何东西，也最适合先立第三道判定机（把真转换器的输出按 fixture 钉住），
+再照影子抄。
 
-**不要**一上手就去修 harness——先把 §4.4 的第 1 步做完，因为它可能是唯一真正属于端口的差异。
+**判定机的规矩不变**：改端口之前先让判定机说话；测试跟真引擎打架就改测试；
+真引擎中途抛错时，先怀疑 harness，别先怀疑端口 —— §4.3 那 6 条全是这个形状。
+
+**并且**：不要再用 `git checkout -- <file>` 撤探针（§4.1 就是这么丢掉两个文件的）。
+探针写成独立文件，用完删那一个文件。

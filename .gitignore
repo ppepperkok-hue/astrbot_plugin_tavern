@@ -35,8 +35,11 @@ tools/st-oracle/out/
 
 # Scratch trees produced by integration runs and porting experiments
 .tmp-test-data/
-tools/st-oracle/.build/
-tools/st-oracle/out/
+
+# Forensics: unpacked conversation archives and the throwaway scripts that read
+# them. A single session archive is tens of megabytes, so this must never be
+# committable -- and `ruff check .` walks it, which turned the lint gate red.
+.scratch/
 
 # Scratch files from ad-hoc debugging
 .tmp-dbg.py

@@ -99,11 +99,18 @@ if (powerUser && typeof powerUser === 'object') {
     });
 }
 if (typeof engine.oracleSetPrompts === 'function') {
-    // The prompt strings come from the fixture so both backends compare the same
-    // text; the reference would otherwise read module-level i18n defaults.
+    // The prompt-manager banner strings are engine *defaults* (openai.js:108-111),
+    // not fixture inputs, so they are read off the engine -- exactly the literals
+    // the port falls back to -- and published to the result. A fixture may still
+    // override any of them explicitly. `newExampleChat` in particular must not
+    // inherit `newChat`: the example banner is '[Example Chat]', and treating it
+    // as '[Start a new Chat]' changed its token count and let the budget drop a
+    // group the reference keeps.
     engine.oracleSetPrompts({
-        newChat: fixture.new_chat_prompt ?? '[Start a new Chat]',
-        newGroupChat: fixture.new_group_chat_prompt,
+        newChat: fixture.new_chat_prompt ?? null,
+        newGroupChat: fixture.new_group_chat_prompt ?? null,
+        newExampleChat: fixture.new_example_chat_prompt ?? null,
+        continueNudge: fixture.continue_nudge_prompt ?? null,
     });
 }
 if (typeof engine.oracleApplyGroupChat === 'function') {
@@ -118,6 +125,19 @@ const oaiSettings = engine.oai_settings;
 function applyFixtureSettings() {
     for (const [key, value] of Object.entries(fixture.settings ?? {})) {
         oaiSettings[key] = value;
+    }
+    // Top-level fixture keys that land on `oai_settings` rather than staying in
+    // the runner. `run_assembly_python.py` spells the same three out, so the two
+    // sides read the same settings instead of the JS side silently keeping the
+    // engine default.
+    if (fixture.continue_prefill !== undefined) {
+        oaiSettings.continue_prefill = Boolean(fixture.continue_prefill);
+    }
+    if (fixture.assistant_prefill !== undefined) {
+        oaiSettings.assistant_prefill = fixture.assistant_prefill;
+    }
+    if (fixture.chat_completion_source !== undefined) {
+        oaiSettings.chat_completion_source = fixture.chat_completion_source;
     }
     if (typeof fixture.names_behavior === 'number') {
         oaiSettings.names_behavior = fixture.names_behavior;
@@ -165,8 +185,17 @@ function makeCollection(specs) {
 
 // --- pinned token counter ----------------------------------------------------
 // The engine's own counter is the browser tokenizer (`countTokensOpenAIAsync`,
-// a stub here). Both backends therefore count by the same rule, pinned by the
-// fixture; `token_divisor` mirrors the port's estimate.
+// which is a stub here and reports a different order of magnitude). Both sides
+// must bill the same arithmetic for the fixtures' budgets to mean the same
+// thing, so this rule is the port's, verbatim -- `tavern/st/chat_completion.py`
+// `count_tokens`: non-empty parts joined by one space, `len // 3`, floor 1.
+// `token_divisor` pins the divisor for a fixture that wants to stress it.
+//
+// The counter is installed on the two places the engine counts at -- and the
+// assembly reaches both through them: `Message.createAsync` (3558-3566) builds
+// the new-chat banner, every history turn and every dialogue example, and
+// `Message.prototype.setName` (3599-3602) re-counts once a name is attached.
+// `fromPromptAsync` (3792-3794) delegates to `createAsync`, so it is covered.
 const divisor = Number(fixture.token_divisor ?? 3);
 function countFor(role, content, name) {
     const parts = [role, content, name].filter(
@@ -176,7 +205,39 @@ function countFor(role, content, name) {
     return text.length ? Math.max(1, Math.floor(text.length / divisor)) : 0;
 }
 
-const prompts = makeCollection(fixture.prompts ?? []);
+// `preparePromptsForChatCompletion` always merges its own system prompts into
+// the collection (openai.js:1374-1493). Four of them carry no character data and
+// so are not "inputs" a fixture would bother to declare:
+//
+//     { role: 'system',    content: impersonationPrompt, identifier: 'impersonate' }   1382
+//     { role: 'system',    content: quietPrompt,         identifier: 'quietPrompt' }   1383
+//     { role: 'assistant', content: bias,                identifier: 'bias' }          1385
+//     { role: 'system',    content: DEFAULT,             identifier: 'enhanceDefinitions' } 2049
+//
+// The last two are already read through `prompts.has()`, so only the first two
+// are reachable as a bare `prompts.get()`. `populateChatCompletion` does exactly
+// that at 1224/1229 and 3792-3794 dereferences the result immediately: with the
+// identifier missing the *reference itself* throws a TypeError before it ever
+// reaches `populateChatHistory`, and the truncated snapshot then looks like the
+// port "emitting more". That single gap was the whole of fixtures 01/03/04/07/08.
+//
+// Appending a stand-in is what the page amounts to here: a registered
+// `impersonate` / `quietPrompt` holds only the quick-edit text (empty unless the
+// user typed one), and an empty `quietPrompt` is dropped by the `content` guard
+// at 1230 anyway. The value is a constant, not fixture input, so the two sides
+// stay comparable. Collection order matters because `add(id, index)` assigns
+// slots, but the extra entries land *after* every declared prompt and the
+// reference only ever reads them by identifier.
+const OPTIONAL_SYSTEM_PROMPTS = [
+    { role: 'system', content: '', identifier: 'impersonate' },
+    { role: 'system', content: '', identifier: 'quietPrompt' },
+];
+
+const declaredPrompts = fixture.prompts ?? [];
+const optionalPrompts = OPTIONAL_SYSTEM_PROMPTS.filter(
+    (spec) => !declaredPrompts.some((prompt) => prompt.identifier === spec.identifier),
+);
+const prompts = makeCollection([...declaredPrompts, ...optionalPrompts]);
 for (const identifier of fixture.overridden_prompts ?? []) {
     // `PromptCollection.override(prompt, position)` takes a *Prompt*, not an
     // identifier (PromptManager.js:294-297); the fixture names the identifier for
@@ -226,12 +287,45 @@ const messageFactory = async (role, content, identifier) => {
 const originalFromPrompt = Message.fromPromptAsync;
 Message.fromPromptAsync = async function fromPromptAsync(prompt) {
     if (!prompt) {
+        // `populateChatCompletion` calls this with `prompts.get('impersonate')` /
+        // `prompts.get('quietPrompt')` (1224/1229), and the real 3792-3794
+        // dereferences its argument immediately. An absent optional prompt is
+        // modelled as null, which is what the `?? null` at both call sites then
+        // means; the absent prompts themselves are supplied by
+        // `OPTIONAL_SYSTEM_PROMPTS` above.
         return null;
     }
     return originalFromPrompt.call(Message, prompt);
 };
 
+// Every place the engine counts, pointed at `countFor`. `createAsync` is the one
+// that matters most: it builds the new-chat banner, the history turns and every
+// dialogue example, so leaving it on the stub made the examples free (0 tokens)
+// and its content empty, and a budget fixture then kept a group the reference
+// drops. `setName` re-counts after a name is attached (3599-3602).
+const originalCreateAsync = Message.createAsync;
+Message.createAsync = async function createAsync(role, content, identifier) {
+    const message = await originalCreateAsync.call(Message, role, content, identifier);
+    message.tokens = countFor(message.role, message.content, '');
+    return message;
+};
+
+// `setName` (3599-3602) only assigns the name and re-counts, so the override
+// needs nothing from the original.
+Message.prototype.setName = async function setName(name) {
+    this.name = name;
+    this.tokens = countFor(this.role, this.content, this.name);
+};
+
 const record = { fixture: fixture.name ?? path.basename(args.fixture, '.json'), steps: [] };
+
+// The banner literals the run actually used, so a comparison or a bug report can
+// see which strings the budget arithmetic was based on (openai.js:108-111).
+record.prompts = {
+    newChat: oaiSettings.new_chat_prompt,
+    newExampleChat: oaiSettings.new_example_chat_prompt,
+    continueNudge: oaiSettings.continue_nudge_prompt,
+};
 
 async function snapshot(label) {
     const chat = completion.getChat();
@@ -251,11 +345,26 @@ async function snapshot(label) {
 
 applyFixtureSettings();
 
+// Did `populateChatCompletion` get all the way through? `diff_assembly.py` only
+// trusts the chat contents when the reference says so: a run that threw partway
+// leaves a truncated collection, and comparing the port's full one against it
+// would blame the port for the harness's own failure. `record.error` already
+// makes the fixture diverge; this marks *why* the chat comparison is meaningless
+// so the two are never confused.
+let completed = false;
+
 try {
     await populateChatCompletion(prompts, completion, {
         bias: fixture.bias ?? '',
         quietPrompt: fixture.quiet_prompt ?? '',
         type: fixture.type ?? null,
+        // `script.js:4978-4979` appends `continue_postfix` while the prompt is
+        // built, i.e. before this stage sees it, so the fixture already supplies
+        // the cycle prompt in its final form. Omitting it here left the reference
+        // without a `cyclePrompt`, so the `continueNudge` branch (907-927) was
+        // never taken while the port's was -- the nudge then looked like a port
+        // invention.
+        cyclePrompt: fixture.cycle_prompt ?? null,
         // The fixture mirrors what `setOpenAIMessages` (openai.js:644) hands
         // over: `{ role, content, name, ... }`. Fixtures spell the body as `mes`
         // (the chat entry field) for readability, so both are accepted here.
@@ -272,15 +381,21 @@ try {
             extra: {},
         })),
         // `setOpenAIMessageExamples` (openai.js:656-667) produces an array of
-        // *blocks*, each an array of `{ mes, name }`; the fixture mirrors that
-        // shape, and a block's entries carry the text in `content`.
+        // *blocks*, each an array of `{ role, content, name }` -- and
+        // `populateDialogueExamples` reads a block entry's body from `content`
+        // (1116), never from `mes`. The fixture spells it `mes` for readability
+        // the same way a chat turn is spelled, so it is mapped here; leaving it
+        // as `mes` gave the reference empty example text, and `getChat()` drops
+        // an empty message (`openai.js:4125`), which read as "the reference
+        // emits fewer messages".
         messageExamples: (fixture.examples ?? []).map((block) =>
             (Array.isArray(block) ? block : [block]).map((example) => ({
-                mes: example.content ?? example.mes ?? '',
+                content: example.content ?? example.mes ?? '',
                 name: example.name ?? '',
             })),
         ),
     });
+    completed = true;
 } catch (error) {
     record.error = `the reference itself failed: ${error?.name ?? error}: ${error?.message ?? ''}`;
 }
@@ -296,6 +411,17 @@ if (fixture.dump_internals) {
 }
 
 await snapshot('final');
+
+record.comparable = {
+    chat: {
+        ok: completed,
+        reason: completed
+            ? ''
+            : `the reference threw before finishing the assembly: ${
+                  record.error ?? 'unknown error'
+              }`,
+    },
+};
 
 const payload = JSON.stringify(record, null, 2);
 if (args.out) {

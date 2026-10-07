@@ -15,12 +15,12 @@
 
 | 步 | 内容 | 产物 | 状态 |
 |---|---|---|---|
-| S0 | 判定机（oracle） | `tools/st-oracle/`（Node 跑酒馆原版 + Python 跑我们的实现 + diff），12 个 fixture | ✅ 已立（当前 3 match / 8 diverged / 1 不可比） |
+| S0 | 判定机（oracle） | `tools/st-oracle/`（Node 跑酒馆原版 + Python 跑我们的实现 + diff），23 个 fixture 分三族 | ✅ 已立：S1 14 条（11 一致 / 0 差异 / 3 不可比）、S2 消息模型 1 条、S2 装配 8 条（全一致） |
 | S0b | 源码快照与移植映射 | `research/_raw/st-src/`（13 份，sha 校验）、`research/07-port-map.md`（81 条） | ✅ 已立（26 ported / 24 pending / 31 exempt） |
 | S1 | 世界书引擎（逐行移植） | `tavern/st/wi_buffer.py`、`wi_timed.py`、`wi_scan_state.py`、`wi_keywords.py`、`wi_decorators.py` + `worldbook.py` 主流程 | ✅ **完成**：判定机 14 个 fixture，11 一致 / 0 差异 / 3 不可比 |
-| S2 | Prompt 组装与消息模型 | 按 `openai.js` 的 `ChatCompletion` / `Message` / `TokenHandler` 与组装序移植 | 待开始 |
+| S2 | Prompt 组装与消息模型 | 按 `openai.js` 的 `ChatCompletion` / `Message` / `TokenHandler` 与组装序移植 | ✅ **完成**：消息模型 1 条一致；装配 8 个 fixture **全一致**（`prompt_build.py` 未改动，差异全在判定机侧） |
 | S3 | 导入导出 | `tavern/st/importers.py`、`exporters.py`（PNG/JSON/YAML 卡、`character_book`、`lorebook_v3`/V2/AgnAI/Risu/Novel、聊天 `.jsonl`） | ✅ 已落地并接进 `PluginCore.import_uploaded_file`（用户把文件发给机器人即可导入） |
-| S4 | Provider 格式适配 | 移植 `src/prompt-converters.js`（服务端纯逻辑，1451 行 / 20 个导出） | 待开始 |
+| S4 | Provider 格式适配 | 移植 `src/prompt-converters.js`（服务端纯逻辑，1451 行 / 20 个函数 + 1 个常量） | 待开始 |
 | S5 | 外部酒馆后端 | 保留并完善 `tavern/backends/sillytavern.py`（cookie/CSRF、失败回退） | 待开始 |
 
 ### S1 已完成的对齐（本轮，按判定机实测）

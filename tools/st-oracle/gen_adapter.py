@@ -75,10 +75,14 @@ export function oracleApplyGroupChat(isGroup) {
     if (!isGroup) oai_settings.new_group_chat_prompt = oai_settings.new_chat_prompt;
 }
 // The fixture supplies the prompt strings so the two sides compare like for
-// like instead of depending on i18n defaults.
-export function oracleSetPrompts({ newChat, newGroupChat }) {
+// like instead of depending on i18n defaults. Each key is independent: the
+// example-chat banner and the continue nudge carry different literals
+// (openai.js:110-111), so they must not fall back to the new-chat one.
+export function oracleSetPrompts({ newChat, newGroupChat, newExampleChat, continueNudge }) {
     if (typeof newChat === 'string') oai_settings.new_chat_prompt = newChat;
     if (typeof newGroupChat === 'string') oai_settings.new_group_chat_prompt = newGroupChat;
+    if (typeof newExampleChat === 'string') oai_settings.new_example_chat_prompt = newExampleChat;
+    if (typeof continueNudge === 'string') oai_settings.continue_nudge_prompt = continueNudge;
 }
 """,
 }
@@ -95,6 +99,14 @@ OVERRIDES: dict[str, dict[str, str]] = {
     },
     "../script.js": {
         "substituteParams": "((s) => String(s ?? ''))",
+        # `substituteParamsExtended` resolves the named macros a prompt may carry.
+        # `populateChatHistory`'s continue nudge passes `{ lastChatMessage }`
+        # (openai.js:911), so a stub that returns '' silently empties the nudge
+        # and the message is then dropped as empty by getChat.
+        "substituteParamsExtended": (
+            "((s, args) => String(s ?? '').replace(/\\{\\{\\s*(\\w+)\\s*\\}\\}/g,"
+            " (m, key) => (args && key in args ? String(args[key]) : m)))"
+        ),
         # The injection loop bound and the in-chat extension prompt getter are
         # real values in the page, not stubs: getExtensionPromptMaxDepth is
         # literally "return MAX_INJECTION_DEPTH" (script.js:500; the computed

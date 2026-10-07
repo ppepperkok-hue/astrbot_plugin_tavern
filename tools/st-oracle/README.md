@@ -1,28 +1,39 @@
-# st-oracle — headless consistency judge for the World Info port
+# st-oracle — headless consistency judge for the port
 
-Same world book, same chat, two engines: SillyTavern's real `world-info.js` running
-under Node, and `tavern/st/worldbook.py`. Every fixture is a JSON file that both
-sides consume, and every divergence is printed field by field. This is the
-acceptance gate for the whole "酒馆引擎移植" effort — if the diff prints a
-difference, the port is not done for that behaviour.
+Same input, two engines: SillyTavern's real JavaScript running under Node, and the
+Python port under `tavern/`. Every fixture is a JSON file that both sides consume,
+and every divergence is printed field by field. This is the acceptance gate for the
+whole "酒馆引擎移植" effort — if the diff prints a difference, the port is not done
+for that behaviour.
 
 The Oracle does not modify `tavern/`: it only reads it. A fixture is never marked
 passing by editing the port.
 
-## Three commands
+Three families of fixtures are driven by three runners, one per porting step:
+
+| step | Node runner | Python runner | fixtures | diff |
+| --- | --- | --- | --- | --- |
+| S1 World Info | `run.mjs` | `run_python.py` | `fixtures/*.json` (14) | `diff.py` |
+| S2 message model | `run_prompt.mjs` | `run_prompt_python.py` | `fixtures/prompt/01-message-model.json` | `diff_prompt.py` |
+| S2 assembly | `run_assembly.mjs` | `run_assembly_python.py` | `fixtures/prompt/assembly-*.json` (8) | `diff_assembly.py` |
+
+## Commands
 
 Requires **Node ≥ 18** (developed and pinned against `node v22.22.1`) and any
 Python 3.10+ (developed on `python 3.11.9`); standard library only, no pip
 installs, no network.
 
 ```bash
-python tools/st-oracle/gen_adapter.py     # 1. build the Node shim tree in .build/ (from the vendored snapshot)
-python tools/st-oracle/diff.py --all      # 2. run BOTH engines over every fixture, then diff it
+python tools/st-oracle/gen_adapter.py          # 1. build the Node shim tree in .build/ (from the vendored snapshot)
+python tools/st-oracle/diff.py --all           # 2. S1: run BOTH engines over every world-info fixture, then diff
+python tools/st-oracle/diff_prompt.py --all    #    S2: message model
+python tools/st-oracle/diff_assembly.py --all  #    S2: assembly order
+python tools/st-oracle/gen_adapter.py --check  #    does .build/ still match the generator?
 ```
 
-`diff.py --all` runs the runners itself, so it can never compare stale output.
-Exit code 0 means every comparable fixture matched. `run_all.py` does the same
-thing but also prints per-fixture timings.
+Each `diff_*.py --all` runs its runners itself, so it can never compare stale
+output, and exits 0 when every comparable fixture matched. `run_all.py` does the
+same for S1 but also prints per-fixture timings.
 
 To drive one side only:
 
@@ -32,45 +43,56 @@ python tools/st-oracle/run_python.py tools/st-oracle/fixtures/03-selective-logic
 python tools/st-oracle/diff.py --all --only port --require js,port
 ```
 
-`diff.py` exits 0 when every comparable fixture matches, non-zero otherwise.
-Currently it exits 1 on purpose: eight of the twelve fixtures still diverge, and
-those divergences are the porting backlog. See `STATUS.md`.
+**Current verdict: all three families PASS.** S1 is 14 fixtures / 11 match /
+0 diverged / 3 not-comparable (the three genuinely incomparable points are listed in
+`STATUS.md`); S2 message model is 1/1; S2 assembly is 8/8. Counts and the repair
+history live in `STATUS.md` (S1) and `STATUS-S2.md` (S2) — check those before
+quoting any number, because this file deliberately does not repeat them.
 
 ## Layout
 
 | path | what it is |
 | --- | --- |
-| `gen_adapter.py` | generates `.build/` (24 stub modules + a byte copy of `world-info.js`) |
+| `gen_adapter.py` | generates `.build/` (stub modules + byte copies of the engine files) |
 | `runtime.mjs` | the Proxy stub, the seeded PRNG and the shared token counter |
-| `run.mjs` | runs the engine over one fixture, prints machine-readable JSON |
-| `run_python.py` | runs `tavern/st/worldbook.py` over the same fixture, same JSON shape |
-| `gen_fixtures.py` | regenerates `fixtures/*.json` (the fixtures are checked in) |
-| `diff.py` | field-by-field comparison, human output, meaningful exit code |
-| `run_all.py` | runs everything, reports timings, then calls `diff.py` |
+| `run.mjs` / `run_python.py` | S1: the engine and `tavern/st/worldbook.py` over one fixture, same JSON shape |
+| `run_prompt.mjs` / `run_prompt_python.py` | S2: the message model |
+| `run_assembly.mjs` / `run_assembly_python.py` | S2: `populateChatCompletion`, the assembly order |
+| `gen_fixtures.py` | regenerates the S1 fixtures (the fixtures are checked in) |
+| `diff.py` / `diff_prompt.py` / `diff_assembly.py` | field-by-field comparison, human output, meaningful exit code |
+| `run_all.py` | runs S1 end to end, reports timings, then calls `diff.py` |
 | `gen_port_map.py` | regenerates `port-map.json` from the dependency probe |
-| `port-map.json` | **the single source of truth for porting progress** (all 81 probe entries) |
-| `STATUS.md` | current counts, how to use it, known non-comparable points |
+| `port-map.json` | **the single source of truth for porting progress** (the 81 probe entries) |
+| `STATUS.md` / `STATUS-S2.md` | current counts, how to use it, known non-comparable points |
 | `.build/` | generated, git-ignored |
 | `out/` | generated results, git-ignored |
 
 ## Provenance of the engine under test
 
-* SillyTavern snapshot directory: `research/_raw/`
-* engine file: `research/_raw/st_public_scripts_world-info.js`
+* SillyTavern snapshot directory: `research/_raw/st-src/` (see `PROVENANCE.md`
+  there for how each file was fetched and verified)
+* engine file: `research/_raw/st-src/world-info.js`
 * `st_package.json` says `sillytavern 1.19.0`, AGPL-3.0
-* byte-identical to `public/scripts/world-info.js` at `release` commit
+* byte-identical to `public/scripts/world-info.js` at tag `1.19.0`
   `06bde939fb1e9c4c8d8641d810f0a916b5bce127`
   (`sha256 111c7f47945839e75b021e09bdbb112a54f0a9b7857d2b95435f573efc7cd9a5`,
   265081 bytes) — verified with `gh api .../contents/...` and a local sha256 compare.
-* `gen_adapter.py` copies that file verbatim; it never edits it.
+* `gen_adapter.py` copies the engine files verbatim; it never edits them. The
+  assembly oracle additionally extracts `Prompt`, `PromptCollection` and
+  `INJECTION_POSITION` out of `PromptManager.js` by brace matching, which is why
+  that one file is transformed rather than copied.
 
 ## Adding a fixture
 
 1. add a case to `gen_fixtures.py` and run it (or drop a hand-written JSON file in
-   `fixtures/`),
-2. `python tools/st-oracle/run_all.py`,
+   `fixtures/` — the S2 fixtures are all hand-written),
+2. run the matching `diff_*.py --all`,
 3. read the new divergences — each one is either a porting task (add it to
    `port-map.json`) or a documented non-comparable point (see `STATUS.md`).
 
-The fixture schema is documented at the top of `gen_fixtures.py` and in the
-comments of `run.mjs`; keep the two runners in sync if you extend it.
+The S1 fixture schema is documented at the top of `gen_fixtures.py` and in the
+comments of `run.mjs`; the S2 fixture shapes are documented in `run_assembly.mjs`
+and `run_assembly_python.py`. Keep the two runners of a family in sync if you
+extend its schema — and remember that a divergence is at least as likely to be a
+runner defect as a port defect: see `STATUS-S2.md`, where fourteen consecutive
+"port bugs" turned out to be harness bugs.

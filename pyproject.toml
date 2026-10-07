@@ -30,6 +30,7 @@ exclude = [
   ".tools",
   ".uv-cache",
   ".acl-recovery",
+  ".scratch",
   "tools/st-oracle/.build",
   "data",
 ]

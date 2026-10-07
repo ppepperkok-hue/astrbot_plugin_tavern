@@ -1,4 +1,20 @@
-# st-oracle STATUS
+# st-oracle STATUS — S1 (World Info)
+
+> ### This page covers S1 only, and it has been brought up to date
+>
+> The repository now has **three** oracle families. This file is the S1 (World
+> Info) one; `STATUS-S2.md` owns the prompt-assembly judge, and `diff_prompt.py`
+> reports the message model.
+>
+> **Current S1 verdict** (`python tools/st-oracle/diff.py --all`):
+> **14 fixtures, 11 match, 0 diverged, 0 skipped, 3 not-comparable.**
+>
+> The 12-fixture comparison table, the "still diverge" list and its root causes in
+> the next two sections **describe the port as it was before S1 was finished.**
+> Every divergence listed there has since been fixed. Those sections are kept for
+> the findings they encode — each one is a coupling only a run could reveal, and
+> they explain why the port behaves as it does today — but they are **not**
+> current state. The "不可比点" section and the `port-map.json` counts still are.
 
 **One page: what the judge measures, what the port currently gets right, and the
 places where the two engines genuinely cannot be compared.**
@@ -12,9 +28,9 @@ both engines itself). Run it after every porting change; `run_all.py` adds timin
 | --- | --- |
 | Node | `node v22.22.1` (`node --version`) |
 | Python | `3.11.9` |
-| SillyTavern snapshot | `research/_raw/st_public_scripts_world-info.js` — `sillytavern 1.19.0`, AGPL-3.0 |
-| snapshot identity | byte-identical to `public/scripts/world-info.js` at `release` commit `06bde939fb1e9c4c8d8641d810f0a916b5bce127`, `sha256 111c7f47…cd9a5`, 265081 bytes |
-| a full `diff.py --all` run | ~3.0 s wall clock (12 fixtures × 2 engines, one process each) |
+| SillyTavern snapshot | `research/_raw/st-src/world-info.js` — `sillytavern 1.19.0`, AGPL-3.0 |
+| snapshot identity | byte-identical to `public/scripts/world-info.js` at commit (tag `1.19.0`) `06bde939fb1e9c4c8d8641d810f0a916b5bce127`, `sha256 111c7f47…cd9a5`, 265081 bytes |
+| a full `diff.py --all` run | ~3.5 s wall clock (14 fixtures × 2 engines, one process each) |
 | one Node scan | ~110 ms/fixture including process start + engine import (~20 ms import, ~5 ms scan) |
 
 ## Porting progress
@@ -36,9 +52,14 @@ generous one because it counts a behaviour that exists under a different name:
 means "an implementation exists", never "proven equivalent" — the note on each row
 names the fixture that witnesses a remaining gap.
 
-## Comparison result right now
+## Comparison result as recorded before S1 was finished
 
 `12 fixtures | match 3 | diverged 8 | not-comparable 1 | 24 diverging fields`
+
+**This is a historical snapshot, not the current verdict.** The live run is
+`14 fixtures | match 11 | diverged 0 | not-comparable 3 | 0 diverging fields`
+(PASS). The table below is the task list that was open at the time; all of it
+is closed now.
 
 The three matching fixtures (`01-constant-minimal`, `02-scan-depth-boundary`,
 `09-character-book`) are the ones whose entries the port already handles exactly.
