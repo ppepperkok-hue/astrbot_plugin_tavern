@@ -552,10 +552,10 @@ def test_history_message_order_and_identifiers():
         "chatHistory-3",
         "newMainChat",
     ]
-    assert [message.content for message in chat(completion)[:3]] == ["one", "two", "three"]
+    assert [message["content"] for message in chat(completion)[:3]] == ["one", "two", "three"]
     assert content_at(completion, -1) == "[Start a new Chat]"
     # The reserved new-chat message is freed before it is inserted (1078-1079).
-    assert completion.freed == [chat(completion)[-1]]
+    assert completion.freed == [completion.flatten()[-1]]
 
 
 def test_history_new_chat_prompt_uses_the_group_variant():

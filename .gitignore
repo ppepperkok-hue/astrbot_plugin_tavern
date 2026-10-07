@@ -38,3 +38,5 @@ tools/st-oracle/out/
 tools/st-oracle/.build/
 tools/st-oracle/out/
 
+# Scratch files from ad-hoc debugging
+.tmp-dbg.py
