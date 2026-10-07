@@ -72,13 +72,16 @@ class AstrBotProviderBackend:
         if self.supports_contexts():
             # Drop the system entry: it is passed separately above so AstrBot
             # can apply its own persona/tool handling around it.
+            #
+            # Do NOT also pass ``prompt``: when both are given AstrBot appends
+            # ``prompt`` as one more user message, which would duplicate the
+            # final turn of the assembled history.
             contexts = [
                 message
                 for message in messages_to_openai(request)
                 if message.get("role") != "system"
             ]
             kwargs["contexts"] = contexts
-            kwargs["prompt"] = contexts[-1]["content"] if contexts else ""
         else:
             # Legacy path: flatten everything into one prompt.
             kwargs["prompt"] = "\n\n".join(
