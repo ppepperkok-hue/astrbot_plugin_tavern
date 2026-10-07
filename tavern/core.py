@@ -343,6 +343,123 @@ class PluginCore:
         """Human readable summary of the most recent import."""
         return self._last_import
 
+    # ------------------------------------------------------------------
+    # external tavern: read the library of a running SillyTavern instance
+    # ------------------------------------------------------------------
+    def st_client(self) -> Any:
+        """A read-only client for the configured tavern, or raise.
+
+        Deliberately *not* the generation backend: reading the library works even
+        when generation is pointed at AstrBot, and the two have different failure
+        modes worth keeping apart.
+        """
+        backend = self.config.backend
+        if not backend.st_base_url:
+            raise TavernError(
+                "还没有配置酒馆地址。请在插件配置里填 backend.st_base_url"
+                "（例如 http://127.0.0.1:8000），并填上 backend.st_cookie。"
+            )
+        from tavern.backends.st_import import SillyTavernImportClient
+
+        return SillyTavernImportClient(
+            backend.st_base_url,
+            cookie=backend.st_cookie,
+            verify_ssl=backend.st_verify_ssl,
+        )
+
+    async def st_list_characters(self) -> list[dict[str, str]]:
+        """``[{avatar, name}]`` from the tavern, or raise with a readable reason."""
+        client = self.st_client()
+        try:
+            return await client.list_characters()
+        finally:
+            await client.close()
+
+    async def st_import_character(self, avatar: str, *, overwrite: bool = False) -> str:
+        """Pull one card out of the tavern and into this library.
+
+        The card is re-serialised to JSON and handed to
+        :meth:`import_card_bytes`, so the network path and the drop-a-file path
+        share one importer (including the embedded-``character_book`` split). The
+        tavern's artwork is *not* fetched: the card API returns text, and the
+        plugin has no route to the original PNG bytes. Artwork matters to the
+        tavern's UI, not to a text model, so this trades it for a single import
+        path rather than adding a second.
+        """
+        client = self.st_client()
+        try:
+            card = await client.fetch_character(avatar)
+        finally:
+            await client.close()
+        payload = exporters.export_character_card(card, as_png=False)
+        if not isinstance(payload, dict):  # pragma: no cover - as_png=False always dicts
+            raise TavernError("角色卡无法序列化为 JSON。")
+        blob = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+        filename = f"{_safe_stem(card.name or avatar)}.json"
+        return self.import_card_bytes(filename, blob, overwrite=overwrite)
+
+    async def st_list_world_books(self) -> list[dict[str, str]]:
+        """``[{file_id, name}]`` from the tavern."""
+        client = self.st_client()
+        try:
+            return await client.list_world_books()
+        finally:
+            await client.close()
+
+    async def st_import_world_book(self, name: str, *, overwrite: bool = False) -> str:
+        """Pull one world book out of the tavern and into this library."""
+        client = self.st_client()
+        try:
+            book = await client.fetch_world_book(name)
+        finally:
+            await client.close()
+        payload = exporters.export_lorebook(book)
+        blob = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+        filename = f"{_safe_stem(book.name or name)}.json"
+        return self.import_worldbook_bytes(filename, blob, overwrite=overwrite)
+
+    async def st_list_chats(self, avatar: str) -> list[dict[str, str]]:
+        """``[{file_name, file_id}]`` for one character on the tavern side."""
+        client = self.st_client()
+        try:
+            return await client.list_chats(avatar)
+        finally:
+            await client.close()
+
+    async def st_import_chat(
+        self,
+        avatar: str,
+        file_name: str,
+        *,
+        character_name: str = "",
+        overwrite: bool = False,
+    ) -> str:
+        """Pull one tavern chat in as a local branch, and return its name.
+
+        The chat is written through the plugin's own store, so the branch appears
+        in ``/tavern history`` immediately. A branch with the same name is kept
+        unless ``overwrite`` is set.
+        """
+        client = self.st_client()
+        try:
+            session = await client.fetch_chat(avatar, file_name, ch_name=character_name)
+        finally:
+            await client.close()
+        if not session.messages:
+            raise TavernError(f"酒馆聊天「{file_name}」是空的，没有可导入的内容。")
+        name = _safe_stem(file_name)
+        character = character_name or session.character_name or "unknown"
+        store = self.store
+        if not overwrite and name in store.list_chats(character):
+            raise TavernError(f"本地区已经有一条叫「{name}」的分支。勾选覆盖，或先把酒馆那边改名。")
+        session.name = name
+        session.character_name = character
+        store.save(session)
+        self._last_import = (
+            f"从酒馆导入聊天「{name}」：{len(session.messages)} 条消息（角色 {character}）"
+        )
+        return name
+
     def import_uploaded_file(self, filename: str, payload: bytes) -> str:
         """Route one user supplied file to the matching importer.
 
@@ -894,8 +1011,20 @@ def _atomic_write_json(path: Path, payload: Any) -> None:
     os.replace(tmp, path)
 
 
+def _safe_stem(value: str) -> str:
+    """A filename stem that is safe on this filesystem, or ``"unnamed"``.
+
+    Shares :func:`chat_store.sanitize_filename` with :func:`_safe_target` so an
+    imported file and a dropped file are named by one rule; two sanitisers would
+    eventually disagree about some character and produce a file a rescan reads under
+    a different name than the importer registered.
+    """
+    stem = chat_store.sanitize_filename(Path(str(value)).stem)
+    return stem or "unnamed"
+
+
 def _safe_target(directory: Path, filename: str, *, overwrite: bool = False) -> Path:
-    stem = chat_store.sanitize_filename(Path(filename).stem) or "unnamed"
+    stem = _safe_stem(filename)
     suffix = Path(filename).suffix.lower()
     directory.mkdir(parents=True, exist_ok=True)
     target = directory / f"{stem}{suffix}"

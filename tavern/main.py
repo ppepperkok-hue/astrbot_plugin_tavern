@@ -20,6 +20,7 @@ plugin in that case.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import sys
 import time
 from pathlib import Path
@@ -119,6 +120,17 @@ class TavernPlugin(Star):  # type: ignore[misc]
             f"loaded {counts['cards']} cards, {counts['worldbooks']} world books, "
             f"{counts['presets']} presets from {self.config.data_dir}",
         )
+        # The management page's backend. Registered here rather than in `__init__`
+        # because `Context.registered_web_apis` is a class attribute that nothing
+        # ever clears, so a route change only takes effect on reload -- registering
+        # once, in the lifecycle hook, is the only place it cannot happen twice.
+        try:
+            from tavern import panel
+
+            registered = panel.register(self.context, PLUGIN_NAME)
+            _log("info", f"management page: registered {registered} web API route(s)")
+        except Exception as exc:  # noqa: BLE001 - a page must not break the plugin
+            _log("warning", f"registering the management page failed: {exc}")
 
     async def terminate(self) -> None:
         backend = self._backend
@@ -452,6 +464,59 @@ HELP_TEXT = """酒馆角色扮演 · 指令
 # matches it in ``star_handlers_registry`` by its module and function name.
 
 
+def _published_signature(fn: Any, shim: Any) -> Any:
+    """The signature AstrBot should see for a subcommand.
+
+    This is fiddlier than it looks, and getting it wrong produces the worst kind of
+    failure: the command registers, appears in help, and silently does nothing.
+
+    Two facts about AstrBot decide the shape, and getting either wrong produces the
+    same silent failure -- the command registers, appears in help, and does nothing:
+
+    1. **One parameter is consumed by binding.** The loader does
+       ``functools.partial(raw_handler, star_cls)`` (``star_manager.py:1273``), and
+       ``inspect`` drops a parameter for a partial's bound argument. Whatever is
+       published is therefore *reported one shorter*.
+    2. ``init_handler_md`` then **blindly discards the first two** reported
+       parameters -- ``if idx < 2: continue``.
+
+    So a handler with ``n`` real arguments needs ``n + 1`` published, and the extra
+    one must land among the two that get skipped. It is inserted **after** ``event``
+    (index 2), which is the only position that is both legal and effective:
+
+    * before ``plugin`` is illegal -- ``Signature.replace`` rejects a defaulted
+      parameter followed by the two required ones (``non-default argument follows
+      default argument``);
+    * after the real arguments is ineffective, because AstrBot stops filling once its
+      parameters run out and the extra one simply never appears.
+
+    Published as ``(plugin, event, bound_star=None, action, rest)``, binding reports
+    ``(event, bound_star=None, action, rest)``, and AstrBot skips ``event`` and
+    ``bound_star`` -- leaving exactly ``action`` and ``rest``.
+
+    Verified against the installed AstrBot by ``tools/verify_cmd_params.py``, which
+    reproduces the partial binding, parses real command lines with AstrBot's own
+    ``CommandFilter``, and asserts that ``/tavern st import chat a.png main.jsonl``
+    arrives as ``action="import"`` and ``rest="chat a.png main.jsonl"``.
+
+    Returns ``None`` when introspection is impossible, in which case the shim's own
+    signature stands and the command takes no arguments.
+    """
+    try:
+        signature = inspect.signature(fn)
+    except (TypeError, ValueError):  # pragma: no cover - builtins / C functions
+        return None
+    parameters = list(signature.parameters.values())
+    # Fewer than three parameters means there is no real argument to protect.
+    if len(parameters) < 3:
+        return signature
+    padding = inspect.Parameter("bound_star", inspect.Parameter.POSITIONAL_OR_KEYWORD, default=None)
+    try:
+        return signature.replace(parameters=[*parameters[:2], padding, *parameters[2:]])
+    except ValueError:  # pragma: no cover - only a duplicate name can fail
+        return None
+
+
 def _register_commands(plugin_cls: Any) -> bool:
     """Attach the ``/tavern`` group and its subcommands to ``plugin_cls``.
 
@@ -462,25 +527,62 @@ def _register_commands(plugin_cls: Any) -> bool:
     if not _require_astrbot():
         return False
 
+    # AstrBot's marker for "the rest of the line". It is read from the *default* of
+    # a declared parameter (``validate_and_convert_params`` tests ``is GreedyStr``),
+    # and it lives in an internal module -- there is no public re-export. A trailing
+    # parameter typed as a plain ``str`` receives only ONE word; anything longer
+    # (``/tavern worldbook on <名字>``) needs this, or the extra words are dropped
+    # without an error.
+    #
+    # Guarded because the test environment provides a *stub* ``astrbot`` module that
+    # satisfies ``_require_astrbot()`` without being a real package, so this import
+    # raises ``ModuleNotFoundError`` there. Falling back keeps the command tree
+    # registrable in that environment; a real host gets the greedy parameter, and
+    # ``tools/verify_cmd_params.py`` asserts that it does.
+    try:
+        from astrbot.core.star.filter.command import GreedyStr
+    except ImportError:  # pragma: no cover - only the stub-astrbot test env
+        GreedyStr = str  # type: ignore[assignment,misc]
+
+    #: The value a greedy parameter's default must carry. AstrBot's check is
+    #: ``param_type_or_default_val is GreedyStr`` -- identity against the **class** --
+    #: so the class itself goes in the signature and an *instance* would silently
+    #: downgrade the parameter to "one word", which is exactly what happened first
+    #: here. Give it one name so the rule is stated once.
+    greedy_default = GreedyStr
+
     @filter.command_group("tavern", alias={"酒馆"})
     def group() -> None:
         """酒馆角色扮演指令组"""
 
     def sub(name: str, alias: str | None = None):
         def decorator(fn: Any) -> Any:
-            # AstrBot calls ``fn(event)``; the plugin instance comes from the
-            # registry, so ``fn`` keeps taking the plugin explicitly.
-            async def shim(self_unused: Any, event: Any, *args: Any):
+            # AstrBot calls ``fn(event, **parsed_params)``; the plugin instance comes
+            # from the registry, so ``fn`` keeps taking the plugin explicitly.
+            #
+            # The shim must swallow the parameters as ``**kwargs`` and forward them
+            # positionally, and it must *also* publish the real signature through
+            # ``__signature__``. AstrBot builds ``handler_params`` from
+            # ``inspect.signature(handler)`` and skips the first two entries, so a
+            # shim declared ``(self_unused, event, *args)`` registers a single
+            # parameter literally named ``args`` annotated ``Any`` -- and AstrBot
+            # then tries to call ``Any(...)`` on every invocation. That is what this
+            # fixes: every parameterised subcommand (``use``, ``history``,
+            # ``worldbook effect``, ``st``) was unreachable through real command
+            # dispatch, which the end-to-end script never noticed because it calls
+            # ``on_message`` directly instead of going through the command filter.
+            async def shim(self_unused: Any, event: Any, **kwargs: Any):
                 plugin = _current_plugin()
                 if plugin is None:
                     return
-                async for result in fn(plugin, event, *args):
+                async for result in fn(plugin, event, *kwargs.values()):
                     yield result
 
             shim.__name__ = fn.__name__
             shim.__doc__ = fn.__doc__
             shim.__module__ = fn.__module__
             shim.__qualname__ = fn.__qualname__
+            shim.__signature__ = _published_signature(fn, shim)
             # Register the shim (wrapper) and hand it back for class attachment.
             decorated = group.command(name, alias={alias}) if alias else group.command(name)
             return decorated(shim)
@@ -526,11 +628,13 @@ def _register_commands(plugin_cls: Any) -> bool:
         yield plugin._result(event, "\n".join(lines))
 
     @sub("use", "换卡")
-    async def cmd_use_card(plugin: TavernPlugin, event: Any, name: str = "", *args: str):
+    async def cmd_use_card(plugin: TavernPlugin, event: Any, name: GreedyStr = greedy_default):
         if plugin.config.permissions.switch_card_requires_admin and not _is_admin(event):
             yield plugin._result(event, "只有管理员可以切换角色卡。")
             return
-        target = " ".join([name, *args]).strip()
+        # `name` is the whole remainder of the line, so a card whose name contains
+        # spaces still resolves.
+        target = str(name or "").strip()
         if not target:
             yield plugin._result(event, "用法：/tavern use <角色卡名>")
             return
@@ -580,7 +684,9 @@ def _register_commands(plugin_cls: Any) -> bool:
         yield plugin._result(event, "\n".join(lines) if lines else "当前分支还没有记录。")
 
     @sub("worldbook", "世界书")
-    async def cmd_worldbook(plugin: TavernPlugin, event: Any, action: str = "list", *args: str):
+    async def cmd_worldbook(
+        plugin: TavernPlugin, event: Any, action: str = "list", args: GreedyStr = greedy_default
+    ):
         binding = plugin.core.binding(event.unified_msg_origin)
         if action in ("list", "列表"):
             names = plugin.core.book_ids()
@@ -600,8 +706,12 @@ def _register_commands(plugin_cls: Any) -> bool:
             yield plugin._result(event, "\n".join(lines))
             return
 
+        # `args` arrives as one string (a `GreedyStr`), so splitting is this
+        # function's job rather than the parser's -- see the note in `_register_commands`.
+        parts = [part for part in str(args or "").split() if part]
+
         if action in ("on", "off"):
-            target = " ".join(args).strip()
+            target = " ".join(parts).strip()
             if not target:
                 yield plugin._result(event, f"用法：/tavern worldbook {action} <名字>")
                 return
@@ -623,7 +733,7 @@ def _register_commands(plugin_cls: Any) -> bool:
             # Ported from world-info.js:1449-1560 (`/wi-get-timed-effect` and
             # `/wi-set-timed-effect`), which the port map tracked as the last
             # engine-facing gap in S1.
-            if len(args) < 3:
+            if len(parts) < 3:
                 yield plugin._result(
                     event,
                     "用法：/tavern worldbook effect <世界书> <uid> <sticky|cooldown|delay> [on|off]\n"
@@ -632,8 +742,8 @@ def _register_commands(plugin_cls: Any) -> bool:
                     "否则无处可设——和酒馆的提示一致。",
                 )
                 return
-            book_id, uid, effect = args[0], args[1], args[2]
-            raw_state = args[3] if len(args) > 3 else ""
+            book_id, uid, effect = parts[0], parts[1], parts[2]
+            raw_state = parts[3] if len(parts) > 3 else ""
             try:
                 if not raw_state:
                     active = plugin.core.timed_effect_state(
@@ -714,6 +824,129 @@ def _register_commands(plugin_cls: Any) -> bool:
             f"预设: {plugin.config.presets_dir}",
         )
 
+    @sub("st", "酒馆")
+    async def cmd_st(
+        plugin: TavernPlugin,
+        event: Any,
+        action: str = "",
+        # The *default* is what AstrBot tests (`is GreedyStr`), so it must be an
+        # instance, not the literal `""`, or the remainder is silently truncated to
+        # one word -- `/tavern st import chat a.png main.jsonl` would arrive as
+        # `rest="chat"` and the file names would vanish.
+        rest: GreedyStr = greedy_default,
+    ):
+        """Read a library out of a running SillyTavern (read-only).
+
+        The signature is not free-form. AstrBot reads ``handler_params`` off the
+        handler's **signature** and calls it as ``handler(event, **parsed_params)``,
+        so a ``*args`` here would never receive anything -- the command would
+        register, appear in help, and silently do nothing. ``rest`` is a
+        ``GreedyStr`` so everything after the first word arrives as one string,
+        which this splits itself. That keeps the sub-command grammar (and its error
+        messages) in one place instead of encoding it in parameter names.
+        """
+        if plugin.config.permissions.import_requires_admin and not _is_admin(event):
+            yield plugin._result(event, "只有管理员可以从外部酒馆导入。")
+            return
+
+        parts = [part for part in str(rest or "").split() if part]
+        action = str(action or "").strip().lower()
+
+        if action in ("", "help", "帮助"):
+            yield plugin._result(
+                event,
+                "从已部署的酒馆里读取内容（只读，不会改动酒馆里的文件）：\n"
+                "/tavern st cards               列出酒馆里的角色卡\n"
+                "/tavern st books               列出酒馆里的世界书\n"
+                "/tavern st chats <卡片文件>    列出某张卡的聊天记录\n"
+                "/tavern st import card <卡片文件>   导入角色卡\n"
+                "/tavern st import book <世界书名>   导入世界书\n"
+                "/tavern st import chat <卡片文件> <聊天文件>  导入聊天为本地分支\n"
+                "都需要先在插件配置里填 backend.st_base_url 与 backend.st_cookie。",
+            )
+            return
+
+        try:
+            if action in ("cards", "卡片", "characters"):
+                rows = await plugin.core.st_list_characters()
+                if not rows:
+                    yield plugin._result(event, "酒馆里没有角色卡。")
+                    return
+                listing = "\n".join(f"  {row['name']}  ({row['avatar']})" for row in rows[:40])
+                more = f"\n……共 {len(rows)} 张。" if len(rows) > 40 else ""
+                yield plugin._result(
+                    event,
+                    f"酒馆里的角色卡（{len(rows)}）：\n{listing}{more}\n"
+                    "导入：/tavern st import card <卡片文件>",
+                )
+                return
+
+            if action in ("books", "世界书", "worldbooks"):
+                rows = await plugin.core.st_list_world_books()
+                if not rows:
+                    yield plugin._result(event, "酒馆里没有世界书。")
+                    return
+                listing = "\n".join(f"  {row['name']}  ({row['file_id']})" for row in rows[:40])
+                more = f"\n……共 {len(rows)} 本。" if len(rows) > 40 else ""
+                yield plugin._result(
+                    event,
+                    f"酒馆里的世界书（{len(rows)}）：\n{listing}{more}\n"
+                    "导入：/tavern st import book <世界书名>",
+                )
+                return
+
+            if action in ("chats", "聊天"):
+                if not parts:
+                    yield plugin._result(event, "用法：/tavern st chats <卡片文件>")
+                    return
+                rows = await plugin.core.st_list_chats(parts[0])
+                if not rows:
+                    yield plugin._result(event, f"{parts[0]} 在酒馆里没有聊天记录。")
+                    return
+                listing = "\n".join(f"  {row['file_name']}" for row in rows[:40])
+                yield plugin._result(
+                    event,
+                    f"{parts[0]} 的聊天记录（{len(rows)}）：\n{listing}\n"
+                    "导入：/tavern st import chat <卡片文件> <聊天文件>",
+                )
+                return
+
+            if action in ("import", "导入"):
+                if len(parts) < 2:
+                    yield plugin._result(
+                        event,
+                        "用法：/tavern st import card <卡片文件> | "
+                        "book <世界书名> | chat <卡片文件> <聊天文件>",
+                    )
+                    return
+                kind = parts[0].lower()
+                if kind in ("card", "卡片"):
+                    card_id = await plugin.core.st_import_character(parts[1])
+                    yield plugin._result(event, f"已从酒馆导入角色卡「{card_id}」。")
+                    return
+                if kind in ("book", "世界书"):
+                    book_id = await plugin.core.st_import_world_book(parts[1])
+                    yield plugin._result(event, f"已从酒馆导入世界书「{book_id}」。")
+                    return
+                if kind in ("chat", "聊天"):
+                    if len(parts) < 3:
+                        yield plugin._result(
+                            event, "用法：/tavern st import chat <卡片文件> <聊天文件>"
+                        )
+                        return
+                    name = await plugin.core.st_import_chat(
+                        parts[1], parts[2], character_name=parts[1].removesuffix(".png")
+                    )
+                    yield plugin._result(event, f"已导入聊天「{name}」，用 /tavern use 切换分支。")
+                    return
+                yield plugin._result(event, f"不认识「{kind}」，可选 card / book / chat。")
+                return
+        except (TavernError, BackendError) as exc:
+            yield plugin._result(event, str(exc))
+            return
+
+        yield plugin._result(event, "用法：/tavern st cards | books | chats <卡片> | import …")
+
     # ``staticmethod`` keeps ``inspect.getmembers`` unwrapping to the function
     # while the loader instantiates the plugin and calls ``handler(plugin, event)``.
     for name, func in (
@@ -728,6 +961,7 @@ def _register_commands(plugin_cls: Any) -> bool:
         ("cmd_reload", cmd_reload),
         ("cmd_preview", cmd_preview),
         ("cmd_import", cmd_import),
+        ("cmd_st", cmd_st),
     ):
         setattr(plugin_cls, name, staticmethod(func))
     return True

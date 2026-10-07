@@ -346,6 +346,7 @@ def test_module_registers_and_builds_command_tree(tavern) -> None:
         "new_chat",
         "preview",
         "reload",
+        "st",
         "status",
         "use_card",
         "worldbook",

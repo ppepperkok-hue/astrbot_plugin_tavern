@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>酒馆 · 管理面板</title>
+    <style>
+      /*
+       * Self-contained on purpose: AstrBot serves plugin page assets with a
+       * short-lived (60s) asset token, so a page that lazy-loads extra files after
+       * sitting open for a minute can 401. One file, loaded once, cannot.
+       *
+       * Colours come from the bridge context when the host provides a theme, and
+       * fall back to the dashboard's own dark/light variables otherwise.
+       */
+      :root {
+        --bg: var(--astrbot-bg, #f6f7f9);
+        --card: var(--astrbot-card, #ffffff);
+        --text: var(--astrbot-text, #1f2328);
+        --muted: var(--astrbot-muted, #6b7280);
+        --line: var(--astrbot-border, #e5e7eb);
+        --accent: #7c6cf0;
+        --accent-soft: #efeaff;
+        --ok: #16a34a;
+        --warn: #d97706;
+        --err: #dc2626;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: var(--astrbot-bg, #16181d);
+          --card: var(--astrbot-card, #1f2228);
+          --text: var(--astrbot-text, #e6e8eb);
+          --muted: var(--astrbot-muted, #9aa1ac);
+          --line: var(--astrbot-border, #2c3038);
+          --accent-soft: #2a2440;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 20px;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+      }
+      h1 { font-size: 18px; margin: 0 0 4px; }
+      .sub { color: var(--muted); margin-bottom: 18px; }
+      .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); margin-bottom: 16px; flex-wrap: wrap; }
+      .tabs button {
+        background: none; border: none; padding: 8px 14px; cursor: pointer;
+        color: var(--muted); font-size: 14px; border-bottom: 2px solid transparent;
+      }
+      .tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+      .panel[hidden] { display: none; }
+      .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+      .card {
+        background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+        padding: 14px; display: flex; flex-direction: column; gap: 6px;
+      }
+      .card h3 { margin: 0; font-size: 15px; }
+      .card p { margin: 0; color: var(--muted); font-size: 13px; }
+      .card .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      .tag {
+        font-size: 12px; padding: 1px 8px; border-radius: 999px;
+        background: var(--accent-soft); color: var(--accent);
+      }
+      .tag.muted { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+      .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 13px; }
+      .kv dt { color: var(--muted); }
+      .kv dd { margin: 0; word-break: break-all; }
+      table { border-collapse: collapse; width: 100%; font-size: 13px; }
+      th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+      th { color: var(--muted); font-weight: 500; }
+      button.act {
+        background: var(--card); color: var(--text); border: 1px solid var(--line);
+        border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 13px;
+      }
+      button.act:hover { border-color: var(--accent); color: var(--accent); }
+      .empty, .loading { color: var(--muted); padding: 20px 0; }
+      .err { color: var(--err); }
+      .ok { color: var(--ok); }
+      .banner {
+        border-left: 3px solid var(--accent); background: var(--card);
+        padding: 10px 14px; border-radius: 6px; margin-bottom: 14px; font-size: 13px;
+      }
+      input[type="search"] {
+        width: 100%; padding: 8px 10px; border: 1px solid var(--line);
+        border-radius: 6px; background: var(--card); color: var(--text); margin-bottom: 12px;
+      }
+      pre {
+        white-space: pre-wrap; word-break: break-word; background: var(--bg);
+        border: 1px solid var(--line); border-radius: 6px; padding: 10px;
+        font-size: 12px; max-height: 320px; overflow: auto; margin: 6px 0 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>酒馆 · 管理面板</h1>
+    <div class="sub" id="subtitle">正在连接 AstrBot…</div>
+
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="overview" aria-selected="true">总览</button>
+      <button role="tab" data-tab="cards" aria-selected="false">角色卡</button>
+      <button role="tab" data-tab="books" aria-selected="false">世界书</button>
+      <button role="tab" data-tab="remote" aria-selected="false">外部酒馆</button>
+      <button role="tab" data-tab="settings" aria-selected="false">配置</button>
+    </div>
+
+    <div class="panel" id="panel-overview"><div class="loading">加载中…</div></div>
+    <div class="panel" id="panel-cards" hidden></div>
+    <div class="panel" id="panel-books" hidden></div>
+    <div class="panel" id="panel-remote" hidden></div>
+    <div class="panel" id="panel-settings" hidden></div>
+
+    <script>
+      /*
+       * Every backend call goes through the bridge. The page iframe is sandboxed
+       * without `allow-same-origin`, so it has no cookies and `fetch` would arrive
+       * unauthenticated -- `window.AstrBotPluginPage` is the only way in.
+       *
+       * Endpoints are prefixed with the plugin id, which must equal `metadata.yaml`'s
+       * `name`. A prefix mismatch is answered with "未找到该路由" and nothing else, so
+       * it is spelled once, here, next to that warning.
+       */
+      const PLUGIN_ID = "astrbot_plugin_tavern";
+      const bridge = window.AstrBotPluginPage;
+
+      const el = (id) => document.getElementById(id);
+      const esc = (value) =>
+        String(value ?? "").replace(/[&<>"']/g, (c) => ({
+          "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+        })[c]);
+
+      async function call(subpath, params) {
+        if (!bridge) throw new Error("AstrBot 页面桥接脚本没有加载。");
+        const query = params ? "?" + new URLSearchParams(params).toString() : "";
+        const payload = await bridge.apiGet(`${PLUGIN_ID}/${subpath}${query}`);
+        if (payload && payload.ok === false) throw new Error(payload.error || "请求失败");
+        return payload && Object.prototype.hasOwnProperty.call(payload, "data") ? payload.data : payload;
+      }
+
+      /** Render an error into a container instead of letting it escape to the console. */
+      async function guard(container, work) {
+        try {
+          await work();
+        } catch (error) {
+          container.innerHTML = `<div class="banner err">${esc(error.message || error)}</div>`;
+        }
+      }
+
+      function tabs() {
+        document.querySelectorAll('[role="tab"]').forEach((button) => {
+          button.addEventListener("click", () => {
+            document.querySelectorAll('[role="tab"]').forEach((other) => {
+              other.setAttribute("aria-selected", String(other === button));
+            });
+            document.querySelectorAll(".panel").forEach((panel) => {
+              panel.hidden = panel.id !== `panel-${button.dataset.tab}`;
+            });
+          });
+        });
+      }
+
+      const TABS = {
+        async overview() {
+          const box = el("panel-overview");
+          box.innerHTML = '<div class="loading">加载中…</div>';
+          await guard(box, async () => {
+            const data = await call("panel/state");
+            const lib = data.library || {};
+            const backend = data.backend || {};
+            const remoteReady = Boolean(backend.st_base_url && backend.st_cookie_set);
+            box.innerHTML = `
+              <div class="grid">
+                <div class="card">
+                  <h3>角色卡 ${(lib.cards || []).length}</h3>
+                  <p>${(lib.cards || []).slice(0, 6).map(esc).join("、") || "还没有导入角色卡"}</p>
+                </div>
+                <div class="card">
+                  <h3>世界书 ${(lib.worldbooks || []).length}</h3>
+                  <p>${(lib.worldbooks || []).slice(0, 6).map(esc).join("、") || "还没有导入世界书"}</p>
+                </div>
+                <div class="card">
+                  <h3>后端</h3>
+                  <p>${esc(backend.type || "未设置")}${
+                    backend.provider_id ? " · " + esc(backend.provider_id) : ""
+                  }</p>
+                  <div class="row">
+                    <span class="tag${remoteReady ? "" : " muted"}">${
+                      remoteReady ? "外部酒馆已就绪" : "外部酒馆未配置"
+                    }</span>
+                  </div>
+                </div>
+                <div class="card">
+                  <h3>上下文预算</h3>
+                  <p>${
+                    backend.max_context_tokens
+                      ? `${backend.max_context_tokens} tokens，预留 ${backend.reply_reserve_tokens}`
+                      : "未限制（关闭）"
+                  }</p>
+                </div>
+              </div>
+              <div style="margin-top:16px" class="banner">
+                世界书扫描深度 ${esc(data.config?.worldbook?.scan_depth ?? "?")}，
+                token 预算 ${esc(data.config?.worldbook?.token_budget ?? "?")}%，
+                整词匹配${data.config?.worldbook?.match_whole_words ? "已开启" : "已关闭"}。
+              </div>`;
+          });
+        },
+
+        async cards() {
+          const box = el("panel-cards");
+          await guard(box, async () => {
+            const lib = (await call("panel/library")) || {};
+            const cards = lib.cards || [];
+            box.innerHTML = `
+              <input type="search" placeholder="筛选角色卡…" id="card-filter" />
+              <div class="grid" id="card-grid"></div>`;
+            const paint = (keyword) => {
+              const shown = cards.filter(
+                (card) => !keyword || String(card.name).toLowerCase().includes(keyword)
+              );
+              el("card-grid").innerHTML = shown.length
+                ? shown
+                    .map(
+                      (card) => `
+                    <div class="card">
+                      <h3>${esc(card.name)}</h3>
+                      <p>${esc((card.description || "").slice(0, 120) || "（没有简介）")}</p>
+                      <div class="row">
+                        ${card.has_world_book ? '<span class="tag">内嵌世界书</span>' : ""}
+                        ${card.spec ? `<span class="tag muted">${esc(card.spec)}</span>` : ""}
+                      </div>
+                      <div class="row">
+                        <button class="act" data-card="${esc(card.name)}">查看全文</button>
+                      </div>
+                      <div data-detail="${esc(card.name)}"></div>
+                    </div>`
+                    )
+                    .join("")
+                : '<div class="empty">没有匹配的角色卡。</div>';
+            };
+            paint("");
+            el("card-filter").addEventListener("input", (event) =>
+              paint(event.target.value.trim().toLowerCase())
+            );
+            box.addEventListener("click", async (event) => {
+              const button = event.target.closest("[data-card]");
+              if (!button) return;
+              const name = button.dataset.card;
+              const slot = box.querySelector(`[data-detail="${CSS.escape(name)}"]`);
+              if (slot.dataset.loaded) {
+                slot.innerHTML = "";
+                delete slot.dataset.loaded;
+                return;
+              }
+              slot.innerHTML = '<div class="loading">加载中…</div>';
+              try {
+                const card = await call(`panel/card/${encodeURIComponent(name)}`);
+                slot.dataset.loaded = "1";
+                slot.innerHTML = ["description", "personality", "scenario", "first_mes", "mes_example"]
+                  .filter((field) => card[field])
+                  .map(
+                    (field) =>
+                      `<div class="kv"><dt>${esc(field)}</dt><dd><pre>${esc(card[field])}</pre></dd></div>`
+                  )
+                  .join("");
+              } catch (error) {
+                slot.innerHTML = `<div class="banner err">${esc(error.message || error)}</div>`;
+              }
+            });
+          });
+        },
+
+        async books() {
+          const box = el("panel-books");
+          await guard(box, async () => {
+            const lib = (await call("panel/library")) || {};
+            const books = lib.worldbooks || [];
+            box.innerHTML = books.length
+              ? `<table>
+                   <thead><tr><th>世界书</th><th>条目</th><th>常驻</th><th>计时</th><th>关键词</th><th></th></tr></thead>
+                   <tbody>${books
+                     .map(
+                       (book) => `
+                     <tr>
+                       <td>${esc(book.name)}</td>
+                       <td>${esc(book.entries ?? "")}</td>
+                       <td>${esc(book.constant ?? "")}</td>
+                       <td>${esc(book.timed ?? "")}</td>
+                       <td>${esc((book.keys || []).slice(0, 6).join("、"))}</td>
+                       <td><button class="act" data-book="${esc(book.name)}">展开</button></td>
+                     </tr>
+                     <tr hidden data-book-detail="${esc(book.name)}"><td colspan="6"></td></tr>`
+                     )
+                     .join("")}</tbody>
+                 </table>`
+              : '<div class="empty">还没有导入世界书。</div>';
+            box.addEventListener("click", async (event) => {
+              const button = event.target.closest("[data-book]");
+              if (!button) return;
+              const name = button.dataset.book;
+              const row = box.querySelector(`[data-book-detail="${CSS.escape(name)}"]`);
+              if (!row.hidden) {
+                row.hidden = true;
+                button.textContent = "展开";
+                return;
+              }
+              row.hidden = false;
+              button.textContent = "收起";
+              const cell = row.firstElementChild;
+              if (cell.dataset.loaded) return;
+              cell.innerHTML = '<div class="loading">加载中…</div>';
+              try {
+                const book = await call(`panel/book/${encodeURIComponent(name)}`);
+                cell.dataset.loaded = "1";
+                cell.innerHTML = `<table><thead><tr><th>uid</th><th>关键词</th><th>内容</th><th>计时</th></tr></thead>
+                  <tbody>${(book.entries || [])
+                    .map(
+                      (entry) => `
+                    <tr>
+                      <td>${esc(entry.uid)}</td>
+                      <td>${esc((entry.keys || []).join("、"))}</td>
+                      <td><pre>${esc(entry.content)}</pre></td>
+                      <td>${esc(
+                        [
+                          entry.sticky ? `粘滞${entry.sticky}` : "",
+                          entry.cooldown ? `冷却${entry.cooldown}` : "",
+                          entry.delay ? `延迟${entry.delay}` : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ") || "-"
+                      )}</td>
+                    </tr>`
+                    )
+                    .join("")}</tbody></table>`;
+              } catch (error) {
+                cell.innerHTML = `<div class="banner err">${esc(error.message || error)}</div>`;
+              }
+            });
+          });
+        },
+
+        async remote() {
+          const box = el("panel-remote");
+          box.innerHTML = '<div class="loading">正在连接外部酒馆…</div>';
+          await guard(box, async () => {
+            const books = await call("panel/st/worldbooks");
+            const characters = await call("panel/st/characters");
+            box.innerHTML = `
+              <div class="banner">
+                这里只做<b>读取</b>：把酒馆里已有的角色卡与世界书拉进来，不会修改或删除酒馆里的任何文件。
+                导入请在聊天里用 <code>/tavern st import</code>，或在下面的列表里点「导入」。
+              </div>
+              <h3>世界书（${(books || []).length}）</h3>
+              ${
+                (books || []).length
+                  ? `<table><thead><tr><th>名称</th><th>文件</th></tr></thead><tbody>${books
+                      .map(
+                        (book) =>
+                          `<tr><td>${esc(book.name)}</td><td>${esc(book.file_id)}</td></tr>`
+                      )
+                      .join("")}</tbody></table>`
+                  : '<div class="empty">酒馆里没有世界书。</div>'
+              }
+              <h3 style="margin-top:18px">角色卡（${(characters || []).length}）</h3>
+              ${
+                (characters || []).length
+                  ? `<table><thead><tr><th>名称</th><th>文件</th></tr></thead><tbody>${characters
+                      .map(
+                        (card) =>
+                          `<tr><td>${esc(card.name)}</td><td>${esc(card.avatar)}</td></tr>`
+                      )
+                      .join("")}</tbody></table>`
+                  : '<div class="empty">酒馆里没有角色卡。</div>'
+              }`;
+          });
+        },
+
+        async settings() {
+          const box = el("panel-settings");
+          await guard(box, async () => {
+            const data = await call("panel/state");
+            const backend = data.backend || {};
+            box.innerHTML = `
+              <div class="banner">
+                这些是<b>当前生效</b>的值。要修改请到「插件管理 → 酒馆角色扮演 → 操作 → 插件配置」，
+                改完重载插件即可。
+              </div>
+              <div class="kv">
+                <dt>后端类型</dt><dd>${esc(backend.type || "未设置")}</dd>
+                <dt>AstrBot 模型</dt><dd>${esc(backend.provider_id || "（未指定，用当前会话的模型）")}</dd>
+                <dt>酒馆地址</dt><dd>${esc(backend.st_base_url || "（未配置）")}</dd>
+                <dt>酒馆 Cookie</dt><dd class="${backend.st_cookie_set ? "ok" : "err"}">${
+                  backend.st_cookie_set ? "已设置" : "未设置"
+                }</dd>
+                <dt>校验 TLS</dt><dd>${backend.st_verify_ssl ? "开启" : "关闭"}</dd>
+                <dt>上下文上限</dt><dd>${
+                  backend.max_context_tokens ? esc(backend.max_context_tokens) + " tokens" : "未限制"
+                }</dd>
+                <dt>回复预留</dt><dd>${esc(backend.reply_reserve_tokens)} tokens</dd>
+              </div>
+              <p class="sub" style="margin-top:14px">
+                Cookie 只显示是否已配置，不会显示内容。
+              </p>`;
+          });
+        },
+      };
+
+      async function boot() {
+        tabs();
+        if (bridge) {
+          try {
+            const context = await bridge.ready();
+            const user = context?.username ? `，${context.username}` : "";
+            el("subtitle").textContent = `已连接 AstrBot${user}`;
+          } catch (error) {
+            el("subtitle").textContent = "桥接握手失败，功能可能不可用。";
+          }
+        } else {
+          el("subtitle").textContent = "桥接脚本未加载，请从 AstrBot 面板打开本页。";
+          return;
+        }
+        await TABS.overview();
+      }
+
+      boot();
+    </script>
+  </body>
+</html>

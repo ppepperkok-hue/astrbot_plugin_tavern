@@ -112,6 +112,18 @@ def main() -> int:
     if interpreter is not None and Path(interpreter).is_file():
         results.append(run("astrbot smoke", [str(interpreter), "tools/astrbot_smoke.py"]))
         results.append(run("astrbot e2e", [str(interpreter), "tools/astrbot_e2e.py"]))
+        # The management page's backend registers routes through the host's own
+        # `Context.register_web_api` and is matched by the host's own route matcher.
+        # Both are versioned host behaviour, so this runs against the installed
+        # AstrBot: a route string that registers but never matches answers only
+        # "未找到该路由" and is invisible until someone opens the page.
+        results.append(run("panel api", [str(interpreter), "tools/verify_panel.py"]))
+        # AstrBot fills command arguments from the handler's signature, through a
+        # partial binding and a two-parameter skip. When that alignment is wrong the
+        # command still registers and still replies -- just with truncated or missing
+        # arguments -- so the end-to-end script, which calls `on_message` directly,
+        # cannot see it. This drives the real `CommandFilter`.
+        results.append(run("command params", [str(interpreter), "tools/verify_cmd_params.py"]))
     else:
         print("\n=== astrbot integration: SKIPPED (no interpreter) ===")
 
