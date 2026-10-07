@@ -83,12 +83,12 @@ padding 参数。位置没有选择余地：插在 `plugin` 之前不合法（`S
 
 **修法**（提交 `ff27ff3`）：改成 `re.ASCII`。
 
-**怎么找到的：** 前两轮我都在"读代码"里找 bug，两次都是假的。这一轮改成**让判定机说话**：
-新建 `fixtures/15-word-boundaries.json`，每个用例两条条目（`matchWholeWords` true/false）。
-它当场报出 `9 entries vs 7` 并点名那两对 CJK。
+**怎么找到的：** 两次从「读代码」出发的排查都给出了错误结论（见下面两条教训）。换成
+**让判定机说话**之后，新建 `fixtures/15-word-boundaries.json`——每个用例两条条目
+（`matchWholeWords` 分别为 true / false）——它当场报出 `9 entries vs 7` 并点名那两对 CJK。
 
-**教训：** 读一个名字不等于跟着调用走。同名的东西在 `tavern/st/` 里有三份 `match_keys`、
-两份计时效果实现。
+**教训：** 读一个名字不等于跟着调用走。`tavern/st/` 里同名或职责重叠的实现有三份
+`match_keys`、两份计时效果。
 
 ---
 
@@ -102,9 +102,9 @@ padding 参数。位置没有选择余地：插在 `plugin` 之前不合法（`S
 **根因有两层，第二层才是真凶。**
 
 第一层：`AstrBot` 调用 handler 的形式是 `handler(event, *args, **kwargs)`
-（`pipeline/context_utils.py:37`），而我们的包装器签名是 `(self_unused, *args, **kwargs)`——
-**事件落在 `self_unused` 里，不在 `args` 里**。我最初只从 `args` 里找，于是每条指令都判成
-"没有事件"。
+（`pipeline/context_utils.py:37`），而包装器的签名是 `(self_unused, *args, **kwargs)`——
+**事件落在 `self_unused` 里，不在 `args` 里**。只在 `args` 里查找，于是每条指令都判成
+「没有事件」而直接返回。
 
 第二层（根因）：**同一个插件被导入了两次。**
 
@@ -128,7 +128,7 @@ star_map=["tavern.main='tavern.main'",
 
   查不到 → **一个都不绑** → 实测 `0 bound to an instance, 14 bare`。
 
-**为什么之前"修好了"是假象：** 上一轮我改的是**发布签名**，并用
+**为什么一次「修好了」是假象：** 那次改的是**发布签名**，并用
 `tools/verify_cmd_params.py` 验证通过。但那个脚本在**自己的进程里**手工构造
 `functools.partial(raw, plugin_cls)` 来模拟绑定——**它模拟了一个生产里根本没发生的绑定**。
 测试全绿，生产全坏。
@@ -158,7 +158,7 @@ star_map=["tavern.main='tavern.main'",
 
 这条不是 bug，是**方法**上的坑，值得单独记，因为它比任何单个 bug 都更容易复发。
 
-这个项目历史上每一次"我验过了"翻车，形式都一样：**测试替真宿主做了一个假设**。
+这个项目历史上每一次「验证通过」翻车，形式都一样：**测试替真宿主做了一个假设**。
 
 - 条目 1：测试用 fixture 隔离了实例，恰好掩盖了产品的共享状态问题。
 - 条目 2：`verify_cmd_params.py` **自己构造** `functools.partial` 模拟绑定，
@@ -186,7 +186,7 @@ star_map=["tavern.main='tavern.main'",
 ```
 
 **推广：** 当一件事"已经验证过"却仍然可能错时，问的不是"再测一遍"，
-而是**"我的测试替谁做了假设"**。把那个假设去掉，比多写十个断言有用。
+而是**「这个测试替谁做了假设」**。把那个假设去掉，比多写十个断言有用。
 
 
 ---
