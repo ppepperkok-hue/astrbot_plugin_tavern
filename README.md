@@ -105,9 +105,27 @@ astrbot_plugin_tavern/
 
 ```bash
 python -m pytest tests -q          # 离线单元测试，不需要 AstrBot
-python tools/check.py              # 清单校验 + ruff + pytest + AstrBot 集成冒烟
+python tools/check.py              # 清单校验 + 发布体积 + ruff + pytest + AstrBot 集成冒烟
+python tools/check_plugin_size.py  # 只查发布包：体积、必备文件、误发的开发目录
 python tools/make_fixtures.py      # 重新生成酒馆格式夹具
 ```
+
+### 发布体积
+
+AstrBot 插件市场**拒绝超过 16 MB 的压缩包**（[官方文档](https://docs.astrbot.app/dev/star/plugin-publish.html)），
+并在流水线里自动拒绝，所以这条是硬约束而不是建议。本仓库靠 `.gitattributes` 的
+`export-ignore` 把开发内容挡在包外——`git archive` 与 GitHub 的 `/archive/` 下载都认这个机制：
+
+| 口径 | 大小 |
+|---|---|
+| 发布包（市场实际收到的） | **约 0.20 MB**，31 个条目 |
+| 裸检出（不含 export-ignore 过滤） | 约 2.2 MB |
+| 其中 `research/` 一项 | 约 12.6 MB（只存在于仓库，永不进包） |
+
+`tools/check_plugin_size.py` 从 **HEAD** 构建归档来量，所以它同时证明了排除规则**已提交**
+而不只是本地存在；它也检查包内必备文件（`main.py` / `metadata.yaml` / `_conf_schema.json` /
+`LICENSE`）与 `metadata.yaml` 的 `author` / `name` / `version`（市场规范要求与记录一致），
+并拦住误发的开发目录。这个检查已接进 `python tools/check.py`。
 
 `tools/astrbot_smoke.py` 与 `tools/astrbot_e2e.py` 用**真实 AstrBot** 验证插件加载与消息链路
 （用 `data.plugins.<目录名>.main` 导入、构造真实 `AstrMessageEvent`、用假后端替代模型）：

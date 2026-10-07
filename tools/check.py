@@ -81,6 +81,11 @@ def main() -> int:
     args = parser.parse_args()
 
     results = [check_plugin_manifest()]
+    # The market rejects archives above 16 MB and requires `metadata.yaml` inside
+    # them, so the *published* archive -- not the working tree -- is part of the
+    # gate. It is measured from HEAD, so it also proves the export-ignore rules are
+    # committed rather than only present locally.
+    results.append(run("plugin size", [sys.executable, "tools/check_plugin_size.py", "--quiet"]))
     results.append(run("ruff check", [sys.executable, "-m", "ruff", "check", "."]))
     results.append(
         run(

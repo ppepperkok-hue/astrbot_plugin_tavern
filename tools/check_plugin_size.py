@@ -83,9 +83,7 @@ def working_tree_size() -> tuple[int, int]:
 
 def metadata_fields(archive: zipfile.ZipFile) -> dict[str, str]:
     """The `author` / `name` / `version` the market record has to match."""
-    member = next(
-        (name for name in archive.namelist() if name.endswith("metadata.yaml")), None
-    )
+    member = next((name for name in archive.namelist() if name.endswith("metadata.yaml")), None)
     if member is None:
         return {}
     text = archive.read(member).decode("utf-8", errors="replace")
@@ -151,7 +149,7 @@ def main(argv: list[str] | None = None) -> int:
 
     tree_bytes, tree_files = working_tree_size()
     if not args.quiet:
-        print(f"working tree (what a plain checkout download would be):")
+        print("working tree (what a plain checkout download would be):")
         print(f"  {tree_files:,} files, {tree_bytes:,} bytes ({tree_bytes / 1024 / 1024:.2f} MB)")
         saved = tree_bytes - uncompressed
         percent = (100 * uncompressed / tree_bytes) if tree_bytes else 0
@@ -166,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  - {problem}", file=sys.stderr)
         return 1
 
-    print(f"PASS -- archive carries every required file and fits the 16 MB limit")
+    print("PASS -- archive carries every required file and fits the 16 MB limit")
     return 0
 
 
