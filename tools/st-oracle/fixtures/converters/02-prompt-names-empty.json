@@ -1,0 +1,14 @@
+{
+  "name": "02-prompt-names-empty",
+  "function": "getPromptNames",
+  "description": "The degenerate request: no names at all. Every field must still be present and correctly typed -- `groupNames` empty, and `startsWithGroupName` returning false rather than throwing. The frontend omits these keys for a single-character chat, so a port that assumes them fails here.",
+  "args": [
+    {
+      "body": {}
+    }
+  ],
+  "probe": {
+    "path": "startsWithGroupName",
+    "call": ["Iris: anything at all"]
+  }
+}

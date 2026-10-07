@@ -1,0 +1,18 @@
+{
+  "name": "01-prompt-names",
+  "function": "getPromptNames",
+  "description": "getPromptNames (prompt-converters.js:49-58) builds the PromptNames object a request carries, and its startsWithGroupName predicate is the helper every converter uses to decide whether a group member's name is already prefixed. Note the exact spelling it tests for: `name + ': '` (colon AND space), so a message starting with `Seraphina:` without the space does not count.",
+  "args": [
+    {
+      "body": {
+        "char_name": "Iris",
+        "user_name": "User",
+        "group_names": ["Seraphina", "Corin"]
+      }
+    }
+  ],
+  "probe": {
+    "path": "startsWithGroupName",
+    "call": ["Seraphina: good evening"]
+  }
+}

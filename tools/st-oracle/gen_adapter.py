@@ -34,11 +34,13 @@ BUILD = HERE / ".build"
 ENGINE_REL = "public/scripts/world-info.js"
 
 #: Engine sources copied byte for byte into the shim tree. The prompt-assembly
-#: stage (S2) compares against ``openai.js``, so both live side by side; each
-#: gets the same generated stub imports.
+#: stage (S2) compares against ``openai.js``, and the provider-format stage (S4)
+#: against ``prompt-converters.js``, so all of them live side by side; each gets
+#: the same generated stub imports.
 ENGINE_FILES: dict[str, str] = {
     "public/scripts/world-info.js": "world-info.js",
     "public/scripts/openai.js": "openai.js",
+    "public/scripts/prompt-converters.js": "prompt-converters.js",
 }
 
 #: Extra named exports appended to an engine copy. The browser bundle exposes
@@ -228,6 +230,45 @@ OVERRIDES: dict[str, dict[str, str]] = {
         "setPersonaDescription": "(() => {})",
         "user_avatar": "''",
     },
+    # `prompt-converters.js` imports these two from `./util.js`. `util.js` itself
+    # pulls in lodash and the whole data-root machinery, so it is not worth
+    # vendoring for two functions; the overrides below reproduce the two exactly
+    # as measured against the snapshot.
+    #
+    # `getConfigValue` (util.js:88-109) resolves `keyToEnv(key)` from the
+    # environment first, then the server config file via lodash `get`, then the
+    # default, and finally applies the `'number'` / `'boolean'` converter. The
+    # oracle has no config file, so it exposes the environment route under the
+    # one name a fixture can set: `ST_<UPPER_SNAKE>`, with dots and dashes folded
+    # to underscores -- the same spelling `keyToEnv` produces.
+    #
+    # `tryParse` (util.js:571-577) is `JSON.parse` and `undefined` on failure. The
+    # `undefined` matters: `convertGooglePrompt` writes
+    # `tryParse(args) ?? args`, so a fallback to the raw string is the caller's,
+    # not the parser's.
+    "./util.js": {
+        "_convConfig": "({})",
+        "getConfigValue": (
+            "((key, defaultValue = null, typeConverter = null) => {"
+            " const envKey = 'ST_' + String(key).replace(/[.-]/g, '_')"
+            ".replace(/([a-z0-9])([A-Z])/g, '$1_$2').toUpperCase();"
+            " const raw = envKey in process.env ? process.env[envKey]"
+            " : (_convConfig[key] !== undefined ? _convConfig[key] : null);"
+            " const value = raw === null ? defaultValue : raw;"
+            " if (typeConverter === 'number') {"
+            " const parsed = parseFloat(value);"
+            " return Number.isNaN(parsed) ? defaultValue : parsed; }"
+            " if (typeConverter === 'boolean') {"
+            " return value === true || value === 'true' || value === 1 || value === '1'; }"
+            " return value; })"
+        ),
+        "setConvConfig": "((values) => { Object.assign(_convConfig, values); })",
+        "tryParse": ("((str) => { try { return JSON.parse(str); } catch { return undefined; } })"),
+    },
+    # `import crypto from 'node:crypto'` -- a default import of a builtin.
+    "node:crypto": {
+        "default": "await import('node:crypto').then(m => m.default)",
+    },
 }
 
 IMPORT_RE = re.compile(
@@ -305,6 +346,13 @@ def generate(verbose: bool = True) -> dict:
     report: list[str] = []
 
     for spec, names in sorted(imports.items()):
+        # A generated module would be shadowed by node's own resolution for a
+        # bare specifier, so `node:`-prefixed builtins are the only non-relative
+        # imports allowed through: node resolves them and we skip them here.
+        if spec.startswith("node:"):
+            if spec not in OVERRIDES:
+                problems.append(f"non-relative import {spec!r} has no OVERRIDES entry")
+            continue
         if not spec.startswith("."):
             problems.append(f"non-relative import {spec!r} (would leave the shim tree)")
             continue
@@ -315,6 +363,12 @@ def generate(verbose: bool = True) -> dict:
 
         overrides = OVERRIDES.get(spec, {})
         lines = [HEADER.format(runtime=_runtime_relpath(target))]
+        # Private module state an override closes over does not appear in the
+        # import list, so it has to be emitted explicitly. (`_convConfig` backs
+        # getConfigValue/setConvConfig in the `./util.js` overrides.)
+        for private_name, private_value in overrides.items():
+            if private_name.startswith("_"):
+                lines.append(f"const {private_name} = {private_value};")
         if spec == "./PromptManager.js":
             lines.append(extract_prompt_manager_source())
         real: list[str] = []
