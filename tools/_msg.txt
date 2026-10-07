@@ -1,0 +1,12 @@
+﻿fix(oracle): guard the missing-prompt path and record the chat-turn finding
+
+Message.fromPromptAsync dereferences its argument immediately, so an absent
+optional prompt (impersonate, quietPrompt) aborts the whole assembly. The harness
+now returns null for a missing prompt, which is what the browser's always-present
+prompts amount to.
+
+With that fixed the reference reaches insert for chatHistory-2, chatHistory-1,
+newMainChat and both example messages, but the two chat turns carry empty content
+and are dropped by the guard at openai.js:4047, so the group keeps only
+newMainChat. The remaining target is the turn identity after preparePrompt;
+STATUS-S2.md records it together with the two earlier findings.

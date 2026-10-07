@@ -63,6 +63,13 @@ globalThis.fetch = async () => ({ ok: true, json: async () => ({}), text: async 
 Math.random = mulberry32(Number(fixture.seed ?? 1337));
 
 const engine = await import(pathToFileURL(ENGINE).href);
+// openai.js:1224/1229 call Message.fromPromptAsync(prompts.get(id)), and the
+// real romPromptAsync (3792-3794) dereferences its argument immediately, so an
+// absent optional prompt (impersonate, quietPrompt) throws and aborts the
+// whole assembly. In the browser those prompts always exist; the fixture only
+// declares the ones it exercises, so the harness models the same thing by
+// returning null for a missing prompt. The port guards this itself.
+
 const { ChatCompletion, Message, populateChatCompletion, oracleSetPromptManager } = engine;
 if (!ChatCompletion || !Message || !populateChatCompletion || !oracleSetPromptManager) {
     fail('openai.js is missing ChatCompletion / Message / populateChatCompletion / the oracle hook');
@@ -210,6 +217,14 @@ const messageFactory = async (role, content, identifier) => {
     message.reasoning = null;
     message.tokens = countFor(message.role, message.content, '');
     return message;
+};
+
+const originalFromPrompt = Message.fromPromptAsync;
+Message.fromPromptAsync = async function fromPromptAsync(prompt) {
+    if (!prompt) {
+        return null;
+    }
+    return originalFromPrompt.call(Message, prompt);
 };
 
 const record = { fixture: fixture.name ?? path.basename(args.fixture, '.json'), steps: [] };

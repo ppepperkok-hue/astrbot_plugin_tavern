@@ -54,6 +54,20 @@
 > build at :929-933 and the budget guard at :1070. Instrument those two and the
 > fixture should go green without touching the port.
 >
+> **Second finding, from the follow-up probe.** Three more harness defects were
+> fixed on the way (`Message.fromPromptAsync` dereferences its argument
+> immediately, so an absent optional prompt like `impersonate` aborts the whole
+> assembly -- the harness now returns null for a missing prompt, which is what
+> the browser's always-present prompts amount to). With those fixed, `insert` is
+> called for `chatHistory-2`, `chatHistory-1`, `newMainChat` and both example
+> messages, but the two chat turns arrive with **content `""`**, so the guard at
+> `openai.js:4047` drops exactly them and the group keeps only `newMainChat`.
+> The identity of the prompt after `preparePrompt` is therefore the remaining
+> target: `new Prompt(chatPrompt)` should carry the turn's text, and the harness
+> reads it through `Prompt.content`, so check whether the upstream
+> `setOpenAIMessages` payload puts the text somewhere else (`Prompt.mes` is the
+> likely candidate) before changing anything on the port side.
+>
 > **Do not quote the old "8 match" as current.** The result in §1 was produced by
 > the pre-loss harness. It must be re-derived before it counts again.
 >
