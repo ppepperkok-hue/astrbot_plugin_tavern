@@ -2,79 +2,52 @@
 
 > ## Repair state of the assembly oracle
 >
-> The assembly harness was lost (an uncommitted `run_assembly.mjs` plus the
-> `gen_adapter.py` additions were overwritten by a `git checkout` of mine) and is
-> being rebuilt. The port itself was never affected.
+> The harness was lost (an uncommitted `run_assembly.mjs` plus the `gen_adapter.py`
+> additions were overwritten by a `git checkout` of mine) and has been rebuilt. The
+> port itself was never affected.
 >
-> **What runs again now.** `python tools/st-oracle/gen_adapter.py` emits the real
-> `Prompt` / `PromptCollection` / `INJECTION_POSITION` (class bodies brace-matched
-> out of the vendored snapshot, plus the two `DEFAULT_*` constants they read) and
-> real `getExtensionPrompt` / `getExtensionPromptMaxDepth` values, all through
-> `PROVIDED_BY_SOURCE` / `OVERRIDES`. `run_assembly.mjs` no longer patches the
-> build tree, and it reaches the engine end to end: `node
-> tools/st-oracle/run_assembly.mjs fixtures/prompt/assembly-01-order.json` writes
-> a result file with `error: null`.
+> **Running again.** `gen_adapter.py` emits the real `Prompt` / `PromptCollection`
+> / `INJECTION_POSITION` (class bodies brace-matched out of the vendored snapshot,
+> plus the `DEFAULT_DEPTH` / `DEFAULT_ORDER` they read) and real
+> `getExtensionPrompt` / `getExtensionPromptMaxDepth` values, all declared through
+> `PROVIDED_BY_SOURCE` / `OVERRIDES`; `run_assembly.mjs` no longer patches the
+> build tree. `diff_assembly.py --all` now reports **1 match, 7 diverged, 8
+> divergences** (it was `node-error` for all eight before).
 >
-> Three reference-side defects were found and fixed on the way:
-> 1. The generator rendered `PromptManager.js` as a permissive stub, so
->    `new Prompt(chatPrompt)` produced a proxy and every chat turn lost its role
->    and content. (Real classes now.)
+> **Five harness defects were found and fixed on the way**, every one of them a
+> false divergence the port was being blamed for:
+> 1. `PromptManager.js` rendered as a stub, so `new Prompt(chatPrompt)` produced a
+>    proxy and every turn lost its role and content.
 > 2. `PromptCollection.override(prompt, position)` takes a **Prompt**, not an
->    identifier (`PromptManager.js:294-297`); passing the fixture's identifier
->    string tripped the class check inside `set`.
-> 3. `Prompt` keeps a chat turn's text in `mes`, and `openai.js:955` builds the
->    message through `promptManager.preparePrompt(prompt)`, so a `preparePrompt`
->    stub that returns the prompt unchanged yields empty content and `insert`
->    (`openai.js:4047`) silently drops the message.
+>    identifier (`PromptManager.js:294-297`).
+> 3. `preparePrompt` returning the prompt unchanged left a turn's body empty; a
+>    chat turn carries it in `mes`, so that is mapped onto `content`.
+> 4. `Message.fromPromptAsync` (3792-3794) dereferences its argument immediately,
+>    so an absent optional prompt (`impersonate`, `quietPrompt`) threw and aborted
+>    the whole assembly. The harness now returns null for a missing prompt, which
+>    is what the browser's always-present prompts amount to.
+> 5. The fixture spells a turn body `mes`; the runner read `turn.content`.
 >
-> **What still does not match.** With all three fixed, the reference run still
-> ends with only `main` in the completion: `prompts` holds all 16 identifiers
-> (`hasChatHistory: true`, `chatHistoryIndex: 15`) yet `getChat()` returns one
-> message, so `populateChatHistory` and the example block do not reach the
-> collection. The port fills the history, the examples, the injection depths and
-> the continue nudge, so every fixture reports `diverged` on the chat contents.
-> The next diagnostic is to dump the top-level collection and the `chatHistory`
-> group right after the call, which tells the two remaining candidates apart:
-> either `chatCompletion.add` never runs for them (an early return or a budget
-> refusal inside `populateChatHistory`), or it runs and a later slot assignment
-> overwrites the group.
->
-> **The diagnostic has been run; here is the answer.** Wrapping
-> `ChatCompletion.prototype.add` and logging every call gives exactly 15 calls:
-> thirteen carry one message each (`worldInfoBefore`, `main`, `worldInfoAfter`,
-> `charDescription`, `charPersonality`, `scenario`, `personaDescription`, `nsfw`,
-> `jailbreak`, `myChatPrompt`, `enhanceDefinitions`, `bias`, `controlPrompts`),
-> and **`chatHistory` (index 15) and `dialogueExamples` (index 14) are added with
-> `collection.length === 0`**. So the group is created and then never filled:
-> `populateChatHistory` returns before it pushes anything, which also explains why
-> no `chatHistory-N` and no `continueNudge` collection appear in the log at all.
-> There is no overwrite and no budget refusal to chase -- the remaining question is
-> purely which early return fires inside `populateChatHistory` (openai.js:885-1092)
-> after the `add`, and the two candidates are visible in the source: the message
-> build at :929-933 and the budget guard at :1070. Instrument those two and the
-> fixture should go green without touching the port.
->
-> **Second finding, from the follow-up probe.** Three more harness defects were
-> fixed on the way (`Message.fromPromptAsync` dereferences its argument
-> immediately, so an absent optional prompt like `impersonate` aborts the whole
-> assembly -- the harness now returns null for a missing prompt, which is what
-> the browser's always-present prompts amount to). With those fixed, `insert` is
-> called for `chatHistory-2`, `chatHistory-1`, `newMainChat` and both example
-> messages, but the two chat turns arrive with **content `""`**, so the guard at
-> `openai.js:4047` drops exactly them and the group keeps only `newMainChat`.
-> The identity of the prompt after `preparePrompt` is therefore the remaining
-> target: `new Prompt(chatPrompt)` should carry the turn's text, and the harness
-> reads it through `Prompt.content`, so check whether the upstream
-> `setOpenAIMessages` payload puts the text somewhere else (`Prompt.mes` is the
-> likely candidate) before changing anything on the port side.
+> **What is left (1 divergence on 7 of the 8 fixtures).** The chat turns come out
+> **in the opposite order**: the reference gives
+> `[assistant 'I was say…', user 'hello there']`, the port gives
+> `[user 'hello there', assistant 'I was say…']`. `assembly-05-disabled-prompts`
+> already matches, so the loop itself is right; the difference is the order of the
+> `messages` array the port is handed. `populateChatHistory` reverses the list and
+> prepends (`openai.js:945-948` + `:1071`), so the reference's input must be
+> oldest-first while the port's is newest-first (or the reverse) — check how
+> `run_assembly_python.py` and `tests/test_prompt_build.py` build `messages`
+> against `setOpenAIMessages` (openai.js:644) before touching `prompt_build.py`.
+> `assembly-08` additionally still differs on the `continueNudge` entry, which is
+> the same ordering question reached through the `type: "continue"` path.
 >
 > **Do not quote the old "8 match" as current.** The result in §1 was produced by
-> the pre-loss harness. It must be re-derived before it counts again.
+> the pre-loss harness; the current numbers are the 1/7 above.
 >
 > **Not affected:** `tavern/st/chat_completion.py`, `tavern/st/prompt_build.py`,
-> `tests/test_prompt_build.py` (`458 passed, 1 skipped`, ruff clean); the S1
-> oracle (`diff.py --all` → 14 fixtures, 11 match, 0 diverged, 3 not-comparable);
-> the message-model oracle (`diff_prompt.py --all` → PASS).
+> `tests/test_prompt_build.py` (`458 passed, 1 skipped`, ruff clean); the S1 oracle
+> (`diff.py --all` → 14 fixtures, 11 match, 0 diverged, 3 not-comparable); the
+> message-model oracle (`diff_prompt.py --all` → PASS).
 
 Source of truth: `research/_raw/st-src/openai.js` +
 `research/_raw/st-src/PromptManager.js` (SillyTavern 1.19.0, commit

@@ -1,0 +1,20 @@
+﻿fix(oracle): five harness defects fixed; assembly diff is 1 match / 7 diverged
+
+The rebuilt assembly harness now reaches the reference end to end. Five defects,
+every one of them a false divergence the port was blamed for, were fixed:
+
+1. PromptManager.js rendered as a stub, so new Prompt(chatPrompt) produced a proxy
+   and every turn lost its role and content.
+2. PromptCollection.override takes a Prompt, not an identifier.
+3. preparePrompt returning the prompt unchanged left a turn body empty; a chat
+   turn carries it in mes, so that is mapped onto content.
+4. Message.fromPromptAsync dereferences its argument immediately, so an absent
+   optional prompt (impersonate, quietPrompt) aborted the whole assembly; the
+   harness now returns null for a missing prompt.
+5. The fixture spells a turn body mes; the runner read turn.content.
+
+diff_assembly.py --all is now 1 match / 7 diverged / 8 divergences, down from
+node-error on all eight. The remaining divergence is one field on seven fixtures:
+the chat turns come out in the opposite order, which points at the order of the
+messages array handed to populateChatCompletion, not at prompt_build.py.
+STATUS-S2.md records that and the full repair state.

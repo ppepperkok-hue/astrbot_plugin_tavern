@@ -252,9 +252,12 @@ try {
         bias: fixture.bias ?? '',
         quietPrompt: fixture.quiet_prompt ?? '',
         type: fixture.type ?? null,
+        // The fixture mirrors what `setOpenAIMessages` (openai.js:644) hands
+        // over: `{ role, content, name, ... }`. Fixtures spell the body as `mes`
+        // (the chat entry field) for readability, so both are accepted here.
         messages: (fixture.chat ?? []).map((turn) => ({
-            role: turn.role,
-            mes: turn.content,
+            role: turn.role ?? (turn.is_user ? 'user' : 'assistant'),
+            content: turn.content ?? turn.mes ?? '',
             name: turn.name ?? '',
             extra: {},
         })),
