@@ -86,6 +86,12 @@ def main() -> int:
     # gate. It is measured from HEAD, so it also proves the export-ignore rules are
     # committed rather than only present locally.
     results.append(run("plugin size", [sys.executable, "tools/check_plugin_size.py", "--quiet"]))
+    # AstrBot looks for a plugin logo at exactly `logo.png` in the **plugin root** and
+    # nowhere else (`star_manager.py:213`, `:1171`, `:1376`), and the documented shape is
+    # 1:1 at a recommended 256x256. A replacement image that is 16:9, or a JPEG whose
+    # "transparency" is a drawn checkerboard, violates that silently -- the file still
+    # exists, so nothing else complains.
+    results.append(run("logo", [sys.executable, "tools/check_logo.py"]))
     # A README pointing at a file that does not exist reads as carelessness and is
     # invisible to anyone who does not click it. Cheap enough to always check.
     results.append(run("readme links", [sys.executable, "tools/check_readme_links.py", "--quiet"]))
