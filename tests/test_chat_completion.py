@@ -75,7 +75,9 @@ def test_token_handler_buckets_and_total() -> None:
 def test_token_handler_async_alias_matches() -> None:
     async def scenario() -> int:
         handler = TokenHandler()
-        return await handler.countAsync({"role": "user", "content": "abcdef"}, token_type="conversation")
+        return await handler.countAsync(
+            {"role": "user", "content": "abcdef"}, token_type="conversation"
+        )
 
     assert run(scenario()) == 3
 
@@ -83,9 +85,7 @@ def test_token_handler_async_alias_matches() -> None:
 def test_module_token_handler_is_the_shared_instance() -> None:
     """``count_async`` accumulates in the named bucket of the shared singleton."""
     token_handler.reset_counts()
-    delta = token_handler.count_async(
-        {"role": "system", "content": "hello"}, token_type="examples"
-    )
+    delta = token_handler.count_async({"role": "system", "content": "hello"}, token_type="examples")
     assert delta == 4  # "system hello" -> 12 // 3
     assert token_handler.get_tokens_for_identifier("examples") == delta
     token_handler.reset_counts()
@@ -200,9 +200,7 @@ def test_add_and_remove_move_the_budget() -> None:
 def test_insert_start_and_end_place_the_message() -> None:
     completion = ChatCompletion()
     completion.set_token_budget(1000, 100)
-    completion.add(
-        MessageCollection("start", Message.create("system", "middle", "middleMessage"))
-    )
+    completion.add(MessageCollection("start", Message.create("system", "middle", "middleMessage")))
     completion.insert_at_start(Message.create("system", "first", "firstMessage"), "start")
     completion.insert_at_end(Message.create("system", "last", "lastMessage"), "start")
     assert [item["content"] for item in completion.get_chat()] == ["first", "middle", "last"]
@@ -363,7 +361,9 @@ def test_readme_example_matches_the_reference_fixture() -> None:
     completion = ChatCompletion()
     completion.set_token_budget(1000, 100)
     completion.add(
-        MessageCollection("start", Message.create("system", "You are a careful assistant.", "mainPrompt"))
+        MessageCollection(
+            "start", Message.create("system", "You are a careful assistant.", "mainPrompt")
+        )
     )
     completion.add(
         MessageCollection(

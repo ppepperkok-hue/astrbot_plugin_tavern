@@ -341,14 +341,14 @@ class MessageCollection:
 
     def get_item_by_identifier(self, identifier: str) -> Message | MessageCollection | None:
         for item in self.collection:
-            if item.identifier == identifier:
+            if item is not None and item.identifier == identifier:
                 return item
         return None
 
     getItemByIdentifier = get_item_by_identifier
 
     def has_item_with_identifier(self, identifier: str) -> bool:
-        return any(item.identifier == identifier for item in self.collection)
+        return any(item is not None and item.identifier == identifier for item in self.collection)
 
     hasItemWithIdentifier = has_item_with_identifier
 
@@ -359,7 +359,7 @@ class MessageCollection:
         :meth:`flatten` and :meth:`ChatCompletion.get_total_token_count` rely on
         nested collections answering it, so it exists here.
         """
-        return sum(item.get_tokens() for item in self.collection)
+        return sum(item.get_tokens() for item in self.collection if item is not None)
 
     # NOTE: a plain ``getTokens = get_tokens`` alias would snapshot the function
     # above and break the recursion (the nested calls resolve through this name),
@@ -371,6 +371,8 @@ class MessageCollection:
         """Reference ``flatten`` (openai.js:3895)."""
         flat: list[Message] = []
         for item in self.collection:
+            if item is None:
+                continue
             if isinstance(item, MessageCollection):
                 flat.extend(item.flatten())
             else:
@@ -453,14 +455,26 @@ class ChatCompletion:
 
     setTokenBudget = set_token_budget
 
-    def add(self, collection: Message | MessageCollection, position: int | None = None) -> ChatCompletion:
-        """Reference ``add`` (openai.js:3998); raises when the budget is short."""
+    def add(
+        self, collection: Message | MessageCollection, position: int | None = None
+    ) -> ChatCompletion:
+        """Reference ``add`` (openai.js:3998); raises when the budget is short.
+
+        The reference writes straight into the array (``collection[position] =
+        item``), which **overwrites** the slot and can create a sparse array when
+        the index is past the end. The port reproduces both: slots are padded with
+        ``None`` and the slot is replaced, never shifted. A ``None`` slot is
+        skipped by :meth:`get_chat` and by the identifier lookups, and the
+        reference's ``JSON.stringify`` would render ``null`` there too.
+        """
         self.validate_message_collection(collection)
         self.check_token_budget(collection, collection.identifier)
-        if position is not None and position != -1:
-            self.messages.collection[position] = collection
-        else:
+        if position is None or position == -1:
             self.messages.collection.append(collection)
+        else:
+            while len(self.messages.collection) <= position:
+                self.messages.collection.append(None)  # type: ignore[arg-type]
+            self.messages.collection[position] = collection
         self.decrease_token_budget_by(collection.get_tokens())
         self.log(f"Added {collection.identifier}. Remaining tokens: {self.token_budget}")
         return self
@@ -491,7 +505,9 @@ class ChatCompletion:
             elif isinstance(position, int):
                 target.collection.insert(position, message)
             self.decrease_token_budget_by(message.get_tokens())
-            self.log(f"Inserted {message.identifier} into {identifier}. Remaining: {self.token_budget}")
+            self.log(
+                f"Inserted {message.identifier} into {identifier}. Remaining: {self.token_budget}"
+            )
 
     def remove_last_from(self, identifier: str) -> None:
         """Reference ``removeLastFrom`` (openai.js:4063)."""
@@ -503,7 +519,9 @@ class ChatCompletion:
         message = target.collection.pop()
         if isinstance(message, Message):
             self.increase_token_budget_by(message.get_tokens())
-            self.log(f"Removed {message.identifier} from {identifier}. Remaining: {self.token_budget}")
+            self.log(
+                f"Removed {message.identifier} from {identifier}. Remaining: {self.token_budget}"
+            )
 
     removeLastFrom = remove_last_from
 
@@ -526,9 +544,11 @@ class ChatCompletion:
     getTotalTokenCount = get_total_token_count
 
     def get_chat(self) -> list[dict[str, Any]]:
-        """Reference ``getChat`` (openai.js:4120)."""
+        """Reference ``getChat`` (openai.js:4120); ``None`` slots are skipped."""
         chat: list[dict[str, Any]] = []
         for item in self.messages.collection:
+            if item is None:
+                continue
             if isinstance(item, MessageCollection):
                 chat.extend(item.get_chat())
             elif isinstance(item, Message) and (item.content or item.tool_calls):
@@ -596,7 +616,7 @@ class ChatCompletion:
 
     def find_message_index(self, identifier: str) -> int:
         for index, item in enumerate(self.messages.collection):
-            if item.identifier == identifier:
+            if item is not None and item.identifier == identifier:
                 return index
         raise IdentifierNotFoundError(identifier)
 

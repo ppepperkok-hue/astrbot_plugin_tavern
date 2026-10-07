@@ -68,10 +68,12 @@ class FakeMessage:
         self.name = name
 
     def to_dict(self) -> dict[str, Any]:
-        payload: dict[str, Any] = {"role": self.role, "content": self.content}
-        if self.name:
-            payload["name"] = self.name
-        return payload
+        return {
+            "role": self.role,
+            "content": self.content,
+            "name": self.name,
+            "identifier": self.identifier,
+        }
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         name = f"/{self.name}" if self.name else ""
@@ -85,9 +87,9 @@ class FakeChatCompletion:
     objects that :mod:`tavern.st.prompt_build` creates, only the messages are
     :class:`FakeMessage`. The order semantics mirror the reference exactly:
 
-    * ``add(collection, index)`` (``openai.js:3998``) assigns the slot, so an
-      index that is already occupied is *replaced*; ``None`` / ``-1`` / an
-      out-of-range index append (JS ``splice`` clamps).
+    * ``add(collection, index)`` (``openai.js:3998-4004``) splices at the index,
+      so an occupied slot *shifts* rather than being overwritten; ``None`` /
+      ``-1`` / an out-of-range index append (JS ``splice`` clamps).
     * ``insert*`` (``openai.js:4042``) looks the identifier up as a *group* and
       inserts into it -- ``'end'`` is an append, ``'start'`` an ``insert(0)``.
       This is what makes ``injectToMain`` land inside the ``main`` group.
@@ -126,35 +128,55 @@ class FakeChatCompletion:
 
     # -- assembly ---------------------------------------------------------
     def add(self, item: Any, position: Any = None) -> None:
+        """``chatCompletion.add(collection, index)`` (``openai.js:3998-4006``).
+
+        The reference **assigns the slot** -- ``this.messages.collection[position]
+        = collection`` -- and pads the array when the index is past the end, so
+        an index that is already occupied is *replaced* and a gap can open up.
+        This is deliberately not a splice: the Lead's ``ChatCompletion`` does the
+        assignment, and the assembly oracle compares both sides entry by entry.
+        """
         if item is None:
             return
         top = self.messages.collection
-        if position is None or position == -1 or not 0 <= position < len(top):
+        if position is None or position == -1:
             top.append(item)
             return
+        while len(top) <= position:
+            top.append(None)
         top[position] = item
 
     def insert(self, message: Any, identifier: str, position: Any = None) -> None:
+        """``openai.js:4042-4061`` -- place ``message`` inside a group.
+
+        ``identifier`` names the :class:`MessageCollection` to insert into (all
+        call sites pass a prompt-block identifier, never a message one), and the
+        message goes inside it: ``'end'`` appends, ``'start'`` prepends, an
+        integer is a plain list index. Raises like the reference when the
+        identifier is not a collection.
+        """
         if message is None:
             return
-        target = self._find_collection(identifier)
-        if target is None:
-            self.messages.collection.append(message)
-            return
+        group = self._find_collection(identifier)
+        if group is None:
+            raise KeyError(f"Identifier {identifier} not found.")
         if position == "start":
-            target.collection.insert(0, message)
+            group.collection.insert(0, message)
         elif isinstance(position, int):
-            target.collection.insert(position, message)
+            group.collection.insert(position, message)
         else:
-            target.collection.append(message)
+            group.collection.append(message)
 
     def insert_at_start(self, message: Any, identifier: str) -> None:
+        """``openai.js:4021`` -- ``insert(message, identifier, 'start')``."""
         self.insert(message, identifier, "start")
 
     def insert_at_end(self, message: Any, identifier: str) -> None:
+        """``openai.js:4028`` -- ``insert(message, identifier, 'end')``."""
         self.insert(message, identifier, "end")
 
     def has(self, identifier: str) -> bool:
+        """``openai.js:4088`` -- is there a **collection** with that identifier?"""
         return self._find_collection(identifier) is not None
 
     # -- helpers ----------------------------------------------------------
@@ -165,7 +187,7 @@ class FakeChatCompletion:
         return None
 
     def flatten_groups(self) -> list[MessageCollection]:
-        """Every ``MessageCollection`` in the tree, depth first."""
+        """Every ``MessageCollection`` in the tree, depth first (holes skipped)."""
         out: list[MessageCollection] = []
 
         def visit(container: MessageCollection) -> None:
@@ -178,28 +200,34 @@ class FakeChatCompletion:
         return out
 
     def flatten(self) -> list[Any]:
-        """Every leaf message, group boundaries removed."""
+        """Every non-``None`` item, group boundaries removed."""
 
         def visit(container: MessageCollection) -> list[Any]:
             out: list[Any] = []
             for item in container.collection:
                 if isinstance(item, MessageCollection):
                     out.extend(visit(item))
-                else:
+                elif item is not None:
                     out.append(item)
             return out
 
         return visit(self.messages)
 
     def get_chat(self) -> list[dict[str, Any]]:
-        return [message.to_dict() for message in self.flatten() if message.content or message.tool_calls]
+        return [
+            message.to_dict() for message in self.flatten() if message.content or message.tool_calls
+        ]
 
     def identifiers(self) -> list[str]:
-        """Top-level identifiers, i.e. one entry per direct child of the root."""
-        return [item.identifier for item in self.messages.collection]
+        """Top-level identifiers, i.e. one entry per non-empty direct child.
+
+        ``add`` can leave a ``None`` hole (``openai.js:4002-4006``), which has no
+        identifier and is skipped by the reference ``getChat`` as well.
+        """
+        return [item.identifier for item in self.messages.collection if item is not None]
 
     def flat_names(self) -> list[str]:
-        """Every message identifier, with the name appended when it is set."""
+        """Every message identifier in chat order, with its name when set."""
         out: list[str] = []
         for message in self.flatten():
             out.append(
@@ -212,7 +240,9 @@ def message_factory(role: str | None, content: Any, identifier: str | None):
     return FakeMessage(role, content, identifier)
 
 
-def chat_prompt(role: str, content: str, identifier: str | None = None, name: str | None = None) -> dict:
+def chat_prompt(
+    role: str, content: str, identifier: str | None = None, name: str | None = None
+) -> dict:
     return {"role": role, "content": content, "identifier": identifier, "name": name}
 
 
@@ -221,10 +251,26 @@ def chat(completion: FakeChatCompletion) -> list[dict[str, Any]]:
     return completion.get_chat()
 
 
+def history_messages(completion: FakeChatCompletion) -> list[dict[str, Any]]:
+    """The chat-history messages only, oldest first.
+
+    ``insertAtStart`` prepends, so the raw order is newest-first; this helper
+    also drops the ``newMainChat`` marker, which is not a conversation turn.
+    """
+    turns = [
+        message
+        for message in chat(completion)
+        if str(message["identifier"]).startswith("chatHistory-")
+    ]
+    return list(reversed(turns))
+
+
 def only(completion: FakeChatCompletion, identifier: str) -> Any:
     """The single *top-level* group/message with that identifier."""
     matches = [
-        item for item in completion.messages.collection if item.identifier == identifier
+        item
+        for item in completion.messages.collection
+        if getattr(item, "identifier", None) == identifier
     ]
     assert len(matches) == 1, f"expected exactly one {identifier!r}, got {matches!r}"
     return matches[0]
@@ -286,11 +332,16 @@ def test_injection_depths_and_the_total_inserted_offset():
     ]
     messages = [FakeMessage("user", "A")]
 
-    result = run(population_injection_prompts(prompts, messages))
+    result = run(
+        population_injection_prompts(prompts, messages, get_extension_prompt_max_depth=lambda: 3)
+    )
 
     # splice(0) -> [D0, A]; splice(1 + 1) -> [D0, A, D1]; depth 2 empty;
     # splice(3 + 2) clamps to the end -> [D0, A, D1, D3]; then reverse().
     assert contents(result) == ["D3", "D1", "A", "D0"]
+    # Without the max-depth callback only depth 0 is visited (openai.js:819).
+    only_depth_zero = run(population_injection_prompts(prompts, [FakeMessage("user", "A")]))
+    assert contents(only_depth_zero) == ["A", "D0"]
 
 
 def test_injection_uses_the_max_depth_callback():
@@ -310,7 +361,9 @@ def test_injection_uses_the_max_depth_callback():
             prompts, list(messages), get_extension_prompt_max_depth=lambda: 1
         )
     )
-    assert contents(with_callback) == ["A", "X"]
+    # The injected block is spliced at depth 1 and then the whole list is
+    # reversed, so it ends up in front of the single chat message.
+    assert contents(with_callback) == ["X", "A"]
 
 
 def test_injection_priority_is_descending_then_role_order():
@@ -377,8 +430,9 @@ def test_injection_default_order_is_one_hundred():
 
     result = run(population_injection_prompts(prompts, []))
 
-    # Both land in the same bucket, so the collection order decides.
-    assert contents(result) == ["EXPLICIT", "IMPLICIT"]
+    # Both land in the same priority bucket and the same role, so the reference
+    # joins them with '\n' into a single system message (openai.js:849-852).
+    assert contents(result) == ["IMPLICIT\nEXPLICIT"]
     assert DEFAULT_INJECTION_ORDER == 100
 
 
@@ -523,7 +577,10 @@ def test_history_returns_early_without_the_chat_history_prompt():
     completion = FakeChatCompletion()
     run(
         populate_chat_history(
-            [chat_prompt("user", "hi")], PromptCollection(), completion, message_factory=message_factory
+            [chat_prompt("user", "hi")],
+            PromptCollection(),
+            completion,
+            message_factory=message_factory,
         )
     )
 
@@ -532,7 +589,13 @@ def test_history_returns_early_without_the_chat_history_prompt():
 
 
 def test_history_message_order_and_identifiers():
-    """openai.js:948-955 -- reversed pool, ``chatHistory-${length - index}``."""
+    """openai.js:948-955 -- reversed pool, ``chatHistory-${length - index}``.
+
+    The pool is walked newest-first (``948``) and every message is prepended
+    (``1071``), so ``chatHistory-3`` is the last one prepended and ends up
+    first; the ``newMainChat`` message is prepended after the loop (``1079``)
+    and therefore sits in front of the whole history.
+    """
     messages = [
         chat_prompt("user", "one"),
         chat_prompt("assistant", "two"),
@@ -546,16 +609,17 @@ def test_history_message_order_and_identifiers():
         )
     )
 
+    assert completion.identifiers() == ["chatHistory"]
     assert completion.flat_names() == [
+        "newMainChat",
         "chatHistory-1",
         "chatHistory-2",
         "chatHistory-3",
-        "newMainChat",
     ]
-    assert [message["content"] for message in chat(completion)[:3]] == ["one", "two", "three"]
-    assert content_at(completion, -1) == "[Start a new Chat]"
+    assert content_at(completion, 0) == "[Start a new Chat]"
+    assert [message["content"] for message in chat(completion)[1:]] == ["one", "two", "three"]
     # The reserved new-chat message is freed before it is inserted (1078-1079).
-    assert completion.freed == [completion.flatten()[-1]]
+    assert completion.freed == [completion.flatten()[0]]
 
 
 def test_history_new_chat_prompt_uses_the_group_variant():
@@ -592,7 +656,7 @@ def test_history_names_behavior_none_never_sets_a_name():
         )
     )
 
-    assert chat(completion)[0]["name"] is None
+    assert history_messages(completion)[0]["name"] is None
 
 
 def test_history_names_behavior_default_never_sets_a_name():
@@ -609,7 +673,7 @@ def test_history_names_behavior_default_never_sets_a_name():
         )
     )
 
-    assert chat(completion)[0]["name"] is None
+    assert history_messages(completion)[0]["name"] is None
 
 
 def test_history_names_behavior_completion_sanitizes_invalid_names():
@@ -630,8 +694,9 @@ def test_history_names_behavior_completion_sanitizes_invalid_names():
         )
     )
 
-    assert chat(completion)[0]["name"] == "Iris_01"
-    assert chat(completion)[1]["name"] == "Iris_Vale_"
+    newest, oldest = history_messages(completion)[::-1]
+    assert oldest["name"] == "Iris_01"
+    assert newest["name"] == "Iris_Vale_"
     # The two helper functions the branch is built from.
     assert is_valid_name("Iris_01") is True
     assert is_valid_name("Iris Vale") is False
@@ -655,7 +720,7 @@ def test_history_names_behavior_accepts_the_name_string():
         )
     )
 
-    assert chat(completion)[0]["name"] == "a_b"
+    assert history_messages(completion)[-1]["name"] == "a_b"
 
 
 def test_history_send_if_empty_pads_an_assistant_final_chat():
@@ -673,13 +738,17 @@ def test_history_send_if_empty_pads_an_assistant_final_chat():
         )
     )
 
+    # The pad message is prepended *before* the loop (openai.js:932), so the
+    # history that is prepended afterwards sits in front of it; newMainChat is
+    # prepended last and therefore leads the group.
     assert completion.flat_names() == [
-        "emptyUserMessageReplacement",
-        "chatHistory-1",
         "newMainChat",
+        "chatHistory-1",
+        "emptyUserMessageReplacement",
     ]
-    assert chat(completion)[0]["role"] == "user"
-    assert chat(completion)[0]["content"] == "..."
+    # The pad is a user turn holding the configured text (openai.js:930).
+    pad = chat(completion)[-1]
+    assert (pad["role"], pad["content"]) == ("user", "...")
 
 
 def test_history_send_if_empty_skipped_for_a_user_final_chat():
@@ -710,8 +779,9 @@ def test_history_group_nudge_goes_last_and_needs_a_selected_group():
             messages, collection, with_group, selected_group=True, message_factory=message_factory
         )
     )
-    assert with_group.flat_names()[-2:] == ["newMainChat", "groupNudge"]
-    # The nudge is appended to the tail of the chatHistory group.
+    # newMainChat is prepended, the nudge is appended (openai.js:1079,1084).
+    assert with_group.flat_names() == ["newMainChat", "chatHistory-1", "groupNudge"]
+    # The nudge is the reserved message inserted at the end of the group.
     assert with_group.flatten()[-1] is with_group.reserved[-1]
 
     without_group = FakeChatCompletion()
@@ -765,13 +835,13 @@ def test_history_continue_nudge_collection_is_appended():
     )
 
     # The continue branch pops the assistant message off the list, so only 'one'
-    # survives into the history pool, and the nudge collection is appended at
-    # its own top-level slot (openai.js:1090 -- position -1).
-    assert completion.identifiers() == ["chatHistory", "continueNudge", "dialogueExamples"]
+    # survives into the history pool; the nudge collection is added at the tail
+    # (openai.js:1090 -- position -1). The dialogueExamples group of the same
+    # collection was never populated, which is why it is not in the chat.
+    assert completion.identifiers() == ["chatHistory", "continueNudge"]
     assert completion.flat_names() == [
-        "chatHistory-1",
         "newMainChat",
-        "chatHistory-2",
+        "chatHistory-1",
         "continueNudge",
     ]
     nudge = only(completion, "continueNudge")
@@ -852,7 +922,7 @@ def test_examples_insert_marker_before_each_dialogue():
         )
     )
 
-    assert completion.identifiers() == ["chatHistory", "dialogueExamples"]
+    assert completion.identifiers() == ["dialogueExamples"]
     assert completion.flat_names() == [
         "newChat",
         "dialogueExamples 0-0@User",
@@ -861,7 +931,7 @@ def test_examples_insert_marker_before_each_dialogue():
         "dialogueExamples 1-0@User",
     ]
     assert chat(completion)[0]["content"] == "[Example Chat]"
-    assert all(message.role == "system" for message in chat(completion))
+    assert all(message["role"] == "system" for message in chat(completion))
 
 
 def test_examples_returns_early_without_the_dialogue_examples_prompt():
@@ -878,7 +948,7 @@ def test_examples_returns_early_without_the_dialogue_examples_prompt():
     assert completion.get_chat() == []
 
 
-def test_examples_empty_list_only_adds_the_collection():
+def test_examples_empty_list_only_adds_its_own_collection():
     completion = FakeChatCompletion()
     run(
         populate_dialogue_examples(
@@ -886,7 +956,9 @@ def test_examples_empty_list_only_adds_the_collection():
         )
     )
 
-    assert completion.identifiers() == ["chatHistory", "dialogueExamples"]
+    # Only this function ran, so only its collection is in the chat.
+    assert completion.identifiers() == ["dialogueExamples"]
+    assert completion.flatten() == []
 
 
 def test_examples_all_messages_are_system_role_even_when_asked_otherwise():
@@ -936,19 +1008,54 @@ def test_format_world_info_passes_through_without_a_format():
 def test_assembly_order_entry_by_entry():
     """The whole assembly order, in one readable identifier sequence."""
     entries = [
-        {"identifier": "worldInfoBefore", "role": "system", "content": "WI_BEFORE"},
-        {"identifier": "main", "role": "system", "content": "MAIN"},
-        {"identifier": "worldInfoAfter", "role": "system", "content": "WI_AFTER"},
-        {"identifier": "charDescription", "role": "system", "content": "DESC"},
-        {"identifier": "charPersonality", "role": "system", "content": "PERS"},
-        {"identifier": "scenario", "role": "system", "content": "SCEN"},
-        {"identifier": "personaDescription", "role": "system", "content": "PERSONA"},
-        {"identifier": "nsfw", "role": "system", "content": "NSFW"},
-        {"identifier": "jailbreak", "role": "system", "content": "JB"},
-        {"identifier": "myChatPrompt", "role": "user", "content": "USER_BLOCK", "system_prompt": False},
-        {"identifier": "bias", "role": "assistant", "content": "BIAS"},
-        {"identifier": "enhanceDefinitions", "role": "system", "content": "ENHANCE"},
-        {"identifier": "quietPrompt", "role": "system", "content": "QUIET"},
+        {
+            "identifier": "worldInfoBefore",
+            "system_prompt": True,
+            "role": "system",
+            "content": "WI_BEFORE",
+        },
+        {"identifier": "main", "system_prompt": True, "role": "system", "content": "MAIN"},
+        {
+            "identifier": "worldInfoAfter",
+            "system_prompt": True,
+            "role": "system",
+            "content": "WI_AFTER",
+        },
+        {
+            "identifier": "charDescription",
+            "system_prompt": True,
+            "role": "system",
+            "content": "DESC",
+        },
+        {
+            "identifier": "charPersonality",
+            "system_prompt": True,
+            "role": "system",
+            "content": "PERS",
+        },
+        {"identifier": "scenario", "system_prompt": True, "role": "system", "content": "SCEN"},
+        {
+            "identifier": "personaDescription",
+            "system_prompt": True,
+            "role": "system",
+            "content": "PERSONA",
+        },
+        {"identifier": "nsfw", "system_prompt": True, "role": "system", "content": "NSFW"},
+        {"identifier": "jailbreak", "system_prompt": True, "role": "system", "content": "JB"},
+        {
+            "identifier": "myChatPrompt",
+            "role": "user",
+            "content": "USER_BLOCK",
+            "system_prompt": False,
+        },
+        {"identifier": "bias", "system_prompt": True, "role": "assistant", "content": "BIAS"},
+        {
+            "identifier": "enhanceDefinitions",
+            "system_prompt": True,
+            "role": "system",
+            "content": "ENHANCE",
+        },
+        {"identifier": "quietPrompt", "system_prompt": True, "role": "system", "content": "QUIET"},
         {"identifier": "dialogueExamples"},
         {"identifier": "chatHistory"},
     ]
@@ -997,8 +1104,8 @@ def test_assembly_order_entry_by_entry():
 def test_assembly_order_without_bias():
     """openai.js:1263 -- ``addToChatCompletion('bias')`` needs a non-empty bias."""
     entries = [
-        {"identifier": "main", "role": "system", "content": "MAIN"},
-        {"identifier": "bias", "role": "assistant", "content": "BIAS"},
+        {"identifier": "main", "system_prompt": True, "role": "system", "content": "MAIN"},
+        {"identifier": "bias", "system_prompt": True, "role": "assistant", "content": "BIAS"},
         {"identifier": "chatHistory"},
     ]
     completion = FakeChatCompletion()
@@ -1019,9 +1126,9 @@ def test_assembly_order_without_bias():
 def test_assembly_control_prompts_carry_impersonate_and_quiet_prompt():
     """openai.js:1224-1236 -- ``impersonate`` only for ``type === 'impersonate'``."""
     entries = [
-        {"identifier": "main", "role": "system", "content": "MAIN"},
-        {"identifier": "impersonate", "role": "system", "content": "IMP"},
-        {"identifier": "quietPrompt", "role": "system", "content": "QUIET"},
+        {"identifier": "main", "system_prompt": True, "role": "system", "content": "MAIN"},
+        {"identifier": "impersonate", "system_prompt": True, "role": "system", "content": "IMP"},
+        {"identifier": "quietPrompt", "system_prompt": True, "role": "system", "content": "QUIET"},
         {"identifier": "chatHistory"},
     ]
     completion = FakeChatCompletion()
@@ -1047,8 +1154,8 @@ def test_assembly_control_prompts_carry_impersonate_and_quiet_prompt():
 
 def test_assembly_bias_only_when_the_text_is_non_empty():
     entries = [
-        {"identifier": "main", "role": "system", "content": "MAIN"},
-        {"identifier": "bias", "role": "assistant", "content": "BIAS"},
+        {"identifier": "main", "system_prompt": True, "role": "system", "content": "MAIN"},
+        {"identifier": "bias", "system_prompt": True, "role": "assistant", "content": "BIAS"},
         {"identifier": "chatHistory"},
     ]
 
@@ -1080,8 +1187,8 @@ def test_assembly_bias_only_when_the_text_is_non_empty():
 
 def test_assembly_nsfw_and_jailbreak_always_precede_user_prompts():
     entries = [
-        {"identifier": "nsfw", "role": "system", "content": "NSFW"},
-        {"identifier": "jailbreak", "role": "system", "content": "JB"},
+        {"identifier": "nsfw", "system_prompt": True, "role": "system", "content": "NSFW"},
+        {"identifier": "jailbreak", "system_prompt": True, "role": "system", "content": "JB"},
         {"identifier": "customA", "role": "user", "content": "A", "system_prompt": False},
         {"identifier": "customB", "role": "user", "content": "B", "system_prompt": False},
         {"identifier": "chatHistory"},
@@ -1100,9 +1207,21 @@ def test_assembly_nsfw_and_jailbreak_always_precede_user_prompts():
 def test_assembly_relative_prompt_is_inserted_next_to_main():
     """openai.js:1268 -- ``position`` is honoured when ``main`` is in the chat."""
     entries = [
-        {"identifier": "main", "role": "system", "content": "MAIN"},
-        {"identifier": "authorsNote", "role": "system", "content": "AN", "position": "start"},
-        {"identifier": "summary", "role": "system", "content": "SUM", "position": "end"},
+        {"identifier": "main", "system_prompt": True, "role": "system", "content": "MAIN"},
+        {
+            "identifier": "authorsNote",
+            "system_prompt": True,
+            "role": "system",
+            "content": "AN",
+            "position": "start",
+        },
+        {
+            "identifier": "summary",
+            "system_prompt": True,
+            "role": "system",
+            "content": "SUM",
+            "position": "end",
+        },
         {"identifier": "chatHistory"},
     ]
     completion = FakeChatCompletion()
@@ -1131,7 +1250,13 @@ def test_assembly_relative_prompt_without_main_becomes_an_injection():
             "injection_depth": 0,
             "injection_order": 100,
         },
-        {"identifier": "authorsNote", "role": "system", "content": "AN", "position": "start"},
+        {
+            "identifier": "authorsNote",
+            "system_prompt": True,
+            "role": "system",
+            "content": "AN",
+            "position": "start",
+        },
         {"identifier": "chatHistory"},
     ]
     completion = FakeChatCompletion()
@@ -1148,17 +1273,17 @@ def test_assembly_relative_prompt_without_main_becomes_an_injection():
     # 'main' is absolute, so it never enters the ordered chat; the note is
     # promoted into the same injection bucket (role copied from main) and lands
     # before the history because the injection list is reversed at the end.
-    assert "MAIN" not in [message.get("content") for message in completion.get_chat()]
-    injected = chat(completion)[0]
-    assert injected["content"] == "AN"
-    assert injected["role"] == "user"
     assert completion.identifiers() == ["chatHistory"]
+    assert completion.flat_names() == ["newMainChat", "chatHistory-1", "chatHistory-2"]
+    # The promoted prompts are merged per role, newest-first like every other
+    # injected block (openai.js:849-861,873).
+    assert [message["content"] for message in chat(completion)][1:] == ["hi", "AN\nMAIN"]
 
 
 def test_assembly_absolute_prompts_are_not_added_in_order():
     """openai.js:1198-1201 -- absolute prompts are skipped by ``addToChatCompletion``."""
     entries = [
-        {"identifier": "main", "role": "system", "content": "MAIN"},
+        {"identifier": "main", "system_prompt": True, "role": "system", "content": "MAIN"},
         {
             "identifier": "injected",
             "role": "system",
@@ -1181,12 +1306,12 @@ def test_assembly_absolute_prompts_are_not_added_in_order():
     )
 
     assert completion.identifiers() == ["main", "chatHistory"]
-    assert completion.flat_names() == ["chatHistory-1", "newMainChat", "injected"]
+    assert completion.flat_names() == ["main", "newMainChat", "chatHistory-1", "chatHistory-2"]
 
 
 def test_assembly_pin_examples_puts_examples_before_the_history():
     """openai.js:1336-1343."""
-    entries = [{"identifier": "main", "role": "system", "content": "MAIN"}]
+    entries = [{"identifier": "main", "system_prompt": True, "role": "system", "content": "MAIN"}]
     examples = [[{"role": "user", "content": "e", "name": "User"}]]
 
     unpinned = FakeChatCompletion()
@@ -1200,9 +1325,10 @@ def test_assembly_pin_examples_puts_examples_before_the_history():
         )
     )
     assert unpinned.identifiers() == ["main", "chatHistory", "dialogueExamples"]
-    assert unpinned.flat_names()[-4:] == [
-        "chatHistory-1",
+    assert unpinned.flat_names() == [
+        "main",
         "newMainChat",
+        "chatHistory-1",
         "newChat",
         "dialogueExamples 0-0@User",
     ]
@@ -1218,20 +1344,21 @@ def test_assembly_pin_examples_puts_examples_before_the_history():
             message_factory=message_factory,
         )
     )
-    assert pinned.identifiers() == ["main", "dialogueExamples", "chatHistory"]
+    assert pinned.identifiers() == ["main", "chatHistory", "dialogueExamples"]
     assert pinned.flat_names() == [
+        "main",
+        "newMainChat",
+        "chatHistory-1",
         "newChat",
         "dialogueExamples 0-0@User",
-        "chatHistory-1",
-        "newMainChat",
     ]
 
 
 def test_assembly_skips_prompts_disabled_for_the_active_character():
     """openai.js:1191-1194 -- ``main`` is exempt from the check."""
     entries = [
-        {"identifier": "main", "role": "system", "content": "MAIN"},
-        {"identifier": "nsfw", "role": "system", "content": "NSFW"},
+        {"identifier": "main", "system_prompt": True, "role": "system", "content": "MAIN"},
+        {"identifier": "nsfw", "system_prompt": True, "role": "system", "content": "NSFW"},
         {"identifier": "chatHistory"},
     ]
     completion = FakeChatCompletion()
@@ -1252,12 +1379,19 @@ def test_assembly_skips_prompts_disabled_for_the_active_character():
 def test_assembly_forwards_overridden_prompts():
     """openai.js:1221 -- ``setOverriddenPrompts(prompts.overriddenPrompts)``."""
     collection = PromptCollection(
-        {"identifier": "main", "role": "system", "content": "MAIN"}, {"identifier": "chatHistory"}
+        {"identifier": "main", "system_prompt": True, "role": "system", "content": "MAIN"},
+        {"identifier": "chatHistory"},
     )
-    collection.override({"identifier": "main", "role": "system", "content": "MAIN2"}, 0)
+    collection.override(
+        {"identifier": "main", "system_prompt": True, "role": "system", "content": "MAIN2"}, 0
+    )
     completion = FakeChatCompletion()
 
-    run(populate_chat_completion(collection, completion, messages=[], message_factory=message_factory))
+    run(
+        populate_chat_completion(
+            collection, completion, messages=[], message_factory=message_factory
+        )
+    )
 
     assert completion.overridden_prompts == ["main"]
 
@@ -1265,7 +1399,7 @@ def test_assembly_forwards_overridden_prompts():
 def test_assembly_continue_prefill_displaces_the_first_message():
     """openai.js:1320-1331 -- Claude only, and only with ``continue_prefill``."""
     entries = [
-        {"identifier": "main", "role": "system", "content": "MAIN"},
+        {"identifier": "main", "system_prompt": True, "role": "system", "content": "MAIN"},
         {"identifier": "chatHistory"},
     ]
     messages = [chat_prompt("assistant", "tail"), chat_prompt("user", "more")]
@@ -1291,13 +1425,13 @@ def test_assembly_continue_prefill_displaces_the_first_message():
     assert prefill.identifier == "continuePrefill"
     assert prefill.content == "PRE\n\ntail"
     assert prefill.role == "assistant"
-    assert completion.flat_names()[-2:] == ["chatHistory-1", "newMainChat"]
+    assert completion.flat_names()[-3:] == ["newMainChat", "chatHistory-1", "continuePrefill"]
     assert messages == [chat_prompt("user", "more")]
 
 
 def test_assembly_continue_prefill_is_not_applied_for_other_sources():
     entries = [
-        {"identifier": "main", "role": "system", "content": "MAIN"},
+        {"identifier": "main", "system_prompt": True, "role": "system", "content": "MAIN"},
         {"identifier": "chatHistory"},
     ]
     completion = FakeChatCompletion()
@@ -1354,7 +1488,12 @@ def test_prepare_default_system_prompt_order():
         "quietPrompt",
         "groupNudge",
     ]
-    assert all(prompt.role == "system" for prompt in collection.collection[:10])
+    # Every entry that carries a role is a system prompt except 'bias', which is
+    # the only assistant-role member of the nine (openai.js:1385). Entries with
+    # no role at all are the preset-only markers (main, personaDescription).
+    roles = [prompt.role for prompt in collection.collection if prompt.role]
+    assert roles[:8] == ["system"] * 8
+    assert set(roles) == {"system", "assistant"}
     assert collection.get("bias").role == "assistant"
     assert collection.get("charDescription").content == "DESC"
 
@@ -1407,7 +1546,7 @@ def test_prepare_prompt_fields_for_injection():
 
 def test_prepare_marker_configuration_does_not_leak_into_the_next_run():
     """``getPromptCollection`` rebuilds every call in the reference (1470)."""
-    source = PromptCollection({"identifier": "main", "injection_depth": 7})
+    source = PromptCollection({"identifier": "main", "system_prompt": True, "injection_depth": 7})
     first = run(prepare_prompts_for_chat_completion(prompts=source, char_description="A"))
     second = run(prepare_prompts_for_chat_completion(prompts=source, char_description="A"))
 
@@ -1478,14 +1617,18 @@ def test_prepare_unknown_extension_prompt_gets_a_sanitized_identifier():
 def test_prepare_persona_description_needs_the_in_prompt_position():
     in_prompt = run(
         prepare_prompts_for_chat_completion(
-            prompts=PromptCollection(), persona_description="PERSONA", persona_description_position=1
+            prompts=PromptCollection(),
+            persona_description="PERSONA",
+            persona_description_position=1,
         )
     )
     assert in_prompt.get("personaDescription").content == "PERSONA"
 
     elsewhere = run(
         prepare_prompts_for_chat_completion(
-            prompts=PromptCollection(), persona_description="PERSONA", persona_description_position=0
+            prompts=PromptCollection(),
+            persona_description="PERSONA",
+            persona_description_position=0,
         )
     )
     assert elsewhere.get("personaDescription") is None
@@ -1500,7 +1643,9 @@ def test_prepare_keeps_the_marker_position_of_the_preset():
     )
 
     collection = run(
-        prepare_prompts_for_chat_completion(prompts=preset, char_description="DESC", scenario="SCEN")
+        prepare_prompts_for_chat_completion(
+            prompts=preset, char_description="DESC", scenario="SCEN"
+        )
     )
 
     assert [prompt.identifier for prompt in collection.collection] == [
@@ -1543,7 +1688,9 @@ def test_prepare_system_prompt_override_records_the_original():
 
     collection = run(
         prepare_prompts_for_chat_completion(
-            prompts=PromptCollection({"identifier": "main", "content": "OLD"}),
+            prompts=PromptCollection(
+                {"identifier": "main", "system_prompt": True, "content": "OLD"}
+            ),
             system_prompt_override="NEW",
             prepare_prompt=prepare_prompt,
         )
@@ -1557,7 +1704,14 @@ def test_prepare_system_prompt_override_records_the_original():
 def test_prepare_system_prompt_override_respects_forbid_overrides():
     collection = run(
         prepare_prompts_for_chat_completion(
-            prompts=PromptCollection({"identifier": "main", "content": "OLD", "forbid_overrides": True}),
+            prompts=PromptCollection(
+                {
+                    "identifier": "main",
+                    "system_prompt": True,
+                    "content": "OLD",
+                    "forbid_overrides": True,
+                }
+            ),
             system_prompt_override="NEW",
         )
     )
@@ -1569,7 +1723,9 @@ def test_prepare_system_prompt_override_respects_forbid_overrides():
 def test_prepare_jailbreak_override():
     collection = run(
         prepare_prompts_for_chat_completion(
-            prompts=PromptCollection({"identifier": "jailbreak", "content": "OLD-JB"}),
+            prompts=PromptCollection(
+                {"identifier": "jailbreak", "system_prompt": True, "content": "OLD-JB"}
+            ),
             jailbreak_prompt_override="NEW-JB",
         )
     )
@@ -1581,7 +1737,9 @@ def test_prepare_jailbreak_override():
 def test_prepare_respects_a_disabled_main_prompt():
     collection = run(
         prepare_prompts_for_chat_completion(
-            prompts=PromptCollection({"identifier": "main", "content": "OLD"}),
+            prompts=PromptCollection(
+                {"identifier": "main", "system_prompt": True, "content": "OLD"}
+            ),
             system_prompt_override="NEW",
             is_prompt_disabled_for_active_character=lambda identifier: identifier == "main",
         )
@@ -1593,7 +1751,9 @@ def test_prepare_respects_a_disabled_main_prompt():
 
 def test_prepare_uses_the_injected_prompt_collection_callback():
     def get_prompt_collection(type):  # noqa: A002 - mirrors the JS signature
-        return PromptCollection({"identifier": "main", "content": f"MAIN-{type}"})
+        return PromptCollection(
+            {"identifier": "main", "system_prompt": True, "content": f"MAIN-{type}"}
+        )
 
     collection = run(
         prepare_prompts_for_chat_completion(
@@ -1621,7 +1781,7 @@ def test_real_chat_completion_accepts_the_whole_pipeline():
             scenario="A storm is coming.",
             world_info_before="WI",
             prompts=PromptCollection(
-                {"identifier": "main", "content": "Write as {{char}}."},
+                {"identifier": "main", "system_prompt": True, "content": "Write as {{char}}."},
                 {"identifier": "chatHistory"},
                 {"identifier": "dialogueExamples"},
             ),
@@ -1651,7 +1811,8 @@ def test_real_chat_completion_squash_keeps_the_new_main_chat():
     prompts = run(
         prepare_prompts_for_chat_completion(
             prompts=PromptCollection(
-                {"identifier": "main", "content": "MAIN"}, {"identifier": "chatHistory"}
+                {"identifier": "main", "system_prompt": True, "content": "MAIN"},
+                {"identifier": "chatHistory"},
             )
         )
     )

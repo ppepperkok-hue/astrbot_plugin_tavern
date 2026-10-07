@@ -35,8 +35,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def fixture_paths(args: argparse.Namespace) -> list[Path]:
+    """Message-model fixtures only.
+
+    ``assembly-*`` fixtures drive a different pair of runners (``run_assembly.mjs``
+    / ``run_assembly_python.py``) because they need a prompt collection instead of
+    a script of model operations; comparing them here would report a false match.
+    """
     if args.all or not args.fixture:
-        return sorted(FIXTURES.glob("*.json"))
+        return sorted(
+            path for path in FIXTURES.glob("*.json") if not path.stem.startswith("assembly-")
+        )
     path = FIXTURES / f"{args.fixture}.json"
     if not path.is_file():
         raise SystemExit(f"no such fixture: {path}")

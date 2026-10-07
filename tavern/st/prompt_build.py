@@ -343,8 +343,14 @@ def _is_absolute(prompt: Any) -> bool:
     )
 
 
-def _is_system_prompt(prompt: Any) -> bool:
-    """``false === prompt.system_prompt`` -- only the literal ``False`` counts."""
+def _is_user_relative_prompt(prompt: Any) -> bool:
+    """``false === prompt.system_prompt`` (openai.js:1243) -- a **user** prompt.
+
+    The name says what the caller filters for: a prompt marked
+    ``system_prompt: false`` is placed by the user-relative loop, not by the
+    fixed system block. It is deliberately not called ``_is_system_prompt`` --
+    that name invites the inverted condition, which cost a debugging round.
+    """
     return _get(prompt, "system_prompt") is False
 
 
@@ -1087,7 +1093,7 @@ async def populate_chat_completion(
     user_relative_prompts = [
         prompt.identifier
         for prompt in _collection(prompts)
-        if not _is_system_prompt(prompt) and not _is_absolute(prompt)
+        if _is_user_relative_prompt(prompt) and not _is_absolute(prompt)
     ]
     absolute_prompts = [prompt for prompt in _collection(prompts) if _is_absolute(prompt)]
 
@@ -1311,24 +1317,47 @@ async def prepare_prompts_for_chat_completion(
     impersonation_prompt = _setting(settings, "impersonation_prompt", "") or ""
 
     # openai.js:1373-1386
+    #
+    # ``system_prompt`` is set on every one of them: these nine are the entries
+    # ST's ``PromptManager`` marks as system prompts, which is what keeps
+    # ``populate_chat_completion``'s "user-relative" filter
+    # (``openai.js:1242-1243``, ``false === prompt.system_prompt``) from
+    # trailing them after the user's own prompt blocks again.
     system_prompts: list[Prompt] = [
         Prompt(
             role="system",
             content=format_world_info(world_info_before, world_info_format),
             identifier="worldInfoBefore",
+            system_prompt=True,
         ),
         Prompt(
             role="system",
             content=format_world_info(world_info_after, world_info_format),
             identifier="worldInfoAfter",
+            system_prompt=True,
         ),
-        Prompt(role="system", content=char_description, identifier="charDescription"),
-        Prompt(role="system", content=char_personality_text, identifier="charPersonality"),
-        Prompt(role="system", content=scenario_text, identifier="scenario"),
-        Prompt(role="system", content=impersonation_prompt, identifier="impersonate"),
-        Prompt(role="system", content=quiet_prompt, identifier="quietPrompt"),
-        Prompt(role="system", content=group_nudge, identifier="groupNudge"),
-        Prompt(role="assistant", content=bias, identifier="bias"),
+        Prompt(
+            role="system",
+            content=char_description,
+            identifier="charDescription",
+            system_prompt=True,
+        ),
+        Prompt(
+            role="system",
+            content=char_personality_text,
+            identifier="charPersonality",
+            system_prompt=True,
+        ),
+        Prompt(role="system", content=scenario_text, identifier="scenario", system_prompt=True),
+        Prompt(
+            role="system",
+            content=impersonation_prompt,
+            identifier="impersonate",
+            system_prompt=True,
+        ),
+        Prompt(role="system", content=quiet_prompt, identifier="quietPrompt", system_prompt=True),
+        Prompt(role="system", content=group_nudge, identifier="groupNudge", system_prompt=True),
+        Prompt(role="assistant", content=bias, identifier="bias", system_prompt=True),
     ]
 
     # openai.js:1388-1395 -- Tavern Extras summary.
@@ -1544,19 +1573,17 @@ def _can_afford_all(chat_completion: Any, messages: Sequence[Any]) -> bool:
 
 
 def _insert(chat_completion: Any, message: Any, identifier: str, position: Any = None) -> None:
-    """``chatCompletion.insert(message, identifier, position)`` (``openai.js:932``).
+    """``chatCompletion.insert(message, identifier, position)`` (``openai.js:1268``).
 
-    ``position is None`` appends at the tail of that identifier's collection;
-    ``'start'`` / ``'end'`` place the message before / after the identifier's
-    own message (``'end'`` appends into the group, exactly like the reference
-    ``MessageCollection.insert``).
+    ``identifier`` names a :class:`~tavern.st.chat_completion.MessageCollection`
+    in the chat and the message is placed **inside** it: ``'start'`` before the
+    group's first message, ``'end'`` after the last one, ``None`` appends.
+    Without ``insert`` in the contract this degrades to ``insert_at_start`` /
+    ``insert_at_end``, which mean the same two things.
     """
     method = getattr(chat_completion, "insert", None)
     if method is not None:
-        if position is None:
-            method(message, identifier)
-        else:
-            method(message, identifier, position)
+        method(message, identifier, "end" if position is None else position)
         return
     if position == "start":
         chat_completion.insert_at_start(message, identifier)
@@ -1565,35 +1592,25 @@ def _insert(chat_completion: Any, message: Any, identifier: str, position: Any =
 
 
 def _insert_at_start(chat_completion: Any, message: Any, identifier: str) -> None:
+    """``insertAtStart`` (``openai.js:4042``) -- before the group's first message."""
     chat_completion.insert_at_start(message, identifier)
 
 
 def _insert_at_end(chat_completion: Any, message: Any, identifier: str) -> None:
+    """``insertAtEnd`` -- after the group's last message."""
     chat_completion.insert_at_end(message, identifier)
 
 
 def _add(chat_completion: Any, item: Any, position: Any = None) -> None:
     """``chatCompletion.add(collection, index)`` (``openai.js:1207``).
 
-    The reference ``add`` assigns the slot outright (``openai.js:4004``), so an
-    index that is already occupied is *replaced*, not shifted -- the local
-    ``addToChatCompletion`` only ever passes an index it got from the prompt
-    collection. Two consequences the reference gets from ``splice`` are worth
-    spelling out here:
-
-    * an out-of-range index lands at the end of the array, and
-    * ``position is None`` / ``-1`` appends.
-
-    Both would raise or silently overwrite with a naive list assignment, so the
-    index is checked against the container before it is handed over.
+    The reference ``ChatCompletion.add`` assigns the slot outright
+    (``openai.js:4004-4006``): an index replaces whatever occupies it, and pads
+    the array when it is past the end. The port does the same, so this adapter
+    stays a straight call -- inserting instead of assigning shifts every
+    following prompt and duplicates entries, which the assembly oracle rejects.
     """
-    if position is not None:
-        container = getattr(chat_completion, "messages", None)
-        items = getattr(container, "collection", None)
-        if isinstance(items, list) and 0 <= position < len(items):
-            chat_completion.add(item, position)
-            return
-    chat_completion.add(item)
+    chat_completion.add(item, position)
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,134 @@
+{
+  "name": "01-assembly-order",
+  "seed": 1337,
+  "description": "The default character + world info block, one user-relative prompt, nsfw and jailbreak, a bias text and a quiet prompt. The expected identifier sequence is what the reference produces: each prompt is placed at its own slot in the PromptCollection, so a user prompt added between charDescription and charPersonality keeps its position.",
+  "max_context": 1000000,
+  "response": 0,
+  "bias": "BIAS TEXT",
+  "quiet_prompt": "QUIET TEXT",
+  "overridden_prompts": [
+    "main",
+    "jailbreak"
+  ],
+  "prompts": [
+    {
+      "identifier": "worldInfoBefore",
+      "role": "system",
+      "content": "WI_BEFORE",
+      "system_prompt": true
+    },
+    {
+      "identifier": "main",
+      "role": "system",
+      "content": "MAIN",
+      "system_prompt": true
+    },
+    {
+      "identifier": "worldInfoAfter",
+      "role": "system",
+      "content": "WI_AFTER",
+      "system_prompt": true
+    },
+    {
+      "identifier": "charDescription",
+      "role": "system",
+      "content": "DESC",
+      "system_prompt": true
+    },
+    {
+      "identifier": "myChatPrompt",
+      "role": "user",
+      "content": "USER_BLOCK",
+      "system_prompt": false
+    },
+    {
+      "identifier": "charPersonality",
+      "role": "system",
+      "content": "PERS",
+      "system_prompt": true
+    },
+    {
+      "identifier": "scenario",
+      "role": "system",
+      "content": "SCEN",
+      "system_prompt": true
+    },
+    {
+      "identifier": "personaDescription",
+      "role": "system",
+      "content": "PERSONA",
+      "system_prompt": true
+    },
+    {
+      "identifier": "nsfw",
+      "role": "system",
+      "content": "NSFW",
+      "system_prompt": true
+    },
+    {
+      "identifier": "jailbreak",
+      "role": "system",
+      "content": "JB",
+      "system_prompt": true
+    },
+    {
+      "identifier": "bias",
+      "role": "assistant",
+      "content": "BIAS",
+      "system_prompt": true
+    },
+    {
+      "identifier": "enhanceDefinitions",
+      "role": "system",
+      "content": "ENHANCE",
+      "system_prompt": true
+    },
+    {
+      "identifier": "quietPrompt",
+      "role": "system",
+      "content": "QUIET",
+      "system_prompt": true
+    },
+    {
+      "identifier": "impersonate",
+      "role": "system",
+      "content": "IMPERSONATE",
+      "system_prompt": true
+    },
+    {
+      "identifier": "dialogueExamples",
+      "role": "system",
+      "content": "",
+      "system_prompt": true
+    },
+    {
+      "identifier": "chatHistory",
+      "role": "system",
+      "content": "",
+      "system_prompt": true
+    }
+  ],
+  "chat": [
+    {
+      "role": "user",
+      "content": "hello there",
+      "name": "User"
+    },
+    {
+      "role": "assistant",
+      "content": "general kenobi",
+      "name": "Iris"
+    }
+  ],
+  "examples": [
+    {
+      "mes": "example user",
+      "name": "User"
+    },
+    {
+      "mes": "example char",
+      "name": "Char"
+    }
+  ],
+  "group_chat": false
+}

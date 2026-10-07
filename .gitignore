@@ -40,3 +40,6 @@ tools/st-oracle/out/
 
 # Scratch files from ad-hoc debugging
 .tmp-dbg.py
+
+# Scratch files from ad-hoc repairs
+.tmp-*.py

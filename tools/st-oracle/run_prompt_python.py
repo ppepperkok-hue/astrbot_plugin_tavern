@@ -146,7 +146,9 @@ def run(fixture: dict[str, Any], divisor: int) -> dict[str, Any]:
                         "role": item.role if isinstance(item, Message) else None,
                         "name": (item.name or None) if isinstance(item, Message) else None,
                         "content": (
-                            item.content if isinstance(item, Message) and isinstance(item.content, str) else None
+                            item.content
+                            if isinstance(item, Message) and isinstance(item.content, str)
+                            else None
                         ),
                         "tokens": item.get_tokens(),
                     }
