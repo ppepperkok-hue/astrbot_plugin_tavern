@@ -658,37 +658,78 @@ OPENAI_TABLE: dict[str, tuple[str, str, str]] = {
     ),
     # ---- the token-budget layer a headless turn still needs -------------
     "getMaxContextOpenAI": (
-        "tavern/config.py:BackendConfig + tavern/st/prompt.py:trim_history",
-        "pending",
-        "A regex -> context-size table for the OpenAI models; nothing in the port "
-        "resolves a provider context window. Today build_turn never sets a token "
-        "budget, so trim_history is only reachable from tests and the oracle.",
+        "tavern/config.py:BackendConfig.max_context_tokens + "
+        "tavern/st/prompt.py:trim_history + tavern/core.py:PluginCore.build_turn",
+        "ported",
+        "The *budget* is ported; the model-name lookup is not, deliberately. "
+        "SillyTavern resolves a context window from a static regex/name table because "
+        "it lets the user type any model name; AstrBot owns the provider layer and "
+        "exposes no model metadata, and the plugin never chooses a provider from a "
+        "model string -- so a table here would be a guess that silently deletes "
+        "conversation when it is wrong. Instead the window is an explicit setting, "
+        "and ``build_turn`` enforces it: it renders the preset once with an empty "
+        "history to measure everything that is not history (leading system blocks, "
+        "preset blocks, in-chat injections) plus the reply reservation, then keeps "
+        "the newest suffix with ``trim_history``. Off by default (``0``), so no "
+        "existing behaviour changes. The scan still runs on the *untrimmed* history.",
     ),
-    "getGeminiMaxContext": ("", "pending", "Gemini inputTokenLimit lookup from model_list."),
-    "getGeminiMaxTemp": ("", "pending", "Gemini maxTemperature lookup from model_list."),
-    "getMistralMaxContext": ("", "pending", "Mistral context lookup from model_list."),
-    "getGroqMaxContext": ("", "pending", "Groq context map and model_list lookup."),
-    "getZaiMaxContext": ("", "pending", "Static GLM model -> context map."),
-    "getSiliconflowMaxContext": ("", "pending", "Static SiliconFlow model -> context map."),
-    "getMoonshotMaxContext": ("", "pending", "Moonshot context lookup from model_list."),
-    "getFireworksMaxContext": ("", "pending", "Fireworks context lookup from model_list."),
-    "getChutesMaxContext": ("", "pending", "Chutes context lookup from model_list."),
-    "getElectronHubMaxContext": ("", "pending", "ElectronHub token lookup from model_list."),
-    "getNanoGptMaxContext": ("", "pending", "NanoGPT context lookup from model_list."),
+    "getGeminiMaxContext": (
+        "",
+        "exempt",
+        "Gemini inputTokenLimit from model_list. Same decision as getMaxContextOpenAI: "
+        "the port takes the window as a setting instead of resolving it from a model "
+        "name, because it cannot see AstrBot's model metadata.",
+    ),
+    "getGeminiMaxTemp": (
+        "",
+        "exempt",
+        "Gemini maxTemperature from model_list. A sampling parameter, not a budget: "
+        "AstrBot's provider layer owns request parameters, and the plugin never sends "
+        "one.",
+    ),
+    "getMistralMaxContext": ("", "exempt", "Model-name -> window table; see getMaxContextOpenAI."),
+    "getGroqMaxContext": ("", "exempt", "Model-name -> window table; see getMaxContextOpenAI."),
+    "getZaiMaxContext": ("", "exempt", "Model-name -> window table; see getMaxContextOpenAI."),
+    "getSiliconflowMaxContext": (
+        "",
+        "exempt",
+        "Model-name -> window table; see getMaxContextOpenAI.",
+    ),
+    "getMoonshotMaxContext": ("", "exempt", "Model-name -> window table; see getMaxContextOpenAI."),
+    "getFireworksMaxContext": (
+        "",
+        "exempt",
+        "Model-name -> window table; see getMaxContextOpenAI.",
+    ),
+    "getChutesMaxContext": ("", "exempt", "Model-name -> window table; see getMaxContextOpenAI."),
+    "getElectronHubMaxContext": (
+        "",
+        "exempt",
+        "Model-name -> window table; see getMaxContextOpenAI.",
+    ),
+    "getNanoGptMaxContext": ("", "exempt", "Model-name -> window table; see getMaxContextOpenAI."),
     "getChatCompletionModel": (
         "tavern/config.py:BackendConfig",
-        "pending",
-        "source -> model-name resolution. The port has a single configured provider "
-        "id and no chat_completion_source switch, so the per-source spellings "
-        "(claude_model/openai_model/openrouter_model/...) have no equivalent.",
+        "exempt",
+        "source -> model-name resolution. The port has one configured provider id and "
+        "no ``chat_completion_source`` switch, so the per-source spellings "
+        "(claude_model / openai_model / openrouter_model / ...) have no equivalent: "
+        "AstrBot's provider selection replaces that whole mechanism.",
     ),
     # ---- response/error handling ---------------------------------------
     "getChatCompletionErrorMessage": (
-        "tavern/backends/base.py:BackendError",
-        "pending",
-        "Extracting data.error / data.detail.error / message / code / type from a "
-        "provider response body. The port only wraps exceptions into BackendError "
-        "with str(exc); a provider payload's error object is never read.",
+        "tavern/backends/sillytavern.py:error_message",
+        "ported",
+        "A provider's error body is a structure, and the port used to hand it to "
+        "BackendError verbatim -- the same defect upstream annotates at :1659 "
+        "(\"equiv to Error('[object Object]')\"). ``error_message`` digs the message "
+        "out following the reference's truthiness chain, and the extraction also "
+        "closes a detection hole: ``{'detail': {...}}`` bodies were not recognised "
+        "at all and silently became empty replies. Sixteen cases were generated by "
+        "running the real engine (`run_error_message.mjs`) and are asserted "
+        "case-for-case; three of them are behaviours a tidier port would get wrong "
+        "(a string body and ``{'error': 429}`` both yield 'Unknown error' rather "
+        "than the HTTP status text).",
     ),
     "checkQuotaError": (
         "",

@@ -43,10 +43,6 @@ ENGINE_FILES: dict[str, str] = {
     "public/scripts/prompt-converters.js": "prompt-converters.js",
 }
 
-#: Extra named exports appended to an engine copy. The browser bundle exposes
-#: these as globals; a module build does not, and the assembly oracle needs
-#: ``populateChatCompletion``. The appended line only *names* what is already
-#: defined at module scope -- nothing in the engine is rewritten.
 #: Names a specifier's generated stub must NOT re-declare, because the source
 #: emitted for it already provides them (see `extract_prompt_manager_source`).
 PROVIDED_BY_SOURCE: dict[str, frozenset[str]] = {
@@ -62,6 +58,10 @@ PROVIDED_BY_SOURCE: dict[str, frozenset[str]] = {
     ),
 }
 
+#: Extra named exports appended to an engine copy, for names the snapshot defines
+#: at module scope without exporting. Anything the appended `ENGINE_EXTRA_CODE`
+#: declares with `export function` is already exported and must NOT be listed here
+#: (it would be a duplicate export and node refuses to load the module).
 ENGINE_EXTRA_EXPORTS: dict[str, tuple[str, ...]] = {
     "public/scripts/openai.js": ("populateChatCompletion",),
 }
@@ -71,6 +71,36 @@ ENGINE_EXTRA_EXPORTS: dict[str, tuple[str, ...]] = {
 #: the `./util.js` override that reads it, and every engine takes it from there.
 ENGINE_EXTRA_DECLS: dict[str, dict[str, str]] = {}
 ENGINE_EXTRA_CODE: dict[str, str] = {
+    "public/scripts/openai.js": """
+// Oracle-only hook (see gen_adapter.py). `getChatCompletionErrorMessage`
+// (:1635-1639) is module-private and is the one openai.js behaviour a headless
+// port still needs that this oracle did not already cover: it turns a provider's
+// error *body* into a message, and the upstream code annotates at :1659 that
+// skipping it shows users `[object Object]`. Naming it here costs one line and
+// saves S5 a hand-written stub; it is not worth a whole fixture family.
+export function oracleGetChatCompletionErrorMessage(data, response) {
+    return getChatCompletionErrorMessage(data, response);
+}
+// The browser assigns `promptManager` in setup(), and the assembly tail reads
+// `power_user.pin_examples` -- which is a const object, so the fixture mutates it
+// instead of replacing it.
+export function oracleSetPromptManager(manager) { promptManager = manager; }
+// `selected_group` is bound to the group-chats stub, so a fixture that is *not*
+// a group chat mirrors the normal prompt onto the group variant instead.
+export function oracleApplyGroupChat(isGroup) {
+    if (!isGroup) oai_settings.new_group_chat_prompt = oai_settings.new_chat_prompt;
+}
+// The fixture supplies the prompt strings so the two sides compare like for
+// like instead of depending on i18n defaults. Each key is independent: the
+// example-chat banner and the continue nudge carry different literals
+// (openai.js:110-111), so they must not fall back to the new-chat one.
+export function oracleSetPrompts({ newChat, newGroupChat, newExampleChat, continueNudge }) {
+    if (typeof newChat === 'string') oai_settings.new_chat_prompt = newChat;
+    if (typeof newGroupChat === 'string') oai_settings.new_group_chat_prompt = newGroupChat;
+    if (typeof newExampleChat === 'string') oai_settings.new_example_chat_prompt = newExampleChat;
+    if (typeof continueNudge === 'string') oai_settings.continue_nudge_prompt = continueNudge;
+}
+""",
     "public/scripts/prompt-converters.js": """
 // Oracle-only hook (see gen_adapter.py). `prompt-converters.js` reads two config
 // values at module scope -- `promptPlaceholder` (:4) and `gemini.thoughtSignatures`
@@ -91,27 +121,6 @@ export function oracleSetConvConfig(values) {
 // The rule below is what puts `setConvConfig` in this engine's generated import
 // list -- the appended code cannot import by name itself. Keep the spelling.
 import { setConvConfig } from './util.js';
-""",
-    "public/scripts/openai.js": """
-// Oracle-only hook (see gen_adapter.py): the browser assigns this in setup(),
-// and the assembly tail reads `power_user.pin_examples` -- which is a const
-// object, so the fixture mutates it instead of replacing it.
-export function oracleSetPromptManager(manager) { promptManager = manager; }
-// `selected_group` is bound to the group-chats stub, so a fixture that is *not*
-// a group chat mirrors the normal prompt onto the group variant instead.
-export function oracleApplyGroupChat(isGroup) {
-    if (!isGroup) oai_settings.new_group_chat_prompt = oai_settings.new_chat_prompt;
-}
-// The fixture supplies the prompt strings so the two sides compare like for
-// like instead of depending on i18n defaults. Each key is independent: the
-// example-chat banner and the continue nudge carry different literals
-// (openai.js:110-111), so they must not fall back to the new-chat one.
-export function oracleSetPrompts({ newChat, newGroupChat, newExampleChat, continueNudge }) {
-    if (typeof newChat === 'string') oai_settings.new_chat_prompt = newChat;
-    if (typeof newGroupChat === 'string') oai_settings.new_group_chat_prompt = newGroupChat;
-    if (typeof newExampleChat === 'string') oai_settings.new_example_chat_prompt = newExampleChat;
-    if (typeof continueNudge === 'string') oai_settings.continue_nudge_prompt = continueNudge;
-}
 """,
 }
 

@@ -43,6 +43,52 @@ _BACKEND_NAME = "sillytavern"
 _CSRF_TTL_SECONDS = 300.0
 
 
+def error_message(data: Any, status_text: str = "") -> str:
+    """``getChatCompletionErrorMessage`` (``openai.js:1635-1639``), transcribed.
+
+    A provider's error body is a *structure*, and formatting it with ``str()`` is
+    exactly the bug upstream annotates at ``:1659`` -- *"these do not throw
+    correctly (equiv to Error(\\"[object Object]\\"))"*. The reference digs a
+    message out instead::
+
+        const error = data?.error ?? data?.detail?.error;
+        const message = typeof error === 'string' ? error : (error?.message || error?.code || error?.type);
+        return String(message || (!response.ok && response.statusText) || t`Unknown error`);
+
+    Three of its behaviours are surprising enough that a "tidier" port would
+    diverge, so they are kept deliberately (each is pinned in
+    ``tests/test_backends.py`` against the real engine):
+
+    * a non-object body -- including a plain string -- yields ``'Unknown error'``,
+      **not** the status text: ``data?.error`` is ``undefined`` there, so
+      ``!response.ok`` needs ``ok === false``, which our test double does not set;
+    * ``{'error': 429}`` is ``'Unknown error'`` and not the status text either,
+      because ``data.error`` is truthy, so the status-text arm is never reached;
+    * ``{'error': {}}`` **does** fall through to the status text, because an empty
+      object is falsy in JS and ``??`` therefore takes ``data.detail.error``, which
+      is ``undefined``.
+    """
+    if not isinstance(data, dict):
+        return "Unknown error"
+
+    error = data.get("error")
+    if not error and isinstance(data.get("detail"), dict):
+        error = data["detail"].get("error")
+
+    if isinstance(error, str):
+        message: Any = error
+    elif isinstance(error, dict):
+        message = error.get("message") or error.get("code") or error.get("type")
+    else:
+        message = None
+
+    if message:
+        return str(message)
+    if status_text:
+        return status_text
+    return "Unknown error"
+
+
 def _import_httpx() -> Any:
     try:
         import httpx  # type: ignore[import-not-found]
@@ -180,8 +226,8 @@ class SillyTavernBackend:
             except Exception as exc:  # noqa: BLE001
                 raise BackendError(f"酒馆返回的不是 JSON: {response.text[:200]}") from exc
 
-        if isinstance(data, dict) and data.get("error"):
-            raise BackendError(f"酒馆返回错误: {data['error']}")
+        if isinstance(data, dict) and (data.get("error") or data.get("detail")):
+            raise BackendError(f"酒馆返回错误: {error_message(data)}")
         text, model, finish_reason, usage = self.parse_response(data)
         return GenerationResult(
             text=text, model=model, finish_reason=finish_reason, usage=usage, raw=data

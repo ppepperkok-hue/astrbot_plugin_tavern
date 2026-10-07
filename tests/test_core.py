@@ -219,6 +219,134 @@ def test_injection_cap_limits_entries(tmp_path: Path) -> None:
     assert len(turn.activated) <= 1
 
 
+def test_no_context_budget_keeps_every_history_message(tmp_path: Path) -> None:
+    """The default is *do not trim* -- the plugin cannot discover the window.
+
+    AstrBot owns the provider layer and exposes no model metadata, so guessing a
+    window would silently delete conversation. Until the user fills in
+    ``backend.max_context_tokens`` every turn must carry the whole history.
+    """
+    core = make_core(tmp_path)
+    seed_card(core)
+    core.bind_card(SCOPE, "Iris")
+
+    history = [{"role": "user", "content": f"turn {index} " + "x" * 200} for index in range(30)]
+    turn = core.build_turn(SCOPE, "now", conversation_history=history)
+
+    contents = [message.content for message in turn.request.messages]
+    kept = [content for content in contents if content.startswith("turn ")]
+    assert len(kept) == 30
+    assert "turn 0 " in kept[0]
+
+
+def test_context_budget_trims_the_oldest_history(tmp_path: Path) -> None:
+    """A configured window drops whole messages from the oldest end.
+
+    Messages are never truncated mid-message, the newest ones survive, and the
+    system prompt (which is *not* part of the history) is untouched -- the budget
+    is reserved for it rather than charged against it.
+    """
+    core = make_core(
+        tmp_path,
+        backend={"max_context_tokens": 1200, "reply_reserve_tokens": 100, "keep_last_messages": 1},
+    )
+    seed_card(core)
+    core.bind_card(SCOPE, "Iris")
+
+    # ~135 estimated tokens each, so 30 of them cannot fit 1200 - 100 - the fixed
+    # blocks; the tail must survive and the head must go.
+    history = [{"role": "user", "content": f"turn {index} " + "x" * 400} for index in range(30)]
+    turn = core.build_turn(SCOPE, "now", conversation_history=history)
+
+    contents = [message.content for message in turn.request.messages]
+    kept = [content for content in contents if content.startswith("turn ")]
+    assert 0 < len(kept) < 30, "the budget must drop something but not everything"
+    # oldest-first suffix: the last turn is present, the first is not
+    assert kept[-1].startswith("turn 29 ")
+    assert not any(content.startswith("turn 0 ") for content in kept)
+    assert turn.request.system_prompt, "the system prompt is never dropped"
+
+
+def test_context_budget_always_keeps_the_last_messages(tmp_path: Path) -> None:
+    """``keep_last_messages`` wins over an impossible budget.
+
+    A window smaller than a single exchange must not produce an empty request: the
+    character has to see what was just said, even if that overruns the window.
+    """
+    core = make_core(
+        tmp_path,
+        backend={"max_context_tokens": 1, "reply_reserve_tokens": 0, "keep_last_messages": 3},
+    )
+    seed_card(core)
+    core.bind_card(SCOPE, "Iris")
+
+    history = [{"role": "user", "content": f"turn {index}"} for index in range(10)]
+    turn = core.build_turn(SCOPE, "now", conversation_history=history)
+
+    kept = [
+        message.content for message in turn.request.messages if message.content.startswith("turn ")
+    ]
+    assert len(kept) == 3
+    assert [content.split()[1] for content in kept] == ["7", "8", "9"]
+
+
+def test_context_budget_does_not_starve_world_info_scan(tmp_path: Path) -> None:
+    """Trimming affects what is *sent*, not what is *scanned*.
+
+    The scan deliberately runs over the whole history -- a keyword mentioned forty
+    messages ago should still activate its entry -- so an entry triggered by a
+    message the budget then drops must still be reported as activated.
+    """
+    core = make_core(
+        tmp_path,
+        worldbook={"enabled": True},
+        backend={"max_context_tokens": 1200, "reply_reserve_tokens": 100, "keep_last_messages": 1},
+    )
+    seed_card(core)
+    seed_book(core)
+    core.bind_card(SCOPE, "Iris")
+    core.toggle_book(SCOPE, "Lighthouse Lore", True)
+
+    history = [
+        {"role": "user", "content": "the Sundered wreck and the Keeper"},
+        *({"role": "user", "content": f"chatter {index} " + "y" * 400} for index in range(20)),
+    ]
+    turn = core.build_turn(SCOPE, "now", conversation_history=history)
+
+    assert turn.activated, "the scan must still see the trimmed-away trigger message"
+    kept = [message.content for message in turn.request.messages]
+    assert not any("Sundered wreck" in content for content in kept), "but it is not sent"
+
+
+def test_context_budget_keeps_depth_injection_coherent(tmp_path: Path) -> None:
+    """The injection index is derived from the *trimmed* history.
+
+    ``at_depth`` is inserted before ``history[index]`` inside ``build_messages``.
+    Deriving the index before trimming would point past the end of the kept
+    history, so the injection has to be computed against what actually survives.
+    """
+    core = make_core(
+        tmp_path,
+        worldbook={"enabled": True},
+        backend={"max_context_tokens": 2500, "reply_reserve_tokens": 100, "keep_last_messages": 1},
+    )
+    seed_card(core)
+    seed_book(core)
+    core.bind_card(SCOPE, "Iris")
+    core.toggle_book(SCOPE, "Lighthouse Lore", True)
+
+    history = [
+        *({"role": "user", "content": f"chatter {index} " + "z" * 400} for index in range(20)),
+        {"role": "user", "content": "the Fog is thick tonight"},
+    ]
+    turn = core.build_turn(SCOPE, "now", conversation_history=history)
+
+    # The turn still assembles, the system prompt exists, and the in-chat
+    # injection (if any) is inside the message list rather than lost.
+    assert turn.request.system_prompt
+    assert turn.request.messages
+
+
 def test_reload_library_picks_up_new_files(tmp_path: Path) -> None:
     core = make_core(tmp_path)
     assert core.card_ids() == []

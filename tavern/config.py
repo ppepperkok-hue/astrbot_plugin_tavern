@@ -152,12 +152,29 @@ class RenderConfig:
 
 @dataclass
 class BackendConfig:
+    """Generation backend plus the context budget its requests have to fit in.
+
+    ``max_context_tokens`` is the model's real context window, and it is what makes
+    the history trim reachable. It defaults to ``0`` -- "do not trim" -- because the
+    plugin cannot discover it: AstrBot owns the provider layer and no model metadata
+    is exposed, so a wrong guess would silently delete conversation. SillyTavern
+    resolves this per provider from static tables of model names; that approach is
+    deliberately not ported (see ``research/07-port-map.md``) because the plugin
+    does not choose the provider from a model-name string.
+    """
+
     type: str = "astrbot"
     provider_id: str = ""
     st_base_url: str = ""
     st_cookie: str = ""
     st_verify_ssl: bool = True
     request_timeout: float = 120.0
+    #: Total context window. ``0`` disables trimming entirely.
+    max_context_tokens: int = 0
+    #: Tokens held back for the model's reply when trimming.
+    reply_reserve_tokens: int = 1024
+    #: Trailing messages that survive even when they alone blow the budget.
+    keep_last_messages: int = 2
 
     @property
     def uses_sillytavern(self) -> bool:
@@ -230,6 +247,9 @@ class TavernConfig:
                 st_base_url=as_str(backend.get("st_base_url")),
                 st_cookie=as_str(backend.get("st_cookie")),
                 st_verify_ssl=as_bool(backend.get("st_verify_ssl"), True),
+                max_context_tokens=max(0, as_int(backend.get("max_context_tokens"), 0)),
+                reply_reserve_tokens=max(0, as_int(backend.get("reply_reserve_tokens"), 1024)),
+                keep_last_messages=max(1, as_int(backend.get("keep_last_messages"), 2)),
                 request_timeout=as_float(
                     backend.get("request_timeout", advanced.get("request_timeout")), 120.0
                 ),

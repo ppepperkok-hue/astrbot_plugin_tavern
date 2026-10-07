@@ -20,7 +20,7 @@ from tavern.backends.base import (  # noqa: E402
     PromptMessage,
     messages_to_openai,
 )
-from tavern.backends.sillytavern import SillyTavernBackend  # noqa: E402
+from tavern.backends.sillytavern import SillyTavernBackend, error_message  # noqa: E402
 
 
 def _run(coro: Any) -> Any:
@@ -233,3 +233,92 @@ def test_st_parse_response_plain_shapes() -> None:
 def test_st_base_url_normalised() -> None:
     backend = SillyTavernBackend("http://127.0.0.1:8000///")
     assert backend.base_url == "http://127.0.0.1:8000"
+
+
+# ---------------------------------------------------------------------------
+# error body -> message (openai.js:1635-1639)
+#
+# Every expectation below was produced by running the *real* engine function, via
+# `node tools/st-oracle/run_error_message.mjs`, rather than by reading the source:
+# three of them are counter-intuitive enough that reading it led to a wrong port
+# (see the docstring). Regenerate the table with
+# `python .scratch/show_error_reference.py` after any snapshot bump.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("label", "data", "status_text", "expected"),
+    [
+        ("string body", "upstream exploded", "", "Unknown error"),
+        ("error is a string", {"error": "bad key"}, "", "bad key"),
+        ("error.message", {"error": {"message": "model overloaded"}}, "", "model overloaded"),
+        (
+            "error.code when message is absent",
+            {"error": {"code": "rate_limit_exceeded"}},
+            "",
+            "rate_limit_exceeded",
+        ),
+        (
+            "error.type when message and code are absent",
+            {"error": {"type": "invalid_request"}},
+            "",
+            "invalid_request",
+        ),
+        (
+            "message wins over code",
+            {"error": {"code": "x", "message": "real reason"}},
+            "",
+            "real reason",
+        ),
+        (
+            "nested detail.error",
+            {"detail": {"error": {"message": "nested reason"}}},
+            "",
+            "nested reason",
+        ),
+        ("top-level message is not consulted", {"message": "quota exceeded"}, "", "Unknown error"),
+        ("empty body uses status text", {}, "Internal Server Error", "Internal Server Error"),
+        (
+            "error beats status text",
+            {"error": {"message": "real reason"}},
+            "Bad Gateway",
+            "real reason",
+        ),
+        ("nothing at all", {}, "", "Unknown error"),
+        (
+            "empty error object uses status text",
+            {"error": {}},
+            "Service Unavailable",
+            "Service Unavailable",
+        ),
+        ("error is a number", {"error": 429}, "", "Unknown error"),
+        (
+            "detail without error uses status text",
+            {"detail": {"message": "other"}},
+            "Teapot",
+            "Teapot",
+        ),
+    ],
+)
+def test_error_message_matches_the_reference(
+    label: str, data: Any, status_text: str, expected: str
+) -> None:
+    assert error_message(data, status_text) == expected, label
+
+
+def test_error_message_never_renders_a_dict() -> None:
+    """The whole point of the function: no ``[object Object]`` / ``{'code': ...}``.
+
+    Upstream annotates this at ``openai.js:1659``. A regression here is
+    user-visible -- the error text is what the plugin hands back to the chat.
+
+    The chosen field is ``code``, not ``type``: the reference's
+    ``error.message || error.code || error.type`` is a truthiness chain, so the
+    first *present* key wins. A port that preferred ``type`` would be tidier and
+    wrong.
+    """
+    rendered = error_message({"error": {"code": 500, "type": "server_error"}})
+    assert "{" not in rendered and "}" not in rendered
+    assert rendered == "500"
+    # ...and `type` is used only when `code` is absent or falsy.
+    assert error_message({"error": {"code": "", "type": "server_error"}}) == "server_error"

@@ -166,6 +166,27 @@
         "type": "bool",
         "description": "校验酒馆 TLS 证书",
         "default": true
+      },
+      "max_context_tokens": {
+        "type": "int",
+        "description": "模型上下文窗口（token）",
+        "hint": "0 表示不裁剪历史。填上模型实际的上下文长度（例如 8192、32768、128000）后，超出的旧对话会整条丢弃，避免请求被上游拒绝。",
+        "default": 0,
+        "slider": { "min": 0, "max": 200000, "step": 1024 }
+      },
+      "reply_reserve_tokens": {
+        "type": "int",
+        "description": "为模型回复预留的 token",
+        "hint": "只在填写了上下文窗口时生效。默认 1024，长回复的角色卡可调大。",
+        "default": 1024,
+        "slider": { "min": 64, "max": 8192, "step": 64 }
+      },
+      "keep_last_messages": {
+        "type": "int",
+        "description": "至少保留最近几条对话",
+        "hint": "即使它们本身就超出预算也不丢，保证角色至少看到眼前的对话。",
+        "default": 2,
+        "slider": { "min": 1, "max": 20, "step": 1 }
       }
     }
   },

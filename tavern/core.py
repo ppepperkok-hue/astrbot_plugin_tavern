@@ -35,8 +35,10 @@ from tavern.st.prompt import (
     PresetSpec,
     RenderOptions,
     build_messages,
+    count_tokens,
     default_preset,
     preset_from_dict,
+    trim_history,
 )
 
 logger = logging.getLogger(__name__)
@@ -598,6 +600,60 @@ class PluginCore:
             history = [_HistoryMessage.from_dict(item) for item in conversation_history]
         else:
             history = _history_from_store(history_messages, card, sender_name)
+
+        # Context budget. The world info scan above deliberately ran on the *whole*
+        # history -- a keyword said forty messages ago should still trigger -- so
+        # only the history that reaches the model is trimmed, and it is trimmed
+        # before ``build_messages`` derives any injection index from it.
+        #
+        # The reservation covers everything that is not this history: the leading
+        # system blocks become ``system_prompt``, the preset's own blocks and the
+        # in-chat injections are built inside ``build_messages``, and the model
+        # needs room to answer. That total cannot be known before the history is
+        # fixed, so it is estimated from the assembled blocks of the *untrimmed*
+        # render (``debug_blocks``), which is an upper bound on the trimmed one.
+        budget = self.config.backend.max_context_tokens
+        if budget and history:
+            # The reservation covers everything that is not this history: the
+            # leading system blocks become ``system_prompt``, the preset's own
+            # blocks and the in-chat injections are built inside
+            # ``build_messages``, and the model needs room to answer. That total
+            # cannot be known before the history is fixed, so it is estimated by
+            # rendering the preset with an *empty* history -- which is an upper
+            # bound on the fixed part, since a non-empty history can only add.
+            probe = build_messages(
+                card,
+                self.preset_for(binding),
+                targets,
+                [],
+                RenderOptions(
+                    username=sender_name or "\u7528\u6237",
+                    char_name=card.name,
+                    names_as_prefix=True,
+                    timezone_name="Asia/Shanghai",
+                ),
+                extra_macros=extra_macros,
+                squash_system=False,
+            )
+            fixed_tokens = sum(
+                count_tokens(content) for _name, content in probe.debug_blocks if content
+            )
+            kept = trim_history(
+                history,
+                budget,
+                count_tokens,
+                keep_last=self.config.backend.keep_last_messages,
+                reserve_tokens=fixed_tokens + self.config.backend.reply_reserve_tokens,
+            )
+            if len(kept) != len(history):
+                logger.debug(
+                    "tavern: context budget %d, reserve %d -> kept %d of %d history messages",
+                    budget,
+                    fixed_tokens + self.config.backend.reply_reserve_tokens,
+                    len(kept),
+                    len(history),
+                )
+            history = kept
 
         options = RenderOptions(
             username=sender_name or "\u7528\u6237",
