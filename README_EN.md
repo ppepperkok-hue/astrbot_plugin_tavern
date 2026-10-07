@@ -94,15 +94,41 @@ them field by field.
 | `diff_assembly.py` | message assembly | 8 fixtures, **all match** |
 | `diff_converters.py` | provider wire formats | **121 fixtures, all match** |
 
-The real engine is a better judge than intuition, and it has overruled ours twice:
+The real engine is a better judge than intuition, and it has overruled intuition twice:
 
 - `C++` **does** match inside `abcC++def` under whole-word matching, because both
-  neighbours are `\W` rather than word characters. We asserted the opposite.
+  neighbours are `\W` rather than word characters -- the opposite of what the regex
+  reads like it should do.
 - Whole-word matching must use **ASCII** `\w` semantics, or a Chinese key never
   matches inside Chinese text. That was a real bug, fixed and pinned by a fixture.
 
-`python tools/check.py` runs all of it, plus unit tests, linting and the AstrBot
-integration smoke tests.
+`python tools/check.py` runs all of it, plus unit tests, linting, and an install of the
+published archive into a clean AstrBot.
+
+## Feedback and contributions
+
+Found a problem, or want a feature? Please [open an issue](https://github.com/ppepperkok-hue/astrbot_plugin_tavern/issues) -- **reporting something is not a bother; it is what stops the next person from hitting the same wall.** Much of this plugin's World Info engine was ground down against real differences found in use rather than in theory.
+
+A report is much easier to act on with:
+
+1. your **AstrBot version** and the **plugin version**;
+2. what you did, what you expected, and **what actually happened** -- including the
+   complete reply from the bot, not a truncated screenshot;
+3. for a command that does nothing, the two startup log lines:
+
+```
+[tavern] loaded N cards, M world books, K presets from ...
+[tavern] handler binding: N bound to an instance, M bare
+```
+
+4. for anything World Info related, which entry did or did not fire --
+   `/tavern preview` lists the entries activated this turn along with the keys that
+   matched, which beats describing it in prose.
+
+[docs/known-issues.md](docs/known-issues.md) records the known problems, the deliberate
+trade-offs, and why each earlier mistake went unnoticed. Worth a glance first.
+
+Pull requests are welcome too. Licensed AGPL-3.0; derivatives stay under it.
 
 ## Known limits
 
