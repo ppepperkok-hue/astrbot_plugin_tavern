@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import random
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -505,6 +506,10 @@ class ActivationState:
         self._cooldown_until: dict[tuple[str, int], int] = {}
         self._first_seen: dict[tuple[str, int], int] = {}
         self._ever_fired: set[tuple[str, int]] = set()
+        #: Entries whose ``delay`` was cleared by hand (``/wi-set-timed-effect``).
+        #: ``delay`` is computed from ``entry.delay`` and the turn counter rather
+        #: than stored as a window, so the override has to live beside the maps.
+        self._delay_forced: set[tuple[str, int]] = set()
 
     def next_turn(self) -> None:
         self.turn += 1
@@ -515,6 +520,19 @@ class ActivationState:
         # each other's windows.
         key = book.source_path or book.name or f"book-{id(book):x}"
         return (key, entry.uid)
+
+    def _any_identity(self, entry: WorldInfoEntry) -> tuple[str, int]:
+        """The identity an entry-only caller means -- always the uid-keyed one.
+
+        A command like ``/wi-set-timed-effect`` has a uid but no book object, and it
+        must record the effect under a key the *scan* will look at. The scan asks
+        through :meth:`_effect_active`, which matches on the uid half of the key, so
+        ``('', uid)`` is the one identity both sides can agree on regardless of
+        which ran first. Making this the book's identity when the scan happened to
+        run first would make the same command behave differently depending on chat
+        history, which is not a thing a user can reason about.
+        """
+        return ("", entry.uid)
 
     def identity_for(self, book: WorldBook, entry: WorldInfoEntry) -> tuple[str, int]:
         """Public view of :meth:`_identity`, for callers keying their own maps."""
@@ -559,10 +577,71 @@ class ActivationState:
         fires once the chat has grown past it. The plugin advances
         :class:`ActivationState` once per reply, which is its closest equivalent
         measure.
+
+        A manual ``/wi-set-timed-effect`` override wins over the computed value --
+        that is what makes the command useful, since ``entry.delay`` is otherwise
+        a static field the user has to edit in the book.
         """
+        return self.is_effect_forced("delay", entry) or self._delay_is_pending(entry)
+
+    def _delay_is_pending(self, entry: WorldInfoEntry) -> bool:
         if entry.delay <= 0:
             return False
         return self.turn < entry.delay
+
+    # ------------------------------------------------------------------
+    # manual timed-effect control -- world-info.js:744-760
+    # ------------------------------------------------------------------
+    def is_effect_forced(self, effect_type: str, entry: WorldInfoEntry) -> bool:
+        """Whether this effect was forced **on** by hand rather than by the scan."""
+        identity = self._any_identity(entry)
+        if effect_type == "delay":
+            return identity in self._delay_forced
+        table = self._sticky_until if effect_type == "sticky" else self._cooldown_until
+        return any(key[1] == entry.uid and table[key] == math.inf for key in table)
+
+    def set_effect_forced(self, effect_type: str, entry: WorldInfoEntry, forced: bool) -> bool:
+        """``setTimedEffect`` (``world-info.js:744-760``) for this turn-based model.
+
+        Returns ``False`` when the entry does not carry the effect at all, which is
+        the reference's own guard (``:1532``: "This entry does not have the selected
+        effect. Configure it in the editor first.").
+
+        Forcing **on** records the duration as *never expiring* rather than adding
+        a fresh window, because the reference's command sets
+        ``start = chat.length`` with no ``end``; its help text says re-enabling
+        refreshes the duration, and in a turn-counted model "refreshed forever" is
+        the faithful reading. Forcing **off** simply drops the recorded window, so
+        the next scan decides from the book's own configuration.
+
+        ``delay`` has no stored window here -- it is a view over ``entry.delay`` and
+        the turn counter -- so the override is kept as a set and wins over the
+        computed value.
+        """
+        if effect_type not in ("sticky", "cooldown", "delay"):
+            return False
+
+        identity = self._any_identity(entry)
+
+        if effect_type == "delay":
+            if entry.delay <= 0:
+                return False
+            if forced:
+                self._delay_forced.add(identity)
+            else:
+                self._delay_forced.discard(identity)
+            return True
+
+        configured = entry.sticky if effect_type == "sticky" else entry.cooldown
+        if configured <= 0:
+            return False
+
+        table = self._sticky_until if effect_type == "sticky" else self._cooldown_until
+        if forced:
+            table[identity] = math.inf
+        else:
+            table.pop(identity, None)
+        return True
 
     def on_activate(
         self,

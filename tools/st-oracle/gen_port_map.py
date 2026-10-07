@@ -365,9 +365,19 @@ WORLD_INFO_TABLE: dict[str, tuple[str, str, str]] = {
     # --- editor / DOM ------------------------------------------------------
     "reloadEditor": ("", "exempt", "DOM reload helper."),
     "registerWorldInfoSlashCommands": (
-        "",
-        "pending",
-        "Slash-command registration for the ST chat UI.",
+        "tavern/main.py:cmd_worldbook + tavern/core.py:set_timed_effect",
+        "ported",
+        "The row stands for three things. The plugin's ``/tavern`` command group is "
+        "the slash-command equivalent, and ``/tavern worldbook on|off <name>`` is the "
+        "binding surface (ST's ``/world`` opens the editor panel, which is exempt). "
+        "The portable engine-facing parts of ST's own commands are "
+        "``/wi-set-timed-effect`` and ``/wi-get-timed-effect``, and those are now "
+        "mirrored as ``/tavern worldbook effect <book> <uid> <sticky|cooldown|delay> "
+        "[on|off]``: forcing *on* records the window as never expiring (the "
+        "reference sets ``start = chat.length`` with no ``end``), forcing *off* drops "
+        "it so the next scan decides from the book, and an entry that does not carry "
+        "the field is refused exactly as ``:1532`` refuses. Scoped to the current "
+        "session, like ST's 'current chat only'.",
     ),
     "showWorldEditor": ("", "exempt", "Editor modal."),
     "hideWorldEditor": ("", "exempt", "Editor modal."),

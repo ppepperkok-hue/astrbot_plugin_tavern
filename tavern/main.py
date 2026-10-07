@@ -431,6 +431,8 @@ HELP_TEXT = """酒馆角色扮演 · 指令
 /tavern history [条数]       查看最近聊天记录
 /tavern worldbook list       世界书列表
 /tavern worldbook on|off <名字>  启用/关闭世界书
+/tavern worldbook effect <书> <uid> <sticky|cooldown|delay> [on|off]
+                             查看或设置条目的计时效果（省略 on|off 则查询）
 /tavern reload               重新扫描数据目录
 /tavern import               查看导入目录说明
 /tavern preview [文字]       预览本轮发给模型的完整内容
@@ -616,7 +618,63 @@ def _register_commands(plugin_cls: Any) -> bool:
             )
             return
 
-        yield plugin._result(event, "用法：/tavern worldbook list | on <名字> | off <名字>")
+        if action in ("effect", "效果"):
+            # /tavern worldbook effect <书> <uid> <sticky|cooldown|delay> [on|off|toggle]
+            # Ported from world-info.js:1449-1560 (`/wi-get-timed-effect` and
+            # `/wi-set-timed-effect`), which the port map tracked as the last
+            # engine-facing gap in S1.
+            if len(args) < 3:
+                yield plugin._result(
+                    event,
+                    "用法：/tavern worldbook effect <世界书> <uid> <sticky|cooldown|delay> [on|off]\n"
+                    "省略 on/off 即为查询当前状态。\n"
+                    "条目必须已经在书里配置过对应字段（sticky/cooldown/delay 大于 0），"
+                    "否则无处可设——和酒馆的提示一致。",
+                )
+                return
+            book_id, uid, effect = args[0], args[1], args[2]
+            raw_state = args[3] if len(args) > 3 else ""
+            try:
+                if not raw_state:
+                    active = plugin.core.timed_effect_state(
+                        event.unified_msg_origin, book_id, uid, effect
+                    )
+                    yield plugin._result(
+                        event,
+                        f"{effect} 当前{'生效中' if active else '未生效'}（{book_id} uid={uid}）",
+                    )
+                    return
+                if raw_state.strip().lower() in ("toggle", "t", "切换"):
+                    current = plugin.core.timed_effect_state(
+                        event.unified_msg_origin, book_id, uid, effect
+                    )
+                    enabled = not current
+                else:
+                    enabled = raw_state.strip().lower() in ("on", "true", "1", "开")
+                active, applied = plugin.core.set_timed_effect(
+                    event.unified_msg_origin, book_id, uid, effect, enabled
+                )
+            except TavernError as exc:
+                yield plugin._result(event, str(exc))
+                return
+            if not applied:
+                yield plugin._result(
+                    event,
+                    f"条目 {uid} 没有配置 {effect}（该字段为 0 或缺失），所以无法设置。"
+                    "请先在世界书里给它填上对应的时长。",
+                )
+                return
+            yield plugin._result(
+                event,
+                f"{effect} 已设为{'生效' if active else '失效'}（{book_id} uid={uid}）。"
+                "只对当前会话分支有效；重开会话即清除。",
+            )
+            return
+
+        yield plugin._result(
+            event,
+            "用法：/tavern worldbook list | on <名字> | off <名字> | effect <书> <uid> <效果> [on|off]",
+        )
 
     @sub("reload", "重载")
     async def cmd_reload(plugin: TavernPlugin, event: Any):

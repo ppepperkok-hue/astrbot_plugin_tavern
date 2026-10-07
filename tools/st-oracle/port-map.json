@@ -49,9 +49,9 @@
     "js_name": "registerWorldInfoSlashCommands",
     "js_line": 1049,
     "loc": 961,
-    "python_target": "",
-    "status": "pending",
-    "note": "Slash-command registration for the ST chat UI."
+    "python_target": "tavern/main.py:cmd_worldbook + tavern/core.py:set_timed_effect",
+    "status": "ported",
+    "note": "The row stands for three things. The plugin's ``/tavern`` command group is the slash-command equivalent, and ``/tavern worldbook on|off <name>`` is the binding surface (ST's ``/world`` opens the editor panel, which is exempt). The portable engine-facing parts of ST's own commands are ``/wi-set-timed-effect`` and ``/wi-get-timed-effect``, and those are now mirrored as ``/tavern worldbook effect <book> <uid> <sticky|cooldown|delay> [on|off]``: forcing *on* records the window as never expiring (the reference sets ``start = chat.length`` with no ``end``), forcing *off* drops it so the next scan decides from the book, and an entry that does not carry the field is refused exactly as ``:1532`` refuses. Scoped to the current session, like ST's 'current chat only'."
   },
   {
     "js_source": "world-info.js",

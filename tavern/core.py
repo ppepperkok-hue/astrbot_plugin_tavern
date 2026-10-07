@@ -539,6 +539,78 @@ class PluginCore:
         return state
 
     # ------------------------------------------------------------------
+    # timed effects -- world-info.js:744-760 / :1449-1560
+    # ------------------------------------------------------------------
+    #: The three timed effects SillyTavern's ``isValidEffectType`` accepts.
+    TIMED_EFFECTS = ("sticky", "cooldown", "delay")
+
+    def find_entry(self, book_id: str, uid: str | int) -> tuple[worldbook.WorldBook, Any]:
+        """The entry with ``uid`` in the named book, or raise :class:`TavernError`.
+
+        Mirrors the reference's lookup (``world-info.js:1465``), including its
+        comparison: the uid is compared as a *string*, so a book whose uids were
+        serialised as strings still matches what the user typed.
+        """
+        book = self.get_book(book_id)
+        wanted = str(uid).strip()
+        for entry in book.entries:
+            if str(entry.uid) == wanted:
+                return book, entry
+        raise TavernError(
+            f"世界书「{book.name or book_id}」里没有 uid={wanted} 的条目。"
+            f"该书的 uid：{', '.join(str(e.uid) for e in book.entries) or '(空)'}"
+        )
+
+    def timed_effect_state(
+        self, unified_msg_origin: str, book_id: str, uid: str | int, effect: str
+    ) -> bool:
+        """``/wi-get-timed-effect`` (``world-info.js:1449-1490``)."""
+        name = self._normalise_effect(effect)
+        _book, entry = self.find_entry(book_id, uid)
+        state = self.activation_state(unified_msg_origin)
+        if name == "sticky":
+            return state.is_sticky_entry(entry)
+        if name == "cooldown":
+            return state.is_cooldown_active(entry)
+        return state.is_delayed(entry)
+
+    def set_timed_effect(
+        self,
+        unified_msg_origin: str,
+        book_id: str,
+        uid: str | int,
+        effect: str,
+        enabled: bool,
+    ) -> tuple[bool, bool]:
+        """``/wi-set-timed-effect`` (``world-info.js:1492-1560``).
+
+        Returns ``(now_active, applied)``. ``applied`` is ``False`` when the entry
+        does not carry the effect at all -- the reference refuses the same way
+        (``:1532``: *"This entry does not have the selected effect. Configure it in
+        the editor first."*), and saying so is more useful than silently doing
+        nothing. ``now_active`` is read back from the same state the scan consults,
+        so the caller reports what is actually true rather than what was asked for.
+        """
+        name = self._normalise_effect(effect)
+        _book, entry = self.find_entry(book_id, uid)
+        activation = self.activation_state(unified_msg_origin)
+        applied = activation.set_effect_forced(name, entry, enabled)
+        if not applied:
+            return self.timed_effect_state(unified_msg_origin, book_id, uid, name), False
+        return enabled, True
+
+    def _normalise_effect(self, effect: str) -> str:
+        name = str(effect or "").strip().lower()
+        aliases = {"粘滞": "sticky", "冷却": "cooldown", "延迟": "delay"}
+        name = aliases.get(name, name)
+        if name not in self.TIMED_EFFECTS:
+            raise TavernError(
+                f"未知的计时效果「{effect}」。可用：{', '.join(self.TIMED_EFFECTS)}"
+                "（分别对应条目里的 sticky / cooldown / delay 字段）。"
+            )
+        return name
+
+    # ------------------------------------------------------------------
     # assembly
     # ------------------------------------------------------------------
     def build_turn(

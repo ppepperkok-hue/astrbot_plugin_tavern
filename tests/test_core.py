@@ -347,6 +347,124 @@ def test_context_budget_keeps_depth_injection_coherent(tmp_path: Path) -> None:
     assert turn.request.messages
 
 
+def test_timed_effect_round_trip(tmp_path: Path) -> None:
+    """``/wi-set-timed-effect`` + ``/wi-get-timed-effect`` (world-info.js:1449-1560).
+
+    The book fixture's uid=1 is the only entry carrying effects (``sticky=2``,
+    ``cooldown=3``); everything else is bare, which is what makes the refusal path
+    testable with real data instead of a hand-built entry.
+    """
+    core = make_core(tmp_path)
+    seed_card(core)
+    seed_book(core)
+    core.bind_card(SCOPE, "Iris")
+    core.toggle_book(SCOPE, "Lighthouse Lore", True)
+
+    assert core.timed_effect_state(SCOPE, "Lighthouse Lore", 1, "sticky") is False
+
+    active, applied = core.set_timed_effect(SCOPE, "Lighthouse Lore", 1, "sticky", True)
+    assert (active, applied) == (True, True)
+    assert core.timed_effect_state(SCOPE, "Lighthouse Lore", 1, "sticky") is True
+
+    # ...and off again. The next scan decides from the book's own configuration,
+    # which is what "clear the window" means.
+    active, applied = core.set_timed_effect(SCOPE, "Lighthouse Lore", 1, "sticky", False)
+    assert (active, applied) == (False, True)
+    assert core.timed_effect_state(SCOPE, "Lighthouse Lore", 1, "sticky") is False
+
+    # cooldown is independent of sticky on the same entry
+    core.set_timed_effect(SCOPE, "Lighthouse Lore", 1, "cooldown", True)
+    assert core.timed_effect_state(SCOPE, "Lighthouse Lore", 1, "cooldown") is True
+    assert core.timed_effect_state(SCOPE, "Lighthouse Lore", 1, "sticky") is False
+
+
+def test_timed_effect_is_scoped_to_one_session(tmp_path: Path) -> None:
+    """SillyTavern applies these to the current chat only, and so does this."""
+    core = make_core(tmp_path)
+    seed_card(core)
+    seed_book(core)
+    core.bind_card(SCOPE, "Iris")
+    other = "aiocqhttp:GroupMessage:999999"
+
+    core.set_timed_effect(SCOPE, "Lighthouse Lore", 1, "sticky", True)
+    assert core.timed_effect_state(SCOPE, "Lighthouse Lore", 1, "sticky") is True
+    assert core.timed_effect_state(other, "Lighthouse Lore", 1, "sticky") is False
+
+
+def test_timed_effect_survives_a_scan_regardless_of_order(tmp_path: Path) -> None:
+    """The forced effect must be visible to the scan whichever ran first.
+
+    This is the subtle one. The scan keys a window on ``(book, uid)``, while a
+    command only has a uid. If the override were recorded under the book's key when
+    the scan happened to run first and under a uid key otherwise, the same command
+    would behave differently depending on chat history -- so both sides agree on the
+    uid half of the key, and this test pins that.
+    """
+    core = make_core(tmp_path, worldbook={"enabled": True})
+    seed_card(core)
+    seed_book(core)
+    core.bind_card(SCOPE, "Iris")
+    core.toggle_book(SCOPE, "Lighthouse Lore", True)
+
+    # Force the effect *before* any turn has run, then run one.
+    core.set_timed_effect(SCOPE, "Lighthouse Lore", 1, "sticky", True)
+    entry = next(e for e in core.get_book("Lighthouse Lore").entries if e.uid == 1)
+    state = core.activation_state(SCOPE)
+    assert state.is_sticky_entry(entry) is True, "the scan's own predicate must see it"
+
+    # And the reverse order: a turn first, then the command.
+    core2 = make_core(tmp_path / "second", worldbook={"enabled": True})
+    seed_card(core2)
+    seed_book(core2)
+    core2.bind_card(SCOPE, "Iris")
+    core2.toggle_book(SCOPE, "Lighthouse Lore", True)
+    core2.build_turn(SCOPE, "the Fog is thick tonight")
+    core2.set_timed_effect(SCOPE, "Lighthouse Lore", 1, "sticky", True)
+    entry2 = next(e for e in core2.get_book("Lighthouse Lore").entries if e.uid == 1)
+    assert core2.activation_state(SCOPE).is_sticky_entry(entry2) is True
+
+
+def test_timed_effect_refuses_an_entry_that_has_none(tmp_path: Path) -> None:
+    """An entry without the field cannot be given the effect.
+
+    The reference refuses with "This entry does not have the selected effect.
+    Configure it in the editor first." (:1532) and the port reports the same thing
+    rather than silently doing nothing.
+    """
+    core = make_core(tmp_path)
+    seed_card(core)
+    seed_book(core)
+    core.bind_card(SCOPE, "Iris")
+
+    active, applied = core.set_timed_effect(SCOPE, "Lighthouse Lore", 0, "sticky", True)
+    assert (active, applied) == (False, False)
+    assert core.timed_effect_state(SCOPE, "Lighthouse Lore", 0, "sticky") is False
+
+
+def test_timed_effect_rejects_unknown_effect_and_uid(tmp_path: Path) -> None:
+    core = make_core(tmp_path)
+    seed_card(core)
+    seed_book(core)
+    core.bind_card(SCOPE, "Iris")
+
+    with pytest.raises(TavernError):
+        core.timed_effect_state(SCOPE, "Lighthouse Lore", 1, "nonsense")
+    with pytest.raises(TavernError):
+        core.timed_effect_state(SCOPE, "Lighthouse Lore", 4242, "sticky")
+    with pytest.raises(TavernError):
+        core.timed_effect_state(SCOPE, "no such book", 1, "sticky")
+
+
+def test_timed_effect_accepts_a_string_uid(tmp_path: Path) -> None:
+    """The reference compares uids as strings (:1465), so "1" finds uid 1."""
+    core = make_core(tmp_path)
+    seed_card(core)
+    seed_book(core)
+    core.bind_card(SCOPE, "Iris")
+
+    assert core.set_timed_effect(SCOPE, "Lighthouse Lore", "1", "sticky", True) == (True, True)
+
+
 def test_reload_library_forgets_a_deleted_file(tmp_path: Path) -> None:
     """The library is a directory, so deletion is "remove the file, reload".
 
