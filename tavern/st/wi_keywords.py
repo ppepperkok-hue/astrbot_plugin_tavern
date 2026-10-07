@@ -33,6 +33,12 @@ branching:
     behave differently from ``tavern/st/worldbook.py::_whole_word_match``, which
     classifies by "is every character a word character" instead.
 
+    The boundary class is compiled with ``re.ASCII`` on purpose: JS ``\\w`` /
+    ``\\W`` are ``[A-Za-z0-9_]`` based in *every* mode (the ``u`` flag only adds
+    ``\\p{...}``), while Python's ``\\w`` is Unicode-aware for ``str`` patterns.
+    Without it ``关键词`` inside ``中文关键词测试`` would stop matching, because
+    the neighbouring ideograph counts as a word character in Python and not in JS.
+
 Adaptations to Python (no branching above is altered):
 
 * the JS globals ``world_info_case_sensitive`` (:77) and
@@ -89,6 +95,14 @@ _ESCAPED_SLASH = "\\/"
 #: ``String(s ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')``.
 #: Note that ``/`` is *not* in the set -- that is the upstream behaviour.
 _REGEX_META = re.compile(r"[.*+?^${}()|\[\]\\]")
+
+#: JS ``\s`` (ECMA-262 *WhiteSpace* + *LineTerminator*). It is **not** Python's
+#: ``\s`` for ``str``: the engine also treats U+FEFF as whitespace, and Python
+#: additionally treats U+0085 / U+001C-U+001F as whitespace. Used for the
+#: ``split(/\s+/)`` that decides whether a key counts as multi-word.
+_JS_WHITESPACE = re.compile(
+    "[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+"
+)
 
 
 def escape_regex(value: Any) -> str:
@@ -282,7 +296,7 @@ def match_keys(
         match_whole_words = world_info_match_whole_words
 
     if match_whole_words:
-        key_words = re.split(r"\s+", transformed_string)
+        key_words = _JS_WHITESPACE.split(transformed_string)
 
         if len(key_words) > 1:
             return transformed_string in haystack
@@ -291,7 +305,12 @@ def match_keys(
             # non-alphanumeric characters. ``$`` is kept as in the source:
             # Python's ``$`` also matches before a trailing newline, but that
             # position is already covered by ``\W``, so both agree.
-            regex = re.compile(rf"(?:^|\W)({escape_regex(transformed_string)})(?:$|\W)")
+            # ``re.ASCII`` is *required*: JS ``\w`` / ``\W`` are ASCII-only in
+            # every mode (``u`` included, it only adds ``\p{...}``), while
+            # Python's ``\w`` is Unicode-aware for str patterns. Without it a CJK
+            # or Greek key inside CJK / Greek text would stop matching, because
+            # the neighbouring ideograph counts as a word character.
+            regex = re.compile(rf"(?:^|\W)({escape_regex(transformed_string)})(?:$|\W)", re.ASCII)
             if regex.search(haystack):
                 return True
     else:

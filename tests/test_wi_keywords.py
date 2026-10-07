@@ -185,6 +185,18 @@ def test_key_containing_a_dot_needs_a_boundary() -> None:
     assert match_keys("xfoo.barx", "foo.bar", WHOLE_WORDS) is False
 
 
+def test_word_class_is_ascii_like_the_engine() -> None:
+    # JS ``\w`` / ``\W`` are ASCII-only in every mode, so an ideograph is a
+    # non-word character and provides the boundary.
+    assert match_keys("中文关键词测试", "关键词", WHOLE_WORDS) is True
+    assert match_keys("中关键词文", "关键词", WHOLE_WORDS) is True
+    assert match_keys("αβγ", "β", WHOLE_WORDS) is True
+    assert match_keys("xβy", "β", WHOLE_WORDS) is False
+    # ``_`` is a word character, so ``flat`` does not match inside ``flat_earth``.
+    assert match_keys("flat_earth", "flat", WHOLE_WORDS) is False
+    assert match_keys("flat-earth", "flat", WHOLE_WORDS) is True
+
+
 def test_whole_words_off_is_a_plain_includes() -> None:
     assert match_keys("abcC++def", "C++", {"matchWholeWords": False}) is True
     assert match_keys("xa-1b", "A-1", {}) is True  # module default is False

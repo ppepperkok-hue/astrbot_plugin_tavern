@@ -633,15 +633,10 @@ def activate(
         if via_recursion:
             haystack = "\n".join([haystack, *fresh_texts])
 
+        # Case sensitivity and whole-word matching are applied inside
+        # ``WorldInfoBuffer.match_keys`` via the view below, so the pipeline does
+        # not resolve them here any more.
         view = _buffer_view(entry)
-        case_sensitive = bool(entry.case_sensitive)
-        # ``None`` means "not set on the entry": fall back to the global default
-        # (SillyTavern defaults it to true, this plugin's config to false).
-        whole_words = (
-            settings.match_whole_words
-            if entry.match_whole_words is None
-            else bool(entry.match_whole_words)
-        )
 
         if already_sticky:
             # An entry inside its sticky window is simply held: its own content
