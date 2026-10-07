@@ -92,7 +92,69 @@ padding 参数。位置没有选择余地：插在 `plugin` 之前不合法（`S
 
 ---
 
-## 4. 有意为之的取舍（不是 bug，但容易被当成 bug 报）
+## 4. 真 AstrBot 里所有 `/tavern` 指令都不回话 —— 已修
+
+**标记它的是什么：** `tools/qq_commands_live.py`（为实测而新写的）在真 AstrBot 进程里发
+`/tavern help`，得到的是**一片空白**，日志里写着 `cmd_help was called without an event`。
+
+**现象：** 聊天（角色扮演）完全正常，但**每一个** `/tavern` 子指令都没有任何回复。
+
+**根因有两层，第二层才是真凶。**
+
+第一层：`AstrBot` 调用 handler 的形式是 `handler(event, *args, **kwargs)`
+（`pipeline/context_utils.py:37`），而我们的包装器签名是 `(self_unused, *args, **kwargs)`——
+**事件落在 `self_unused` 里，不在 `args` 里**。我最初只从 `args` 里找，于是每条指令都判成
+"没有事件"。
+
+第二层（根因）：**同一个插件被导入了两次。**
+
+```
+handler module_paths=['tavern.main']
+star_map=["tavern.main='tavern.main'",
+          "data.plugins.astrbot_plugin_tavern.main='data.plugins.astrbot_plugin_tavern.main'"]
+```
+
+根 `main.py` 把插件目录插进 `sys.path` 再 `from tavern.main import ...`（**这个插入是必须的**：
+去掉就 `No module named 'tavern'`，因为 `tavern/main.py` 内部用的是绝对导入）。于是：
+
+- 装饰器把 handler 注册在模块名 `tavern.main` 下；
+- `star_manager` 却按 `metadata.module_path`（`data.plugins.astrbot_plugin_tavern.main`）去查：
+
+  ```python
+  related_handlers = star_handlers_registry.get_handlers_by_module_name(metadata.module_path)
+  for handler in related_handlers:
+      handler.handler = functools.partial(raw_handler, metadata.star_cls)   # :1272-1276
+  ```
+
+  查不到 → **一个都不绑** → 实测 `0 bound to an instance, 14 bare`。
+
+**为什么之前"修好了"是假象：** 上一轮我改的是**发布签名**，并用
+`tools/verify_cmd_params.py` 验证通过。但那个脚本在**自己的进程里**手工构造
+`functools.partial(raw, plugin_cls)` 来模拟绑定——**它模拟了一个生产里根本没发生的绑定**。
+测试全绿，生产全坏。
+
+**教训（和条目 1 是同一种病）：** 单元测试和验证脚本都在**替 AstrBot 做假设**，
+而从不真的让 AstrBot 来做。绕开宿主的测试越多，"全绿"就越没有意义。
+**必须有一层走真宿主进程的测试。**
+
+**修法：**
+1. `_locate_event` 同时看 `self_unused` 和 `args`，用鸭子类型（带 `unified_msg_origin`
+   的就是事件），不再假设位置；
+2. 发布签名给**所有前导参数加默认值**：AstrBot 用签名决定参数，而一个必需且标注
+   `Any` 的参数会让它去**调用** `Any`，也就是
+   `TypeError: Any cannot be instantiated`。
+
+**守它的测试：** `tools/qq_commands_live.py`——真 AstrBot 进程 + 假 OneBot 客户端，
+发 10 条真实指令并断言每条的回执。
+
+**仍未解决（诚实记录）：** 那两份模块对象还在，所以 `star_manager` 依然不绑定实例，
+插件走的是"未绑定"形态。这已经**验证可用**，但它是脆的：发布签名目前是按未绑定形态定的。
+真要根治得让 handler 注册在加载器期望的模块名下（或把 `tavern/` 改成相对导入），
+那是一次有风险的重构，不该在这轮顺手做。
+
+---
+
+## 5. 有意为之的取舍（不是 bug，但容易被当成 bug 报）
 
 | 事项 | 为什么这样 |
 |---|---|

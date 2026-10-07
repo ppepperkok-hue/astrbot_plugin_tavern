@@ -132,6 +132,7 @@ class TavernPlugin(Star):  # type: ignore[misc]
             f"loaded {counts['cards']} cards, {counts['worldbooks']} world books, "
             f"{counts['presets']} presets from {self.config.data_dir}",
         )
+        _log("info", _describe_handler_binding())
         # The management page's backend. Registered here rather than in `__init__`
         # because `Context.registered_web_apis` is a class attribute that nothing
         # ever clears, so a route change only takes effect on reload -- registering
@@ -511,55 +512,138 @@ HELP_TEXT = """酒馆角色扮演 · 指令
 # matches it in ``star_handlers_registry`` by its module and function name.
 
 
+def _describe_handler_binding() -> str:
+    """One line saying whether AstrBot bound the plugin onto our command handlers.
+
+    This decides how many positional arguments AstrBot passes to a handler, which is
+    the difference between every `/tavern` subcommand working and every one raising
+    ``missing 1 required positional argument: 'event'``. That is host behaviour, so it
+    is *reported* at startup rather than assumed in the shim: one line that makes a
+    whole class of "the command does nothing" bugs visible in the log.
+    """
+    try:
+        import functools
+
+        from astrbot.core.star.star_handler import star_handlers_registry
+
+        bound = 0
+        bare = 0
+        modules: set[str] = set()
+        for handler in star_handlers_registry:
+            target = handler.handler
+            module = getattr(getattr(target, "func", target), "__module__", "")
+            if not module.endswith("tavern.main"):
+                continue
+            modules.add(str(getattr(handler, "handler_module_path", "?")))
+            if isinstance(target, functools.partial):
+                bound += 1
+            else:
+                bare += 1
+
+        # `star_manager` binds handlers by looking them up with
+        # `get_handlers_by_module_name(metadata.module_path)`. If that string is not
+        # the one the handlers registered under, the lookup finds nothing, the loop
+        # binds nothing, and AstrBot then calls every handler as `handler(event)` --
+        # with no plugin instance. Reporting both names makes that visible instead of
+        # leaving it as a mysterious `missing 1 required positional argument`.
+        star_paths: list[str] = []
+        try:
+            from astrbot.core.star.star import star_map
+
+            star_paths = [
+                f"{name}={getattr(meta, 'module_path', None)!r}" for name, meta in star_map.items()
+            ]
+        except Exception:  # noqa: BLE001
+            pass
+        aliases = sorted(
+            name
+            for name, module in sys.modules.items()
+            if name.endswith(PLUGIN_NAME + ".main") or name == "tavern.main"
+        )
+        return (
+            f"handler binding: {bound} bound to an instance, {bare} bare"
+            f"; handler module_paths={sorted(modules)}"
+            f"; star_map={star_paths}"
+            f"; tavern.main alias sys.modules={aliases}"
+        )
+    except Exception as exc:  # noqa: BLE001 - diagnostics must not break startup
+        return f"handler binding could not be inspected: {exc}"
+
+
+def _locate_event(args: tuple[Any, ...]) -> Any:
+    """The AstrBot message event among a handler's positional arguments, or ``None``.
+
+    A handler is called either as ``handler(event)`` or, when the loader bound the
+    plugin onto it, as ``partial(handler, plugin_instance)(event)``. Rather than
+    assume which, the event is identified by what it *is*: the object carrying
+    ``unified_msg_origin``, which every ``AstrMessageEvent`` provides and no plugin
+    instance does.
+
+    Duck-typing rather than an ``isinstance`` check on purpose -- this module is
+    importable without AstrBot (the tests and the oracle do exactly that), so the
+    class may not exist to import.
+    """
+    for value in args:
+        if value is None:
+            continue
+        if hasattr(value, "unified_msg_origin"):
+            return value
+    return None
+
+
 def _published_signature(fn: Any, shim: Any) -> Any:
     """The signature AstrBot should see for a subcommand.
 
     This is fiddlier than it looks, and getting it wrong produces the worst kind of
     failure: the command registers, appears in help, and silently does nothing.
 
-    Two facts about AstrBot decide the shape, and getting either wrong produces the
-    same silent failure -- the command registers, appears in help, and does nothing:
+    What matters, and what took far too long to see: **in both shapes the shim is
+    handed the event as its first positional argument.**
+    ``partial(shim, star_cls)(event, **params)`` calls ``shim(star_cls, event, ...)``,
+    and ``shim(event, **params)`` calls ``shim(event, ...)`` -- so ``_locate_event``
+    finds it in ``args[0]`` either way, and no padding is needed to *receive* it.
 
-    1. **One parameter is consumed by binding.** The loader does
-       ``functools.partial(raw_handler, star_cls)`` (``star_manager.py:1273``), and
-       ``inspect`` drops a parameter for a partial's bound argument. Whatever is
-       published is therefore *reported one shorter*.
-    2. ``init_handler_md`` then **blindly discards the first two** reported
-       parameters -- ``if idx < 2: continue``.
+    The offset only affects which parameters AstrBot parses, and it is the same
+    either way: it skips the first two of what the handler reports, so publishing
+    ``(plugin, event, *real)`` leaves exactly the real arguments.
 
-    So a handler with ``n`` real arguments needs ``n + 1`` published, and the extra
-    one must land among the two that get skipped. It is inserted **after** ``event``
-    (index 2), which is the only position that is both legal and effective:
+    Every leading parameter therefore needs a **default**, for two separate reasons:
 
-    * before ``plugin`` is illegal -- ``Signature.replace`` rejects a defaulted
-      parameter followed by the two required ones (``non-default argument follows
-      default argument``);
-    * after the real arguments is ineffective, because AstrBot stops filling once its
-      parameters run out and the extra one simply never appears.
+    * ``inspect.Signature`` refuses a defaulted parameter followed by a required one,
+      and the real arguments already have defaults (``action=''``, ``rest=GreedyStr``);
+    * a parameter left annotated ``Any`` and required makes AstrBot try to *call*
+      ``Any``, which is ``TypeError: Any cannot be instantiated`` -- the message that
+      started this whole investigation.
 
-    Published as ``(plugin, event, bound_star=None, action, rest)``, binding reports
-    ``(event, bound_star=None, action, rest)``, and AstrBot skips ``event`` and
-    ``bound_star`` -- leaving exactly ``action`` and ``rest``.
-
-    Verified against the installed AstrBot by ``tools/verify_cmd_params.py``, which
-    reproduces the partial binding, parses real command lines with AstrBot's own
-    ``CommandFilter``, and asserts that ``/tavern st import chat a.png main.jsonl``
-    arrives as ``action="import"`` and ``rest="chat a.png main.jsonl"``.
-
-    Returns ``None`` when introspection is impossible, in which case the shim's own
-    signature stands and the command takes no arguments.
+    Parameters from ``event`` onwards keep their own defaults; only the leading
+    ``plugin`` is given one, and its annotation is dropped.
     """
     try:
         signature = inspect.signature(fn)
     except (TypeError, ValueError):  # pragma: no cover - builtins / C functions
         return None
     parameters = list(signature.parameters.values())
-    # Fewer than three parameters means there is no real argument to protect.
-    if len(parameters) < 3:
-        return signature
-    padding = inspect.Parameter("bound_star", inspect.Parameter.POSITIONAL_OR_KEYWORD, default=None)
+    if len(parameters) < 2:
+        return signature  # nothing after `event`: no parsing happens anyway
     try:
-        return signature.replace(parameters=[*parameters[:2], padding, *parameters[2:]])
+        return signature.replace(
+            parameters=[
+                # `plugin`, called with the event in the unbound shape. Defaulted and
+                # unannotated so AstrBot neither requires it nor tries to call `Any`.
+                inspect.Parameter(
+                    parameters[0].name,
+                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                    default=None,
+                ),
+                # `event`, skipped by AstrBot but still required-as-``Any`` otherwise.
+                inspect.Parameter(
+                    parameters[1].name,
+                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                    default=None,
+                ),
+                *parameters[2:],
+            ]
+        )
     except ValueError:  # pragma: no cover - only a duplicate name can fail
         return None
 
@@ -607,24 +691,37 @@ def _register_commands(plugin_cls: Any) -> bool:
 
     def sub(name: str, alias: str | None = None):
         def decorator(fn: Any) -> Any:
-            # AstrBot calls ``fn(event, **parsed_params)``; the plugin instance comes
-            # from the registry, so ``fn`` keeps taking the plugin explicitly.
+            # The shim has to survive **both** call shapes AstrBot uses, because which
+            # one happens depends on whether the loader bound the plugin instance onto
+            # the handler (``functools.partial(raw, star_cls)``). In one real run the
+            # registry held the bare function and AstrBot called ``handler(event)``;
+            # with a partial it calls ``handler(event, **params)`` on
+            # ``partial(raw, star_cls)``. A shim declaring ``(self_unused, event, ...)``
+            # only works for the second -- for the first, ``event`` lands in
+            # ``self_unused`` and the real ``event`` parameter is missing:
             #
-            # The shim must swallow the parameters as ``**kwargs`` and forward them
-            # positionally, and it must *also* publish the real signature through
-            # ``__signature__``. AstrBot builds ``handler_params`` from
-            # ``inspect.signature(handler)`` and skips the first two entries, so a
-            # shim declared ``(self_unused, event, *args)`` registers a single
-            # parameter literally named ``args`` annotated ``Any`` -- and AstrBot
-            # then tries to call ``Any(...)`` on every invocation. That is what this
-            # fixes: every parameterised subcommand (``use``, ``history``,
-            # ``worldbook effect``, ``st``) was unreachable through real command
-            # dispatch, which the end-to-end script never noticed because it calls
-            # ``on_message`` directly instead of going through the command filter.
-            async def shim(self_unused: Any, event: Any, **kwargs: Any):
+            #     TypeError: cmd_help() missing 1 required positional argument: 'event'
+            #
+            # which is what `tools/qq_commands_live.py` caught, and what every unit
+            # test missed because they import `tavern.main` directly and never go
+            # through `star_manager`.
+            #
+            # So the shim takes the event wherever it lands and *locates* it instead of
+            # assuming a position. AstrBot calls ``handler(event, *args, **kwargs)``
+            # (``context_utils.py:37``), so with this signature the event arrives in
+            # ``self_unused``, not in ``args`` -- looking only in ``args`` produced
+            # "called without an event" on every command.
+            # KNOWN-ISSUE: 4 -- `self_unused` is where AstrBot puts the event, so
+            # searching only `args` makes every command report "no event" and return.
+            async def shim(self_unused: Any, *args: Any, **kwargs: Any):
+                event = _locate_event((self_unused, *args))
+                if event is None:
+                    _log("error", f"{fn.__name__} was called without an event; ignoring")
+                    return
                 plugin = _current_plugin()
                 if plugin is None:
                     return
+                # ``kwargs`` is in signature order, which is the order ``fn`` wants.
                 async for result in fn(plugin, event, *kwargs.values()):
                     yield result
 

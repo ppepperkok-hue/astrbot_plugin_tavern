@@ -66,25 +66,32 @@ CASES: list[tuple[str, str, str, dict[str, str]]] = [
 ]
 
 
-def make_filter(plugin_cls: type, name: str, command: str) -> CommandFilter:
-    """A filter for `name`, bound exactly the way the loader binds it.
+def make_filter(plugin_cls: type, name: str, command: str, *, bound: bool) -> CommandFilter:
+    """A filter for `name`, under one of the two shapes AstrBot uses.
+
+    ``star_manager`` binds the plugin instance onto a handler with
+    ``functools.partial(raw, star_cls)`` -- **but only if its by-module-path lookup
+    finds the handler**. When it does not (see `docs/known-issues.md` entry 4), the
+    registry holds the bare function and AstrBot calls it as ``handler(event)``. The
+    shim must survive both, so both are asserted here.
 
     The metadata holder is a ``SimpleNamespace``, matching AstrBot's
     ``StarHandlerMetadata``. Do not hold the handler in a ``type()`` class dict: a
     ``functools.partial`` stored as a class attribute is bound as a method on access,
     consuming a second parameter, and every parse then comes back empty.
     """
-    bound = functools.partial(getattr(plugin_cls, name), plugin_cls)
+    raw = getattr(plugin_cls, name)
+    handler = functools.partial(raw, plugin_cls) if bound else raw
     return CommandFilter(
         command_name=command,
         alias=None,
-        handler_md=SimpleNamespace(handler=bound),
+        handler_md=SimpleNamespace(handler=handler),
         parent_command_names=["tavern"],
     )
 
 
-def parse(plugin_cls: type, name: str, command: str, typed: str) -> dict:
-    filter_ = make_filter(plugin_cls, name, command)
+def parse(plugin_cls: type, name: str, command: str, typed: str, *, bound: bool) -> dict:
+    filter_ = make_filter(plugin_cls, name, command, bound=bound)
     words = [word for word in typed.split(" ") if word]
     parsed = filter_.validate_and_convert_params(words, filter_.handler_params)
     parsed.pop("event", None)
@@ -109,33 +116,50 @@ def main() -> int:
         print("FAIL: cmd_st was not attached to the plugin class")
         return 1
 
-    bound = functools.partial(raw, plugin_cls)
-    params = make_filter(plugin_cls, "cmd_st", "st").handler_params
-    print(f"published signature : {inspect.signature(raw)}")
-    print(f"bound signature     : {inspect.signature(bound)}")
-    print(f"handler_params      : {params}")
-    # AstrBot's own test is `param_type_or_default_val is GreedyStr` -- identity
-    # against the class -- so that is what is asserted. An instance there would make
-    # the parameter one-word, and the only symptom would be truncated text.
-    if params.get("rest") is not GreedyStr:
-        failures.append(
-            f"`rest` default is {params.get('rest')!r}, not the GreedyStr class: "
-            "the remainder would be truncated to one word"
-        )
+    print("AstrBot calls a handler as `handler(event, *args, **kwargs)`")
+    print("(`context_utils.py:37`), and whether the plugin instance is bound on first")
+    print("depends on the loader. Both shapes are printed; the **unbound** one is what")
+    print("this plugin actually runs under in a real AstrBot process, and it is the one")
+    print("asserted here -- `tools/qq_commands_live.py` is the end-to-end proof of it.")
     print()
 
-    for name, command, typed, expected in CASES:
-        try:
-            parsed = parse(plugin_cls, name, command, typed)
-        except Exception as exc:  # noqa: BLE001 - reporting is the point
-            failures.append(f"/tavern {typed!r} raised {type(exc).__name__}: {exc}")
-            print(f"  RAISED  /tavern {typed!r}: {type(exc).__name__}: {exc}")
+    # The unbound shape is the supported, verified one.
+    for bound in (False, True):
+        label = "bound" if bound else "unbound (production)"
+        handler = functools.partial(raw, plugin_cls) if bound else raw
+        params = make_filter(plugin_cls, "cmd_st", "st", bound=bound).handler_params
+        print(f"--- {label}: signature {inspect.signature(handler)}")
+        print(f"    handler_params: {params}")
+        if bound:
+            print("    (informational: the offset differs when the loader bound the")
+            print("     instance, which does not happen for this plugin -- the module is")
+            print("     loaded under two names, so `star_manager`'s lookup finds")
+            print("     nothing. See docs/known-issues.md entry 4.)")
+            print()
             continue
-        print(f"  /tavern {typed!r:<38} -> {parsed}")
-        for key, want in expected.items():
-            got = str(parsed.get(key, ""))
-            if got != want:
-                failures.append(f"/tavern {typed!r}: {key}={got!r}, expected {want!r}")
+
+        if "action" not in params:
+            failures.append("[unbound] `action` is absent from handler_params")
+        if params.get("rest") is not GreedyStr:
+            failures.append(
+                f"[unbound] `rest` default is {params.get('rest')!r}, not the GreedyStr "
+                "class: the remainder would be truncated to one word"
+            )
+        for name, command, typed, expected in CASES:
+            try:
+                parsed = parse(plugin_cls, name, command, typed, bound=bound)
+            except Exception as exc:  # noqa: BLE001 - reporting is the point
+                failures.append(f"[unbound] /tavern {typed!r} raised {type(exc).__name__}: {exc}")
+                print(f"    RAISED  /tavern {typed!r}: {type(exc).__name__}: {exc}")
+                continue
+            print(f"    /tavern {typed!r:<36} -> {parsed}")
+            for key, want in expected.items():
+                got = str(parsed.get(key, ""))
+                if got != want:
+                    failures.append(
+                        f"[unbound] /tavern {typed!r}: {key}={got!r}, expected {want!r}"
+                    )
+        print()
 
     print()
     if failures:
