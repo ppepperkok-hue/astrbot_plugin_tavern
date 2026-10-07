@@ -108,9 +108,13 @@ MARKER_BLOCKS: frozenset[str] = frozenset(
     }
 )
 
-#: SillyTavern's stock ``Main Prompt`` text.
+#: Default text of the ``main`` block. Kept deliberately generic (and original):
+#: SillyTavern's own stock Main Prompt text is part of its AGPL licensed preset
+#: content, so it is *not* shipped here. Point ``presets/`` at an exported
+#: SillyTavern preset to use that project's own wording.
 DEFAULT_MAIN_PROMPT = (
-    "Write {{char}}'s next reply in a fictional chat between {{char}} and {{user}}."
+    "Write {{char}}'s next reply, staying in character as {{char}} "
+    "in a scene together with {{user}}."
 )
 
 #: Role used for every in-chat injection (Author's Note, world info, examples).
