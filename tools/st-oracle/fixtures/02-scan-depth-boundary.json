@@ -1,0 +1,130 @@
+{
+  "description": "inside_depth matches a message 2 back (inside a depth-3 window); outside_depth matches the oldest of 5 messages (depth 4, outside the window). This pins the boundary: world-info.js scans depthBuffer[0..depth).",
+  "book_scan_depth": {
+    "boundary": 3
+  },
+  "chat": [
+    "the outside_depth token sits in the oldest message",
+    "second message, nothing relevant",
+    "third message, nothing relevant",
+    "I open the inside_depth cabinet",
+    "and now I wait"
+  ],
+  "books": {
+    "boundary": {
+      "entries": {
+        "0": {
+          "uid": 0,
+          "key": [
+            "inside_depth"
+          ],
+          "keysecondary": [],
+          "comment": "entry 0",
+          "content": "Cabinet contents: three copper keys.",
+          "constant": false,
+          "selective": true,
+          "order": 100,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 0,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 0,
+          "outletName": "",
+          "group": "",
+          "groupOverride": false,
+          "groupWeight": 100,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": null,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": null,
+          "cooldown": null,
+          "delay": null,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        },
+        "1": {
+          "uid": 1,
+          "key": [
+            "outside_depth"
+          ],
+          "keysecondary": [],
+          "comment": "entry 1",
+          "content": "This text must never appear.",
+          "constant": false,
+          "selective": true,
+          "order": 100,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 1,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 0,
+          "outletName": "",
+          "group": "",
+          "groupOverride": false,
+          "groupWeight": 100,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": null,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": null,
+          "cooldown": null,
+          "delay": null,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        }
+      }
+    }
+  },
+  "scans": [
+    {
+      "worlds": [
+        "boundary"
+      ],
+      "worlds_scan_depth": [
+        3
+      ],
+      "max_context": 4096,
+      "settings": {
+        "world_info_depth": 3,
+        "world_info_budget": 25,
+        "world_info_budget_cap": 0,
+        "world_info_recursive": false,
+        "world_info_max_recursion_steps": 0,
+        "seed": 1337
+      }
+    }
+  ]
+}

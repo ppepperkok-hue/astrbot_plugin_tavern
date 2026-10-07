@@ -1,0 +1,172 @@
+{
+  "description": "One book replayed at three chat lengths (SillyTavern measures sticky/cooldown against chat.length, the port against a turn counter -- this fixture keeps the two equal). The chat is trimmed to one message per scan so the depth window never matters. ['north'] the delayed entry is still gated; ['raven','north'] the entry held open by sticky; ['raven','north','north'] the sticky window has closed but the cooldown still blocks the re-match.",
+  "book_scan_depth": {
+    "timed": 5
+  },
+  "books": {
+    "timed": {
+      "entries": {
+        "0": {
+          "uid": 0,
+          "key": [
+            "raven"
+          ],
+          "keysecondary": [],
+          "comment": "entry 0",
+          "content": "STICKY raven flies overhead.",
+          "constant": false,
+          "selective": true,
+          "order": 10,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 0,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 0,
+          "outletName": "",
+          "group": "",
+          "groupOverride": false,
+          "groupWeight": 100,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": null,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": 2,
+          "cooldown": 2,
+          "delay": null,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        },
+        "1": {
+          "uid": 1,
+          "key": [
+            "north"
+          ],
+          "keysecondary": [],
+          "comment": "entry 1",
+          "content": "DELAY north road opens at last.",
+          "constant": false,
+          "selective": true,
+          "order": 20,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 1,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 0,
+          "outletName": "",
+          "group": "",
+          "groupOverride": false,
+          "groupWeight": 100,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": null,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": null,
+          "cooldown": null,
+          "delay": 2,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        }
+      }
+    }
+  },
+  "scans": [
+    {
+      "chat": [
+        "north"
+      ],
+      "worlds": [
+        "timed"
+      ],
+      "worlds_scan_depth": [
+        5
+      ],
+      "max_context": 4096,
+      "turns": 0,
+      "settings": {
+        "world_info_depth": 5,
+        "world_info_budget": 100,
+        "world_info_budget_cap": 16384,
+        "world_info_recursive": false,
+        "world_info_max_recursion_steps": 0,
+        "seed": 1337
+      }
+    },
+    {
+      "chat": [
+        "raven",
+        "north"
+      ],
+      "worlds": [
+        "timed"
+      ],
+      "worlds_scan_depth": [
+        5
+      ],
+      "max_context": 4096,
+      "turns": 1,
+      "settings": {
+        "world_info_depth": 5,
+        "world_info_budget": 100,
+        "world_info_budget_cap": 16384,
+        "world_info_recursive": false,
+        "world_info_max_recursion_steps": 0,
+        "seed": 1337
+      }
+    },
+    {
+      "chat": [
+        "raven",
+        "north",
+        "north"
+      ],
+      "worlds": [
+        "timed"
+      ],
+      "worlds_scan_depth": [
+        5
+      ],
+      "max_context": 4096,
+      "turns": 2,
+      "settings": {
+        "world_info_depth": 5,
+        "world_info_budget": 100,
+        "world_info_budget_cap": 16384,
+        "world_info_recursive": false,
+        "world_info_max_recursion_steps": 0,
+        "seed": 1337
+      }
+    }
+  ]
+}

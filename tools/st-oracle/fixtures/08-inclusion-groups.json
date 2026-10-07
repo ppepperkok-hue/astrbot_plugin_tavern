@@ -1,0 +1,239 @@
+{
+  "description": "Two scans. First with group scoring off (every keyed member activates), then with world_info_use_group_scoring on: group 'weights' keeps only the heavier member, while group 'tie' has two members with equal weight, which is the tie-break path that depends on the RNG.",
+  "book_scan_depth": {
+    "groups": 3
+  },
+  "chat": [
+    "the alpha token",
+    "the beta token",
+    "the tie token"
+  ],
+  "books": {
+    "groups": {
+      "entries": {
+        "0": {
+          "uid": 0,
+          "key": [
+            "alpha"
+          ],
+          "keysecondary": [],
+          "comment": "entry 0",
+          "content": "GROUP weights heavy wins.",
+          "constant": false,
+          "selective": true,
+          "order": 10,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 0,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 0,
+          "outletName": "",
+          "group": "weights",
+          "groupOverride": false,
+          "groupWeight": 200,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": null,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": null,
+          "cooldown": null,
+          "delay": null,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        },
+        "1": {
+          "uid": 1,
+          "key": [
+            "alpha"
+          ],
+          "keysecondary": [],
+          "comment": "entry 1",
+          "content": "GROUP weights light loses.",
+          "constant": false,
+          "selective": true,
+          "order": 20,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 1,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 0,
+          "outletName": "",
+          "group": "weights",
+          "groupOverride": false,
+          "groupWeight": 50,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": null,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": null,
+          "cooldown": null,
+          "delay": null,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        },
+        "2": {
+          "uid": 2,
+          "key": [
+            "tie"
+          ],
+          "keysecondary": [],
+          "comment": "entry 2",
+          "content": "GROUP tie left.",
+          "constant": false,
+          "selective": true,
+          "order": 30,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 2,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 0,
+          "outletName": "",
+          "group": "tie",
+          "groupOverride": false,
+          "groupWeight": 100,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": null,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": null,
+          "cooldown": null,
+          "delay": null,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        },
+        "3": {
+          "uid": 3,
+          "key": [
+            "tie"
+          ],
+          "keysecondary": [],
+          "comment": "entry 3",
+          "content": "GROUP tie right.",
+          "constant": false,
+          "selective": true,
+          "order": 40,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 3,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 0,
+          "outletName": "",
+          "group": "tie",
+          "groupOverride": false,
+          "groupWeight": 100,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": null,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": null,
+          "cooldown": null,
+          "delay": null,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        }
+      }
+    }
+  },
+  "scans": [
+    {
+      "worlds": [
+        "groups"
+      ],
+      "worlds_scan_depth": [
+        3
+      ],
+      "max_context": 4096,
+      "settings": {
+        "world_info_depth": 3,
+        "world_info_budget": 25,
+        "world_info_budget_cap": 0,
+        "world_info_recursive": false,
+        "world_info_max_recursion_steps": 0,
+        "world_info_use_group_scoring": false,
+        "seed": 1337
+      }
+    },
+    {
+      "worlds": [
+        "groups"
+      ],
+      "worlds_scan_depth": [
+        3
+      ],
+      "max_context": 4096,
+      "settings": {
+        "world_info_depth": 3,
+        "world_info_budget": 25,
+        "world_info_budget_cap": 0,
+        "world_info_recursive": false,
+        "world_info_max_recursion_steps": 0,
+        "world_info_use_group_scoring": true,
+        "seed": 1337
+      }
+    }
+  ]
+}

@@ -1,0 +1,233 @@
+{
+  "description": "One entry per selectiveLogic. Every primary key 'gate' matches. Secondary keys are ['red', 'blue']: only 'red' is present in the chat. AND_ANY(0) fires, NOT_ALL(1) fires, NOT_ANY(2) does not, AND_ALL(3) does not.",
+  "book_scan_depth": {
+    "selective": 4
+  },
+  "chat": [
+    "I reach the gate.",
+    "A red lantern hangs above it.",
+    "Nothing else moves."
+  ],
+  "books": {
+    "selective": {
+      "entries": {
+        "0": {
+          "uid": 0,
+          "key": [
+            "gate"
+          ],
+          "keysecondary": [
+            "red",
+            "blue"
+          ],
+          "comment": "entry 0",
+          "content": "and_any fired: the red lantern is lit.",
+          "constant": false,
+          "selective": true,
+          "order": 100,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 0,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 0,
+          "outletName": "",
+          "group": "",
+          "groupOverride": false,
+          "groupWeight": 100,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": null,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": null,
+          "cooldown": null,
+          "delay": null,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        },
+        "1": {
+          "uid": 1,
+          "key": [
+            "gate"
+          ],
+          "keysecondary": [
+            "red",
+            "blue"
+          ],
+          "comment": "entry 1",
+          "content": "not_all fired: one secondary key is missing.",
+          "constant": false,
+          "selective": true,
+          "order": 100,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 1,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 1,
+          "outletName": "",
+          "group": "",
+          "groupOverride": false,
+          "groupWeight": 100,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": null,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": null,
+          "cooldown": null,
+          "delay": null,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        },
+        "2": {
+          "uid": 2,
+          "key": [
+            "gate"
+          ],
+          "keysecondary": [
+            "red",
+            "blue"
+          ],
+          "comment": "entry 2",
+          "content": "not_any fired: no secondary key is present.",
+          "constant": false,
+          "selective": true,
+          "order": 100,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 2,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 2,
+          "outletName": "",
+          "group": "",
+          "groupOverride": false,
+          "groupWeight": 100,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": null,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": null,
+          "cooldown": null,
+          "delay": null,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        },
+        "3": {
+          "uid": 3,
+          "key": [
+            "gate"
+          ],
+          "keysecondary": [
+            "red",
+            "blue"
+          ],
+          "comment": "entry 3",
+          "content": "and_all fired: every secondary key is present.",
+          "constant": false,
+          "selective": true,
+          "order": 100,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 3,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 3,
+          "outletName": "",
+          "group": "",
+          "groupOverride": false,
+          "groupWeight": 100,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": null,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": null,
+          "cooldown": null,
+          "delay": null,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        }
+      }
+    }
+  },
+  "scans": [
+    {
+      "worlds": [
+        "selective"
+      ],
+      "worlds_scan_depth": [
+        4
+      ],
+      "max_context": 4096,
+      "settings": {
+        "world_info_depth": 4,
+        "world_info_budget": 25,
+        "world_info_budget_cap": 0,
+        "world_info_recursive": false,
+        "world_info_max_recursion_steps": 0,
+        "world_info_case_sensitive": false,
+        "seed": 1337
+      }
+    }
+  ]
+}

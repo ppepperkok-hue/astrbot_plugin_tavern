@@ -451,7 +451,9 @@ class PluginCore:
         book_names: list[str] = []
         if self.config.worldbook.enabled and binding.worldbooks:
             books = [self.get_book(name) for name in binding.worldbooks]
-            book_names = [book.name or key for key, book in zip(binding.worldbooks, books)]
+            book_names = [
+                book.name or key for key, book in zip(binding.worldbooks, books, strict=False)
+            ]
             settings = worldbook.WorldBookSettings(
                 default_scan_depth=self.config.worldbook.scan_depth,
                 allow_recursion=self.config.worldbook.allow_recursion,
@@ -767,7 +769,7 @@ def render_answer(text: str, *, config: TavernConfig) -> list[str]:
 def request_preview(turn: Turn, limit: int = 12) -> str:
     """Human readable dump of what is about to be sent (``/tavern preview``)."""
     lines = turn.debug_lines
-    lines.append("messages (first %d):" % limit)
+    lines.append(f"messages (first {limit}):")
     for index, message in enumerate(messages_to_openai(turn.request)[:limit], start=1):
         content = as_str(message.get("content")).replace("\n", " / ")
         if len(content) > 160:

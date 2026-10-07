@@ -1,0 +1,98 @@
+{
+  "description": "A V2 character_book reaches the engine through convertCharacterBook(), so both the translation and the scan are exercised. Entry 2 is disabled, entry 3 only has its 'exclude_recursion' extension set.",
+  "book_scan_depth": {
+    "card": 3
+  },
+  "chat": [
+    "I greet the blacksmith.",
+    "He mentions the broken anvil."
+  ],
+  "character_books": {
+    "card": {
+      "name": "Card Book",
+      "description": "Embedded lore from a character card",
+      "scan_depth": 3,
+      "token_budget": 500,
+      "recursive_scanning": false,
+      "extensions": {},
+      "entries": [
+        {
+          "id": 0,
+          "keys": [],
+          "content": "Card constant: the forge is cold today.",
+          "enabled": true,
+          "constant": true,
+          "insertion_order": 10,
+          "position": "before_char",
+          "extensions": {
+            "position": 0,
+            "display_index": 0
+          }
+        },
+        {
+          "id": 1,
+          "keys": [
+            "anvil"
+          ],
+          "content": "Card keyword: the anvil split in two last winter.",
+          "enabled": true,
+          "insertion_order": 20,
+          "position": "after_char",
+          "extensions": {
+            "position": 1,
+            "display_index": 1
+          }
+        },
+        {
+          "id": 2,
+          "keys": [],
+          "content": "Card disabled row must never appear.",
+          "enabled": false,
+          "constant": true,
+          "insertion_order": 30,
+          "position": "before_char",
+          "extensions": {
+            "position": 0,
+            "display_index": 2
+          }
+        },
+        {
+          "id": 3,
+          "keys": [
+            "blacksmith"
+          ],
+          "content": "Card recursion row with an extension flag.",
+          "enabled": true,
+          "insertion_order": 40,
+          "position": "before_char",
+          "extensions": {
+            "position": 0,
+            "display_index": 3,
+            "exclude_recursion": true,
+            "group": "smiths",
+            "group_weight": 120
+          }
+        }
+      ]
+    }
+  },
+  "scans": [
+    {
+      "worlds": [
+        "card"
+      ],
+      "worlds_scan_depth": [
+        3
+      ],
+      "max_context": 4096,
+      "settings": {
+        "world_info_depth": 3,
+        "world_info_budget": 25,
+        "world_info_budget_cap": 0,
+        "world_info_recursive": false,
+        "world_info_max_recursion_steps": 0,
+        "seed": 1337
+      }
+    }
+  ]
+}

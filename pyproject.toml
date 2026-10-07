@@ -24,3 +24,16 @@ addopts = "-q"
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+# Scratch and generated trees: not part of the plugin, not linted.
+exclude = [
+  ".tmp-test-data",
+  ".tools",
+  ".uv-cache",
+  ".acl-recovery",
+  "tools/st-oracle/.build",
+  "data",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501"]

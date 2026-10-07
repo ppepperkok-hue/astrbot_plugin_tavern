@@ -1,0 +1,650 @@
+[
+  {
+    "js_name": "getWorldInfoSettings",
+    "js_line": 795,
+    "loc": 18,
+    "python_target": "tavern/config.py:WorldBookConfig",
+    "status": "ported",
+    "note": "The port keeps the same knobs, but as plugin config (scan_depth/budget/recursion) instead of a global settings bag."
+  },
+  {
+    "js_name": "updateWorldInfoSettings",
+    "js_line": 819,
+    "loc": 35,
+    "python_target": "tavern/st/worldbook.py:WorldBookSettings",
+    "status": "ported",
+    "note": "Runtime knobs travel as a WorldBookSettings value object; no global mutation."
+  },
+  {
+    "js_name": "getWorldInfoPrompt",
+    "js_line": 892,
+    "loc": 24,
+    "python_target": "tools/st-oracle/run_python.py:main",
+    "status": "pending",
+    "note": "Prompt assembly is split: tavern/st/prompt.py renders slots, tavern/core.py build_turn() orchestrates. The st-oracle adapter is what the diff measures today; no single ported function owns this contract yet."
+  },
+  {
+    "js_name": "setWorldInfoSettings",
+    "js_line": 917,
+    "loc": 117,
+    "python_target": "tavern/config.py:TavernConfig.from_dict",
+    "status": "ported",
+    "note": "Scan setup is derived from config + SessionBinding.worldbooks per turn."
+  },
+  {
+    "js_name": "reloadEditor",
+    "js_line": 1040,
+    "loc": 7,
+    "python_target": "",
+    "status": "exempt",
+    "note": "DOM reload helper."
+  },
+  {
+    "js_name": "registerWorldInfoSlashCommands",
+    "js_line": 1049,
+    "loc": 961,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Slash-command registration for the ST chat UI."
+  },
+  {
+    "js_name": "showWorldEditor",
+    "js_line": 2018,
+    "loc": 9,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor modal."
+  },
+  {
+    "js_name": "loadWorldInfo",
+    "js_line": 2036,
+    "loc": 24,
+    "python_target": "tools/st-oracle/run_python.py:build_books",
+    "status": "ported",
+    "note": "The plugin loads files through tavern/st/worldbook.py:load_world_book and its own cache (reload_library); there is no /api/worldinfo/get hop."
+  },
+  {
+    "js_name": "updateWorldInfoList",
+    "js_line": 2061,
+    "loc": 24,
+    "python_target": "tavern/core.py:reload_library",
+    "status": "ported",
+    "note": ""
+  },
+  {
+    "js_name": "hideWorldEditor",
+    "js_line": 2086,
+    "loc": 3,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor modal."
+  },
+  {
+    "js_name": "getWIElement",
+    "js_line": 2090,
+    "loc": 7,
+    "python_target": "",
+    "status": "exempt",
+    "note": "jQuery lookup helper."
+  },
+  {
+    "js_name": "addMissingWorldInfoFields",
+    "js_line": 2104,
+    "loc": 33,
+    "python_target": "tavern/st/worldbook.py:entry_from_dict",
+    "status": "ported",
+    "note": ""
+  },
+  {
+    "js_name": "sortWorldInfoEntries",
+    "js_line": 2146,
+    "loc": 65,
+    "python_target": "tavern/st/worldbook.py:activate",
+    "status": "ported",
+    "note": "Scan-time order is (insertion_order, display_index); the editor's sort-mode UI is exempt."
+  },
+  {
+    "js_name": "nullWorldInfo",
+    "js_line": 2212,
+    "loc": 3,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Creates an empty book through the settings API."
+  },
+  {
+    "js_name": "updateWorldEntryKeyOptionsCache",
+    "js_line": 2226,
+    "loc": 20,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Autocomplete cache for the editor."
+  },
+  {
+    "js_name": "clearEntryList",
+    "js_line": 2247,
+    "loc": 61,
+    "python_target": "",
+    "status": "exempt",
+    "note": "DOM list reset."
+  },
+  {
+    "js_name": "displayWorldEntries",
+    "js_line": 2310,
+    "loc": 376,
+    "python_target": "",
+    "status": "exempt",
+    "note": "376 lines of editor rendering."
+  },
+  {
+    "js_name": "verifyWorldInfoSearchSortRule",
+    "js_line": 2727,
+    "loc": 18,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor search/sort state."
+  },
+  {
+    "js_name": "setWIOriginalDataValue",
+    "js_line": 2756,
+    "loc": 11,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Tracks original values for editor dirty-checking."
+  },
+  {
+    "js_name": "deleteWIOriginalDataValue",
+    "js_line": 2774,
+    "loc": 11,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor dirty-checking."
+  },
+  {
+    "js_name": "splitKeywordsAndRegexes",
+    "js_line": 2797,
+    "loc": 19,
+    "python_target": "tavern/st/worldbook.py:is_regex_key,compile_key",
+    "status": "ported",
+    "note": ""
+  },
+  {
+    "js_name": "customTokenizer",
+    "js_line": 2825,
+    "loc": 54,
+    "python_target": "",
+    "status": "exempt",
+    "note": "UI tokenizer for the keys input box."
+  },
+  {
+    "js_name": "isValidRegex",
+    "js_line": 2888,
+    "loc": 3,
+    "python_target": "tavern/st/worldbook.py:compile_key",
+    "status": "ported",
+    "note": ""
+  },
+  {
+    "js_name": "parseRegexFromString",
+    "js_line": 2901,
+    "loc": 26,
+    "python_target": "tavern/st/worldbook.py:_REGEX_KEY,compile_key",
+    "status": "ported",
+    "note": "Same /pattern/flags grammar. Flag letters beyond i/m/s/x are ignored."
+  },
+  {
+    "js_name": "enableKeysInputHelper",
+    "js_line": 2938,
+    "loc": 104,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor input widget wiring."
+  },
+  {
+    "js_name": "handleMatchCheckboxHelper",
+    "js_line": 3052,
+    "loc": 13,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor checkbox wiring."
+  },
+  {
+    "js_name": "updatePosOrdDisplayHelper",
+    "js_line": 3073,
+    "loc": 12,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor display counter."
+  },
+  {
+    "js_name": "initCharacterFilterSelect2Helper",
+    "js_line": 3090,
+    "loc": 10,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Select2 widget wiring."
+  },
+  {
+    "js_name": "fillCharacterAndTagOptionsHelper",
+    "js_line": 3107,
+    "loc": 20,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Select2 option population."
+  },
+  {
+    "js_name": "handleCharacterFilterChangeHelper",
+    "js_line": 3136,
+    "loc": 28,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor change handler."
+  },
+  {
+    "js_name": "handleProbabilityInputHelper",
+    "js_line": 3173,
+    "loc": 18,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor number input wiring."
+  },
+  {
+    "js_name": "handleProbabilityToggleHelper",
+    "js_line": 3201,
+    "loc": 20,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor toggle wiring."
+  },
+  {
+    "js_name": "handleBooleanSelectHelper",
+    "js_line": 3231,
+    "loc": 11,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor select wiring."
+  },
+  {
+    "js_name": "handleNumberInputHelper",
+    "js_line": 3255,
+    "loc": 20,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor number input wiring."
+  },
+  {
+    "js_name": "handleEntryStateSelectorHelper",
+    "js_line": 3284,
+    "loc": 33,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor state selector (constant/normal) wiring."
+  },
+  {
+    "js_name": "handleEntryKillSwitchHelper",
+    "js_line": 3327,
+    "loc": 17,
+    "python_target": "tavern/st/worldbook.py:entry_from_dict",
+    "status": "ported",
+    "note": "The kill switch is entry.disable; only the click handler is UI."
+  },
+  {
+    "js_name": "setCommentPlaceholder",
+    "js_line": 3350,
+    "loc": 5,
+    "python_target": "",
+    "status": "exempt",
+    "note": "i18n placeholder text."
+  },
+  {
+    "js_name": "getWorldEntry",
+    "js_line": 3362,
+    "loc": 512,
+    "python_target": "tavern/st/worldbook.py:entry_from_dict",
+    "status": "pending",
+    "note": "512 lines of editor rendering plus the row->form mapping. Only the data half is covered; the port never writes entries back."
+  },
+  {
+    "js_name": "buildAutocompleteCallback",
+    "js_line": 3884,
+    "loc": 38,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor autocomplete."
+  },
+  {
+    "js_name": "getInclusionGroupCallback",
+    "js_line": 3935,
+    "loc": 18,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor autocomplete data."
+  },
+  {
+    "js_name": "getAutomationIdCallback",
+    "js_line": 3954,
+    "loc": 10,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor autocomplete data."
+  },
+  {
+    "js_name": "getOutletNameCallback",
+    "js_line": 3965,
+    "loc": 6,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor autocomplete data."
+  },
+  {
+    "js_name": "createEntryInputAutocomplete",
+    "js_line": 3979,
+    "loc": 32,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor autocomplete wiring."
+  },
+  {
+    "js_name": "duplicateWorldInfoEntry",
+    "js_line": 4019,
+    "loc": 15,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor clone action."
+  },
+  {
+    "js_name": "deleteWorldInfoEntry",
+    "js_line": 4043,
+    "loc": 31,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor delete action."
+  },
+  {
+    "js_name": "createWorldInfoEntry",
+    "js_line": 4137,
+    "loc": 13,
+    "python_target": "tavern/st/worldbook.py:entry_from_dict",
+    "status": "ported",
+    "note": "Row defaults (order 100, depth 4, selective true in ST's editor definition) are modelled by the parser instead of a template object."
+  },
+  {
+    "js_name": "_save",
+    "js_line": 4151,
+    "loc": 11,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Writes a book back through the ST server API."
+  },
+  {
+    "js_name": "saveWorldInfo",
+    "js_line": 4177,
+    "loc": 14,
+    "python_target": "tavern/core.py:import_worldbook_bytes",
+    "status": "ported",
+    "note": ""
+  },
+  {
+    "js_name": "renameWorldInfo",
+    "js_line": 4192,
+    "loc": 32,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Rename is a DOM flow; the plugin re-imports instead."
+  },
+  {
+    "js_name": "updateWorldInfoLinks",
+    "js_line": 4232,
+    "loc": 107,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Repoints character/chat/persona links after a rename; the plugin has no such links."
+  },
+  {
+    "js_name": "deleteWorldInfo",
+    "js_line": 4346,
+    "loc": 48,
+    "python_target": "",
+    "status": "exempt",
+    "note": "File deletion, owned by the plugin library layer."
+  },
+  {
+    "js_name": "getFreeWorldEntryUid",
+    "js_line": 4395,
+    "loc": 15,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor-only uid allocation; the plugin never writes books back."
+  },
+  {
+    "js_name": "getFreeWorldName",
+    "js_line": 4422,
+    "loc": 16,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor-only unique-name allocation."
+  },
+  {
+    "js_name": "createNewWorldInfo",
+    "js_line": 4448,
+    "loc": 26,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Creates a book from the editor UI."
+  },
+  {
+    "js_name": "getCharacterLore",
+    "js_line": 4475,
+    "loc": 51,
+    "python_target": "tavern/core.py:build_turn",
+    "status": "ported",
+    "note": ""
+  },
+  {
+    "js_name": "getGlobalLore",
+    "js_line": 4527,
+    "loc": 16,
+    "python_target": "tavern/core.py:build_turn",
+    "status": "ported",
+    "note": ""
+  },
+  {
+    "js_name": "getChatLore",
+    "js_line": 4544,
+    "loc": 19,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Chat-bound lorebook needs chat_metadata; the plugin attaches books per chat binding instead."
+  },
+  {
+    "js_name": "getPersonaLore",
+    "js_line": 4564,
+    "loc": 25,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Persona-bound lorebook: AstrBot has no persona-lorebook concept."
+  },
+  {
+    "js_name": "getSortedEntries",
+    "js_line": 4590,
+    "loc": 55,
+    "python_target": "tavern/st/worldbook.py:activate + tavern/core.py:build_turn",
+    "status": "ported",
+    "note": "Book selection order (chat -> persona -> global) is not modelled; only the configured book list is walked. Ordering within a scan is (insertion_order, display_index)."
+  },
+  {
+    "js_name": "parseDecorators",
+    "js_line": 4652,
+    "loc": 47,
+    "python_target": "",
+    "status": "pending",
+    "note": "@@activate / @@dont_activate and the leading-decorator stripping are not ported; fixture 10 shows the port emitting defunct @@dont_activate entries."
+  },
+  {
+    "js_name": "checkWorldInfo",
+    "js_line": 4709,
+    "loc": 574,
+    "python_target": "tavern/st/worldbook.py:activate",
+    "status": "pending",
+    "note": "The orchestration loop exists but diverges: timed effects (sticky/cooldown), min-activations scans, cumulative token budget and event emission are not ported. See fixtures 06/07/08 in tools/st-oracle/out."
+  },
+  {
+    "js_name": "filterGroupsByScoring",
+    "js_line": 5292,
+    "loc": 37,
+    "python_target": "tavern/st/worldbook.py:_apply_group_scoring",
+    "status": "pending",
+    "note": ""
+  },
+  {
+    "js_name": "filterGroupsByTimedEffects",
+    "js_line": 5337,
+    "loc": 42,
+    "python_target": "tavern/st/worldbook.py:ActivationState",
+    "status": "pending",
+    "note": ""
+  },
+  {
+    "js_name": "filterByInclusionGroups",
+    "js_line": 5388,
+    "loc": 88,
+    "python_target": "tavern/st/worldbook.py:_apply_group_scoring",
+    "status": "pending",
+    "note": "Different model: the port only drops lighter members of a group. The engine always yields exactly one winner per group (weighted random roll, groupOverride priority, sticky pinning). Fixture 08 pins both."
+  },
+  {
+    "js_name": "convertAgnaiMemoryBook",
+    "js_line": 5477,
+    "loc": 44,
+    "python_target": "",
+    "status": "pending",
+    "note": "Agnai Memory Book import path."
+  },
+  {
+    "js_name": "convertRisuLorebook",
+    "js_line": 5522,
+    "loc": 44,
+    "python_target": "",
+    "status": "pending",
+    "note": "RisuAI lorebook import path."
+  },
+  {
+    "js_name": "convertNovelLorebook",
+    "js_line": 5567,
+    "loc": 49,
+    "python_target": "",
+    "status": "pending",
+    "note": "NovelAI lorebook import path."
+  },
+  {
+    "js_name": "convertCharacterBook",
+    "js_line": 5617,
+    "loc": 58,
+    "python_target": "tools/st-oracle/run_python.py:convert_character_book",
+    "status": "pending",
+    "note": "The translation lives in the oracle, not in tavern/, so the plugin still cannot read embedded character_book lore. Port it to tavern/st/cards.py."
+  },
+  {
+    "js_name": "setWorldInfoButtonClass",
+    "js_line": 5676,
+    "loc": 14,
+    "python_target": "",
+    "status": "exempt",
+    "note": "jQuery button state."
+  },
+  {
+    "js_name": "checkEmbeddedWorld",
+    "js_line": 5691,
+    "loc": 39,
+    "python_target": "",
+    "status": "pending",
+    "note": "Detects an embedded character_book; the plugin does not look for one yet."
+  },
+  {
+    "js_name": "importEmbeddedWorldInfo",
+    "js_line": 5731,
+    "loc": 40,
+    "python_target": "",
+    "status": "pending",
+    "note": "Imports the embedded book into the library."
+  },
+  {
+    "js_name": "onWorldInfoChange",
+    "js_line": 5772,
+    "loc": 73,
+    "python_target": "tavern/core.py:toggle_book,set_books",
+    "status": "ported",
+    "note": ""
+  },
+  {
+    "js_name": "importWorldInfo",
+    "js_line": 5850,
+    "loc": 82,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Browser file-picker import."
+  },
+  {
+    "js_name": "openWorldInfoEditor",
+    "js_line": 5937,
+    "loc": 8,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Editor open action."
+  },
+  {
+    "js_name": "assignLorebookToChat",
+    "js_line": 5951,
+    "loc": 38,
+    "python_target": "tavern/core.py:set_books",
+    "status": "ported",
+    "note": ""
+  },
+  {
+    "js_name": "moveWorldInfoEntry",
+    "js_line": 6000,
+    "loc": 90,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Drag-and-drop between books."
+  },
+  {
+    "js_name": "charUpdatePrimaryWorld",
+    "js_line": 6097,
+    "loc": 31,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Writes character.data.extensions.world."
+  },
+  {
+    "js_name": "charUpdateAddAuxWorld",
+    "js_line": 6134,
+    "loc": 5,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Writes extra character lorebook links."
+  },
+  {
+    "js_name": "charSetAuxWorlds",
+    "js_line": 6145,
+    "loc": 3,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Persists auxiliary lorebook links."
+  },
+  {
+    "js_name": "updateAuxBooks",
+    "js_line": 6149,
+    "loc": 25,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Refreshes auxiliary lorebook links."
+  },
+  {
+    "js_name": "initWorldInfo",
+    "js_line": 6175,
+    "loc": 234,
+    "python_target": "",
+    "status": "exempt",
+    "note": "234 lines of DOM/event bootstrap."
+  }
+]

@@ -56,10 +56,10 @@ PLUGIN_DESC = "酒馆风格角色扮演（角色卡 / 世界书 / 聊天记录�
 
 #: Guarded imports: present inside AstrBot, tolerated in a plain checkout.
 try:  # pragma: no cover - exercised inside AstrBot
+    import astrbot.api.message_components as Comp
     from astrbot.api import AstrBotConfig, logger
     from astrbot.api.event import AstrMessageEvent, MessageChain, filter
     from astrbot.api.star import Context, Star, register
-    import astrbot.api.message_components as Comp
 except Exception:  # noqa: BLE001 - tests import this module without AstrBot
     AstrBotConfig = Any  # type: ignore[assignment,misc]
     logger = None  # type: ignore[assignment]

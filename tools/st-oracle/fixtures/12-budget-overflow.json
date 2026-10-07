@@ -1,0 +1,129 @@
+{
+  "description": "NOT COMPARABLE by design: the token budget is the one place where the two engines cannot agree without porting a tokenizer. SillyTavern counts tokens with the generation backend's tokenizer, the port estimates len//3, so the fixture only checks that both sides drop entries in the same direction. Kept so that a future tokenizer port has a target.",
+  "comparable": false,
+  "unavailable_reason": "token counting is not comparable: SillyTavern uses the model tokenizer, the port uses a len//3 estimate, so budget arithmetic diverges by construction",
+  "book_scan_depth": {
+    "budget": 2
+  },
+  "chat": [
+    "the budget token appears here",
+    "nothing else"
+  ],
+  "books": {
+    "budget": {
+      "entries": {
+        "0": {
+          "uid": 0,
+          "key": [
+            "budget"
+          ],
+          "keysecondary": [],
+          "comment": "entry 0",
+          "content": "BUDGET one: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "constant": false,
+          "selective": true,
+          "order": 100,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 0,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 0,
+          "outletName": "",
+          "group": "",
+          "groupOverride": false,
+          "groupWeight": 100,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": null,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": null,
+          "cooldown": null,
+          "delay": null,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        },
+        "1": {
+          "uid": 1,
+          "key": [
+            "budget"
+          ],
+          "keysecondary": [],
+          "comment": "entry 1",
+          "content": "BUDGET two: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "constant": false,
+          "selective": true,
+          "order": 90,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 1,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 0,
+          "outletName": "",
+          "group": "",
+          "groupOverride": false,
+          "groupWeight": 100,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": null,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": null,
+          "cooldown": null,
+          "delay": null,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        }
+      }
+    }
+  },
+  "scans": [
+    {
+      "worlds": [
+        "budget"
+      ],
+      "worlds_scan_depth": [
+        2
+      ],
+      "max_context": 4096,
+      "settings": {
+        "world_info_depth": 2,
+        "world_info_budget": 2,
+        "world_info_budget_cap": 0,
+        "world_info_recursive": false,
+        "world_info_max_recursion_steps": 0,
+        "seed": 1337
+      }
+    }
+  ]
+}

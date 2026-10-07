@@ -249,7 +249,17 @@ def log_tail(lines: int = 60) -> str:
 # ----------------------------------------------------------------------
 # mock QQ client (OneBot v11 over the reverse websocket)
 # ----------------------------------------------------------------------
-async def run_onebot_client(timeout: float = 60.0) -> bool:
+async def run_onebot_client(
+    timeout: float = 60.0,
+    *,
+    expect_text: str | None = REPLY_TEXT,
+    ignore_texts: tuple[str, ...] = (),
+) -> tuple[bool, list[dict]]:
+    """Drive one group message and collect the replies.
+
+    ``expect_text=None`` accepts any non-ignored answer, which is what the live
+    model test needs (a real model never repeats a fixed string).
+    """
     import websockets
 
     url = f"ws://127.0.0.1:{ONEBOT_PORT}/ws"
@@ -358,7 +368,12 @@ async def run_onebot_client(timeout: float = 60.0) -> bool:
                         }
                     )
                 )
-                if REPLY_TEXT in text:
+                if expect_text is None:
+                    if text.strip() and text not in ignore_texts:
+                        matched = True
+                        break
+                    continue
+                if expect_text in text:
                     matched = True
                     break
                 continue
@@ -378,7 +393,7 @@ async def run_onebot_client(timeout: float = 60.0) -> bool:
         heart.cancel()
         if not replies:
             print("FAIL: no send_group_msg action received")
-            return False
+            return False, replies
         if not matched:
             texts = [
                 "".join(
@@ -389,8 +404,8 @@ async def run_onebot_client(timeout: float = 60.0) -> bool:
                 for reply in replies
             ]
             print(f"FAIL: the model reply never arrived, got: {texts}")
-            return False
-        return True
+            return False, replies
+        return True, replies
 
 
 def main() -> int:
@@ -406,7 +421,7 @@ def main() -> int:
             print(log_tail())
             return 1
         print(f"OneBot reverse websocket is listening on {ONEBOT_PORT}")
-        ok = asyncio.run(run_onebot_client())
+        ok, _replies = asyncio.run(run_onebot_client())
         print("--- astrbot log tail ---")
         print(log_tail(40))
         print(f"backend calls: {len(MockBackendHandler.calls)}")

@@ -34,9 +34,10 @@ import json
 import logging
 import random
 import re
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable, Sequence
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -689,7 +690,7 @@ def activate(
         activated = kept
 
     result = ActivationResult(activated=[entry for _book, entry in activated], truncated=truncated)
-    for book, entry in activated:
+    for _book, entry in activated:
         result.by_position.setdefault(entry.position, []).append(entry)
     return result
 

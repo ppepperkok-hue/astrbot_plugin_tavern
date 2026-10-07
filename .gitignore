@@ -26,3 +26,15 @@ Thumbs.db
 # Local integration-test toolchain (AstrBot install, uv cache)
 .tools/
 .uv-cache/
+
+# st-oracle: the generated Node shim tree and the run results are reproducible
+# (`python tools/st-oracle/gen_adapter.py` + `run_all.py`), so they stay out of git.
+# fixtures/ and port-map.json are committed on purpose.
+tools/st-oracle/.build/
+tools/st-oracle/out/
+
+# Scratch trees produced by integration runs and porting experiments
+.tmp-test-data/
+tools/st-oracle/.build/
+tools/st-oracle/out/
+

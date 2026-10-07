@@ -1,0 +1,174 @@
+{
+  "description": "/sword/i matches 'SWORD' case-insensitively; /\\bDRAGON\\b/ without i does not; a plain key 'shield' still does substring matching next to regex keys.",
+  "book_scan_depth": {
+    "regex": 4
+  },
+  "chat": [
+    "The SWORD is drawn.",
+    "Far away a dragon sleeps.",
+    "I raise my shield."
+  ],
+  "books": {
+    "regex": {
+      "entries": {
+        "0": {
+          "uid": 0,
+          "key": [
+            "/sword/i"
+          ],
+          "keysecondary": [],
+          "comment": "entry 0",
+          "content": "Regex key with the i flag matched.",
+          "constant": false,
+          "selective": true,
+          "order": 100,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 0,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 0,
+          "outletName": "",
+          "group": "",
+          "groupOverride": false,
+          "groupWeight": 100,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": null,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": null,
+          "cooldown": null,
+          "delay": null,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        },
+        "1": {
+          "uid": 1,
+          "key": [
+            "/\\bDRAGON\\b/"
+          ],
+          "keysecondary": [],
+          "comment": "entry 1",
+          "content": "The case-sensitive regex must not match here.",
+          "constant": false,
+          "selective": true,
+          "order": 100,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 1,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 0,
+          "outletName": "",
+          "group": "",
+          "groupOverride": false,
+          "groupWeight": 100,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": null,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": null,
+          "cooldown": null,
+          "delay": null,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        },
+        "2": {
+          "uid": 2,
+          "key": [
+            "shiel"
+          ],
+          "keysecondary": [],
+          "comment": "entry 2",
+          "content": "Plain key still matches by substring.",
+          "constant": false,
+          "selective": true,
+          "order": 100,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 2,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 0,
+          "outletName": "",
+          "group": "",
+          "groupOverride": false,
+          "groupWeight": 100,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": null,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": null,
+          "cooldown": null,
+          "delay": null,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        }
+      }
+    }
+  },
+  "scans": [
+    {
+      "worlds": [
+        "regex"
+      ],
+      "worlds_scan_depth": [
+        4
+      ],
+      "max_context": 4096,
+      "settings": {
+        "world_info_depth": 4,
+        "world_info_budget": 25,
+        "world_info_budget_cap": 0,
+        "world_info_recursive": false,
+        "world_info_max_recursion_steps": 0,
+        "seed": 1337
+      }
+    }
+  ]
+}

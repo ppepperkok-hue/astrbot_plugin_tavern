@@ -40,9 +40,10 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, tzinfo
-from typing import Any, Callable, Mapping, Protocol, Sequence
+from typing import Any, Protocol
 
 from tavern.st.cards import CharacterCard
 
@@ -748,7 +749,10 @@ def parse_dialogue_examples(
                 content = _strip_leading_newlines(content)
             content = content.strip("\n")
             if content.strip():
-                block_messages.append(
+                # ``block_messages`` is rebound at the top of every iteration and
+                # ``flush`` only ever runs inside that same iteration, so the
+                # late binding is safe here.
+                block_messages.append(  # noqa: B023
                     PromptMessage(
                         role=_role_for_name(current_name, options),
                         content=f"{current_name}: {content}" if keep_names else content,

@@ -1,0 +1,79 @@
+{
+  "description": "One constant entry, no keys: must always activate and land before the char.",
+  "book_scan_depth": {
+    "minimal": 2
+  },
+  "chat": [
+    "Hello there.",
+    "I look around the empty room."
+  ],
+  "books": {
+    "minimal": {
+      "entries": {
+        "0": {
+          "uid": 0,
+          "key": [],
+          "keysecondary": [],
+          "comment": "constant rule",
+          "content": "The northern gate is sealed until dawn.",
+          "constant": true,
+          "selective": true,
+          "order": 100,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 0,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 0,
+          "outletName": "",
+          "group": "",
+          "groupOverride": false,
+          "groupWeight": 100,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": null,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": null,
+          "cooldown": null,
+          "delay": null,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        }
+      }
+    }
+  },
+  "scans": [
+    {
+      "worlds": [
+        "minimal"
+      ],
+      "worlds_scan_depth": [
+        2
+      ],
+      "max_context": 4096,
+      "settings": {
+        "world_info_depth": 2,
+        "world_info_budget": 25,
+        "world_info_budget_cap": 0,
+        "world_info_recursive": false,
+        "world_info_max_recursion_steps": 0,
+        "seed": 1337
+      }
+    }
+  ]
+}
