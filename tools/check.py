@@ -89,6 +89,17 @@ def main() -> int:
     # A README pointing at a file that does not exist reads as carelessness and is
     # invisible to anyone who does not click it. Cheap enough to always check.
     results.append(run("readme links", [sys.executable, "tools/check_readme_links.py", "--quiet"]))
+    # Links resolve, but do they *render*? An unclosed code fence turns the rest of the
+    # page into code, and an unescaped `|` inside a table cell silently adds a column.
+    # Neither is visible in the source, and both are visible to every visitor.
+    results.append(
+        run("readme render", [sys.executable, "tools/check_readme_structure.py", "--quiet"])
+    )
+    # The pre-release sweep: secrets in tracked files, version strings that disagree
+    # across the four places a version lives, config keys missing from the README, and
+    # placeholder text that would ship. A leaked key in a public repo is the one mistake
+    # a follow-up push cannot undo.
+    results.append(run("preflight", [sys.executable, "tools/preflight.py", "--quiet"]))
     # The management page is served as files, so a typo in a `src`/`href` or an element
     # id the script looks up but the markup never defines is a blank page rather than an
     # error -- and the page iframe is sandboxed, so there is no console the user will

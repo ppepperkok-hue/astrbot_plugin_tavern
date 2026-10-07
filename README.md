@@ -152,6 +152,7 @@ messages (first 12):
 | | `match_whole_words` | `false` | **中文建议保持关闭**：`\w` 边界对中文不可靠 |
 | | `injection_cap` | `20` | 单轮最多注入多少条，`0` 不限制 |
 | | `allow_recursion` | `true` | 条目内容命中的关键词可再触发其他条目 |
+| | `max_recursion_steps` | `3` | 递归最多几层；配合 `allow_recursion` 使用 |
 | `render` | `max_chars_per_message` | `500` | 超出按段落切分多条发送 |
 | | `segment_delay_ms` | `400` | 分段之间的间隔，模拟打字 |
 | | `keep_leading_space` | `true` | 补零宽空格，防止平台把酒馆式缩进 strip 掉 |

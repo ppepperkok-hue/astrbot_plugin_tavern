@@ -76,7 +76,7 @@ def code_markers() -> dict[str, list[str]]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--quiet", action="store_true")
-    args = parser.parse_args(argv if argv is not None else [])
+    args = parser.parse_args(argv if argv is not None else sys.argv[1:])
 
     entries = register_entries()
     markers = code_markers()

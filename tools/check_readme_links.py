@@ -43,7 +43,7 @@ def local_targets(text: str) -> list[tuple[str, str]]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--quiet", action="store_true", help="only print problems")
-    args = parser.parse_args(argv if argv is not None else [])
+    args = parser.parse_args(argv if argv is not None else sys.argv[1:])
 
     missing: list[str] = []
     checked = 0
