@@ -1,0 +1,189 @@
+{
+  "name": "01-message-model",
+  "seed": 1337,
+  "token_divisor": 3,
+  "description": "Drives TokenHandler / Message / MessageCollection / ChatCompletion directly: budget arithmetic, empty-content filtering, the squash exclude list, nested-collection flattening, insert positions, the budget refusal and the missing-identifier error. Insert steps run before the squash step because squashing flattens the collections and removes the group identifiers; every step that touches a completion names it explicitly. Post-squash token totals are ignored: the reference re-counts a merged message through its browser tokenizer, which cannot run here (see STATUS.md).",
+  "steps": [
+    {
+      "type": "new",
+      "id": "main"
+    },
+    {
+      "type": "budget",
+      "id": "main",
+      "context": 1000,
+      "response": 100
+    },
+    {
+      "type": "add",
+      "id": "main",
+      "collection": {
+        "identifier": "start",
+        "items": [
+          {
+            "role": "system",
+            "content": "You are a careful assistant.",
+            "identifier": "mainPrompt"
+          }
+        ]
+      }
+    },
+    {
+      "type": "add",
+      "id": "main",
+      "collection": {
+        "identifier": "inner",
+        "items": [
+          {
+            "role": "system",
+            "content": "first squashed block",
+            "identifier": "blockOne"
+          },
+          {
+            "role": "system",
+            "content": "second squashed block",
+            "identifier": "blockTwo"
+          },
+          {
+            "role": "system",
+            "content": "",
+            "identifier": "emptySystem"
+          },
+          {
+            "role": "system",
+            "content": "excluded from squashing",
+            "identifier": "newMainChat"
+          },
+          {
+            "role": "system",
+            "content": "kept separately",
+            "identifier": "newChat"
+          },
+          {
+            "role": "user",
+            "content": "hello there",
+            "identifier": "userTurn"
+          },
+          {
+            "role": "assistant",
+            "content": "general kenobi",
+            "identifier": "assistantTurn"
+          }
+        ]
+      }
+    },
+    {
+      "type": "snapshot",
+      "id": "main",
+      "identifiers": [
+        "start",
+        "inner",
+        "nope"
+      ],
+      "dump_collection": true
+    },
+    {
+      "type": "insert_start",
+      "id": "main",
+      "identifier": "start",
+      "message": {
+        "role": "system",
+        "content": "inserted at start",
+        "identifier": "insStart"
+      }
+    },
+    {
+      "type": "insert_end",
+      "id": "main",
+      "identifier": "start",
+      "message": {
+        "role": "system",
+        "content": "inserted at end",
+        "identifier": "insEnd"
+      }
+    },
+    {
+      "type": "snapshot",
+      "id": "main",
+      "dump_collection": true
+    },
+    {
+      "type": "remove_last",
+      "id": "main",
+      "identifier": "inner"
+    },
+    {
+      "type": "snapshot",
+      "id": "main",
+      "dump_collection": true
+    },
+    {
+      "type": "insert_end",
+      "id": "main",
+      "identifier": "missing",
+      "message": {
+        "role": "user",
+        "content": "nowhere",
+        "identifier": "ghost"
+      }
+    },
+    {
+      "type": "count",
+      "id": "main",
+      "message": {
+        "role": "user",
+        "content": "abcdef"
+      }
+    },
+    {
+      "type": "count",
+      "id": "main",
+      "message": {
+        "role": "user",
+        "content": "abcdef",
+        "name": "Narrator"
+      }
+    },
+    {
+      "type": "squash",
+      "id": "main"
+    },
+    {
+      "type": "snapshot",
+      "id": "main",
+      "identifiers": [
+        "start",
+        "inner"
+      ],
+      "dump_collection": true
+    },
+    {
+      "type": "new",
+      "id": "tiny"
+    },
+    {
+      "type": "budget",
+      "id": "tiny",
+      "context": 20,
+      "response": 19
+    },
+    {
+      "type": "add",
+      "id": "tiny",
+      "collection": {
+        "identifier": "tooBig",
+        "items": [
+          {
+            "role": "system",
+            "content": "this will not fit at all",
+            "identifier": "big"
+          }
+        ]
+      }
+    }
+  ],
+  "ignore_fields": [
+    "step[14](snapshot).total_tokens",
+    "step[14](snapshot).collection[0].tokens"
+  ]
+}
