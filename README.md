@@ -136,8 +136,12 @@ AstrBot 侧的兼容性已在 **4.28.2** 实测通过（指令组注册链、han
 
 ## 致谢与许可
 
-* 数据格式与交互设计参考 [SillyTavern](https://github.com/SillyTavern/SillyTavern)（AGPL-3.0），
-  仅借鉴其公开的格式规范与行为语义，**未复制其代码或资源**。
-* 角色卡 V2/V3 规范来自社区文档 `spec_v2.md` / `SPEC_V3.md`；
+* 本项目采用 [GNU Affero General Public License v3.0](LICENSE)（AGPL-3.0）。
+  也就是说：可以用、可以改、可以分发，但**分发或通过网络提供服务时必须一并提供完整源码**，
+  且衍生作品同样按 AGPL-3.0 授权。
+* 数据格式与交互设计来自 [SillyTavern](https://github.com/SillyTavern/SillyTavern)（同为 AGPL-3.0）。
+  选择同一许可证，意味着我们可以直接复用它的实现代码，而不必担心许可冲突。
+* 角色卡 V2/V3 规范参考社区文档 `spec_v2.md` / `SPEC_V3.md`；
   世界书字段与默认值参考酒馆源码中的 `convertWorldInfoToCharacterBook()` 与默认预设顺序。
-* 本项目自身许可：见仓库根目录的 `LICENSE`（发布前请确认）。
+* 若仓库中开始出现直接复用酒馆代码的文件，会在该文件里保留原始版权声明并标注修改日期，
+  同时在 `research/05-st-embedding-options.md` 记录来源与范围。
