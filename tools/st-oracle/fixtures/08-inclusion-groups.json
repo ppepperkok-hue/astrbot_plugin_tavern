@@ -1,25 +1,22 @@
 {
-  "description": "Two scans. First with group scoring off (every keyed member activates), then with world_info_use_group_scoring on: group 'weights' keeps only the heavier member, while group 'tie' has two members with equal weight, which is the tie-break path that depends on the RNG.",
+  "description": "Deterministic inclusion group outcomes: groupOverride priority, key based group scoring (both entries opt in via useGroupScoring), and a group with a single member. The weighted random roll has its own not-comparable fixture.",
   "book_scan_depth": {
     "groups": 3
   },
   "chat": [
-    "the alpha token",
-    "the beta token",
-    "the tie token"
+    "alpha beta",
+    "nothing"
   ],
   "books": {
     "groups": {
       "entries": {
         "0": {
           "uid": 0,
-          "key": [
-            "alpha"
-          ],
+          "key": [],
           "keysecondary": [],
           "comment": "entry 0",
-          "content": "GROUP weights heavy wins.",
-          "constant": false,
+          "content": "OVERRIDE winner.",
+          "constant": true,
           "selective": true,
           "order": 10,
           "position": 0,
@@ -31,9 +28,9 @@
           "depth": 4,
           "selectiveLogic": 0,
           "outletName": "",
-          "group": "weights",
-          "groupOverride": false,
-          "groupWeight": 200,
+          "group": "prio",
+          "groupOverride": true,
+          "groupWeight": 100,
           "scanDepth": null,
           "caseSensitive": null,
           "matchWholeWords": null,
@@ -59,13 +56,11 @@
         },
         "1": {
           "uid": 1,
-          "key": [
-            "alpha"
-          ],
+          "key": [],
           "keysecondary": [],
           "comment": "entry 1",
-          "content": "GROUP weights light loses.",
-          "constant": false,
+          "content": "OVERRIDE loser.",
+          "constant": true,
           "selective": true,
           "order": 20,
           "position": 0,
@@ -77,9 +72,9 @@
           "depth": 4,
           "selectiveLogic": 0,
           "outletName": "",
-          "group": "weights",
+          "group": "prio",
           "groupOverride": false,
-          "groupWeight": 50,
+          "groupWeight": 100,
           "scanDepth": null,
           "caseSensitive": null,
           "matchWholeWords": null,
@@ -106,11 +101,12 @@
         "2": {
           "uid": 2,
           "key": [
-            "tie"
+            "alpha",
+            "beta"
           ],
           "keysecondary": [],
           "comment": "entry 2",
-          "content": "GROUP tie left.",
+          "content": "SCORE high wins.",
           "constant": false,
           "selective": true,
           "order": 30,
@@ -123,13 +119,13 @@
           "depth": 4,
           "selectiveLogic": 0,
           "outletName": "",
-          "group": "tie",
+          "group": "scored",
           "groupOverride": false,
           "groupWeight": 100,
           "scanDepth": null,
           "caseSensitive": null,
           "matchWholeWords": null,
-          "useGroupScoring": null,
+          "useGroupScoring": true,
           "automationId": "",
           "role": 0,
           "vectorized": false,
@@ -152,11 +148,11 @@
         "3": {
           "uid": 3,
           "key": [
-            "tie"
+            "alpha"
           ],
           "keysecondary": [],
           "comment": "entry 3",
-          "content": "GROUP tie right.",
+          "content": "SCORE low loses.",
           "constant": false,
           "selective": true,
           "order": 40,
@@ -169,7 +165,51 @@
           "depth": 4,
           "selectiveLogic": 0,
           "outletName": "",
-          "group": "tie",
+          "group": "scored",
+          "groupOverride": false,
+          "groupWeight": 100,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": true,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": null,
+          "cooldown": null,
+          "delay": null,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        },
+        "4": {
+          "uid": 4,
+          "key": [],
+          "keysecondary": [],
+          "comment": "entry 4",
+          "content": "SINGLE member survives.",
+          "constant": true,
+          "selective": true,
+          "order": 50,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 4,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 0,
+          "outletName": "",
+          "group": "solo",
           "groupOverride": false,
           "groupWeight": 100,
           "scanDepth": null,
@@ -214,24 +254,6 @@
         "world_info_recursive": false,
         "world_info_max_recursion_steps": 0,
         "world_info_use_group_scoring": false,
-        "seed": 1337
-      }
-    },
-    {
-      "worlds": [
-        "groups"
-      ],
-      "worlds_scan_depth": [
-        3
-      ],
-      "max_context": 4096,
-      "settings": {
-        "world_info_depth": 3,
-        "world_info_budget": 25,
-        "world_info_budget_cap": 0,
-        "world_info_recursive": false,
-        "world_info_max_recursion_steps": 0,
-        "world_info_use_group_scoring": true,
         "seed": 1337
       }
     }

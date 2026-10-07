@@ -1,0 +1,124 @@
+{
+  "description": "Weighted random inclusion group roll. Not comparable: the two backends use different RNG streams for Math.random().",
+  "book_scan_depth": {
+    "groups": 3
+  },
+  "chat": [
+    "nothing"
+  ],
+  "books": {
+    "weights": {
+      "entries": {
+        "0": {
+          "uid": 0,
+          "key": [],
+          "keysecondary": [],
+          "comment": "entry 0",
+          "content": "GROUP weights heavy wins.",
+          "constant": true,
+          "selective": true,
+          "order": 10,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 0,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 0,
+          "outletName": "",
+          "group": "weights",
+          "groupOverride": false,
+          "groupWeight": 200,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": null,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": null,
+          "cooldown": null,
+          "delay": null,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        },
+        "1": {
+          "uid": 1,
+          "key": [],
+          "keysecondary": [],
+          "comment": "entry 1",
+          "content": "GROUP weights light loses.",
+          "constant": true,
+          "selective": true,
+          "order": 20,
+          "position": 0,
+          "disable": false,
+          "addMemo": true,
+          "displayIndex": 1,
+          "probability": 100,
+          "useProbability": true,
+          "depth": 4,
+          "selectiveLogic": 0,
+          "outletName": "",
+          "group": "weights",
+          "groupOverride": false,
+          "groupWeight": 50,
+          "scanDepth": null,
+          "caseSensitive": null,
+          "matchWholeWords": null,
+          "useGroupScoring": null,
+          "automationId": "",
+          "role": 0,
+          "vectorized": false,
+          "sticky": null,
+          "cooldown": null,
+          "delay": null,
+          "excludeRecursion": false,
+          "preventRecursion": false,
+          "delayUntilRecursion": false,
+          "matchPersonaDescription": false,
+          "matchCharacterDescription": false,
+          "matchCharacterPersonality": false,
+          "matchCharacterDepthPrompt": false,
+          "matchScenario": false,
+          "matchCreatorNotes": false,
+          "extensions": {},
+          "triggers": [],
+          "ignoreBudget": false
+        }
+      }
+    }
+  },
+  "scans": [
+    {
+      "worlds": [
+        "weights"
+      ],
+      "worlds_scan_depth": [
+        3
+      ],
+      "max_context": 4096,
+      "settings": {
+        "world_info_depth": 3,
+        "world_info_budget": 25,
+        "world_info_budget_cap": 0,
+        "world_info_recursive": false,
+        "world_info_max_recursion_steps": 0,
+        "world_info_use_group_scoring": false,
+        "seed": 1337
+      }
+    }
+  ],
+  "comparable": false
+}

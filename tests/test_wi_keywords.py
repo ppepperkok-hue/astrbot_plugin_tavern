@@ -197,6 +197,14 @@ def test_word_class_is_ascii_like_the_engine() -> None:
     assert match_keys("flat-earth", "flat", WHOLE_WORDS) is True
 
 
+def test_js_whitespace_class_decides_multi_word() -> None:
+    # U+FEFF is whitespace for the engine, so this key is multi-word -> includes.
+    assert match_keys("xa\ufeffby", "a\ufeffb", WHOLE_WORDS) is True
+    # U+0085 is not engine whitespace: the key stays a single token and needs
+    # boundaries, which the surrounding word characters do not provide.
+    assert match_keys("xa\u0085by", "a\u0085b", WHOLE_WORDS) is False
+
+
 def test_whole_words_off_is_a_plain_includes() -> None:
     assert match_keys("abcC++def", "C++", {"matchWholeWords": False}) is True
     assert match_keys("xa-1b", "A-1", {}) is True  # module default is False

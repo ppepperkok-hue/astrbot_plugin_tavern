@@ -314,22 +314,66 @@ def test_ignore_budget_entries_survive_the_cutoff() -> None:
     assert ids(result) == {0, 2}
 
 
-def test_group_scoring_keeps_heaviest() -> None:
+def test_group_scoring_keeps_the_higher_key_score() -> None:
+    """Group scoring ranks by matched keys, not by weight (world-info.js:5310)."""
     book = WorldBook(
         name="groups",
         entries=[
             entry_from_dict(
-                0, {"key": ["aaa"], "content": "light", "group": "wrecks", "groupWeight": 10}
+                0, {"key": ["aaa"], "content": "one key", "group": "wrecks", "groupWeight": 10}
             ),
             entry_from_dict(
-                1, {"key": ["bbb"], "content": "heavy", "group": "wrecks", "groupWeight": 90}
+                1,
+                {
+                    "key": ["bbb", "ccc"],
+                    "content": "two keys",
+                    "group": "wrecks",
+                    "groupWeight": 90,
+                },
+            ),
+        ],
+    )
+    result = activate(
+        [book],
+        ["aaa bbb ccc"],
+        settings=WorldBookSettings(default_scan_depth=2, group_scoring=True),
+    )
+    # entry 1 matches two keys, entry 0 only one -> entry 1 wins the group
+    assert ids(result) == {1}
+    # without scoring the group keeps the highest order/uid tie-break winner
+    plain = activate(
+        [book],
+        ["aaa bbb ccc"],
+        settings=WorldBookSettings(default_scan_depth=2),
+    )
+    assert len(plain.activated) == 1
+
+
+def test_group_override_wins_without_rolling() -> None:
+    """``groupOverride`` is a deterministic priority tier (world-info.js:5444)."""
+    book = WorldBook(
+        name="groups",
+        entries=[
+            entry_from_dict(
+                0,
+                {"key": ["aaa"], "content": "loser", "group": "g", "groupWeight": 900},
+            ),
+            entry_from_dict(
+                1,
+                {
+                    "key": ["bbb"],
+                    "content": "priority",
+                    "group": "g",
+                    "groupWeight": 10,
+                    "groupOverride": True,
+                },
             ),
         ],
     )
     result = activate(
         [book],
         ["aaa bbb"],
-        settings=WorldBookSettings(default_scan_depth=2, group_scoring=True),
+        settings=WorldBookSettings(default_scan_depth=2),
     )
     assert ids(result) == {1}
 

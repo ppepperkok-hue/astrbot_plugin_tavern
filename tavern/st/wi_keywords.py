@@ -38,6 +38,9 @@ branching:
     ``\\p{...}``), while Python's ``\\w`` is Unicode-aware for ``str`` patterns.
     Without it ``关键词`` inside ``中文关键词测试`` would stop matching, because
     the neighbouring ideograph counts as a word character in Python and not in JS.
+    The same reasoning applies to the ``split(/\\s+/)`` that decides "multi-word",
+    which uses the ECMA-262 whitespace class (:data:`_JS_WHITESPACE`) rather than
+    Python's ``\\s``.
 
 Adaptations to Python (no branching above is altered):
 
