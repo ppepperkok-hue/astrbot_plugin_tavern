@@ -116,6 +116,9 @@ class TavernPlugin(Star):  # type: ignore[misc]
         # list for the life of the process. Handlers resolve through
         # `_current_plugin()`, and a stale instance is not merely old -- it is closed,
         # so its backend and caches are dead.
+        #
+        # KNOWN-ISSUE: 1 -- reading the list's first entry meant a reload left the OLD,
+        # already-closed instance answering every message and every command, forever.
         PLUGIN_INSTANCES.clear()
         PLUGIN_INSTANCES.append(self)
 
@@ -301,7 +304,7 @@ def _current_plugin() -> TavernPlugin | None:
     new one was appended behind it.
     """
     if PLUGIN_INSTANCES:
-        return PLUGIN_INSTANCES[-1]
+        return PLUGIN_INSTANCES[-1]  # KNOWN-ISSUE: 1 -- never `[0]`; see the docstring
     try:
         plugin = TavernPlugin(None)
     except Exception as exc:  # noqa: BLE001 - never let the handler explode
@@ -593,6 +596,9 @@ def _register_commands(plugin_cls: Any) -> bool:
     #: so the class itself goes in the signature and an *instance* would silently
     #: downgrade the parameter to "one word", which is exactly what happened first
     #: here. Give it one name so the rule is stated once.
+    #:
+    #: KNOWN-ISSUE: 2 -- identity against the class, not `isinstance`. An instance
+    #: here truncates every greedy argument to its first word, with no error.
     greedy_default = GreedyStr
 
     @filter.command_group("tavern", alias={"酒馆"})
@@ -626,6 +632,8 @@ def _register_commands(plugin_cls: Any) -> bool:
             shim.__doc__ = fn.__doc__
             shim.__module__ = fn.__module__
             shim.__qualname__ = fn.__qualname__
+            # KNOWN-ISSUE: 2 -- without this the shim's own signature is what AstrBot
+            # reads, every parameterised subcommand registers and then does nothing.
             shim.__signature__ = _published_signature(fn, shim)
             # Register the shim (wrapper) and hand it back for class attachment.
             decorated = group.command(name, alias={alias}) if alias else group.command(name)

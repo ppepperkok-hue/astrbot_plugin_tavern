@@ -360,6 +360,9 @@ class WorldInfoBuffer:
             # characters, so `关键词` inside `中文关键词测试` stops matching, while
             # the reference matches it. Oracle fixture ``15-word-boundaries`` pins
             # exactly that pair (and the ASCII cases that already agreed).
+            #
+            # KNOWN-ISSUE: 3 -- changing this to `re.UNICODE` breaks every Chinese
+            # keyword under whole-word matching; fixture 15 goes red when you do.
             regex = re.compile(f"(?:^|\\W)({escape_regex(transformed_string)})(?:$|\\W)", re.ASCII)
             if regex.search(haystack):
                 return True

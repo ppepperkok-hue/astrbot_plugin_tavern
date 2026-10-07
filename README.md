@@ -181,6 +181,8 @@ messages (first 12):
 
 「已实测」指仓库里 `tools/qq_e2e.py` 会起一个真实的 AstrBot 进程与一个假 OneBot 客户端，断言整条链路。
 
+踩过的坑、以及**为什么当初没被发现**，记在 [docs/known-issues.md](docs/known-issues.md)。
+
 ## ❓ 常见问题
 
 <details>

@@ -95,6 +95,10 @@ def main() -> int:
     # find. Also asserts `PLUGIN_ID` equals `metadata.yaml`'s `name`, since a mismatch
     # makes every panel request answer "未找到该路由".
     results.append(run("panel assets", [sys.executable, "tools/check_panel_assets.py", "--quiet"]))
+    # A bug fixed quietly teaches nothing: the reason it was missed is what recurs.
+    # `docs/known-issues.md` is the register and code names an entry with
+    # `KNOWN-ISSUE: <id>`. Checked in both directions so neither half rots.
+    results.append(run("known issues", [sys.executable, "tools/check_known_issues.py", "--quiet"]))
     # A mirror module with tests but no production importer cannot affect a reply, so
     # "it has tests" is not evidence it works. The three currently-unwired modules are
     # declared in KNOWN_UNWIRED with the reasoning; `--fail-on-unwired` turns a *new*
