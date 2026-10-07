@@ -1,7 +1,7 @@
 {
   "name": "01-assembly-order",
   "seed": 1337,
-  "description": "The default character + world info block, one user-relative prompt, nsfw and jailbreak, a bias text and a quiet prompt. The expected identifier sequence is what the reference produces: each prompt is placed at its own slot in the PromptCollection, so a user prompt added between charDescription and charPersonality keeps its position.",
+  "description": "The default character + world info block, one user-relative prompt, nsfw and jailbreak, a bias text and a quiet prompt. The expected identifier sequence is what the reference produces: each prompt is placed at its own slot in the PromptCollection, so a user prompt added between charDescription and charPersonality keeps its position. The chat is declared in SillyTavern order (oldest first) and reaches the reference through the real setOpenAIMessages (openai.js:570-649), i.e. newest first.",
   "max_context": 1000000,
   "response": 0,
   "bias": "BIAS TEXT",
@@ -110,25 +110,28 @@
   ],
   "chat": [
     {
-      "role": "user",
-      "content": "hello there",
+      "mes": "hello there",
+      "is_user": true,
       "name": "User"
     },
     {
-      "role": "assistant",
-      "content": "general kenobi",
+      "mes": "general kenobi",
+      "is_user": false,
       "name": "Iris"
     }
   ],
   "examples": [
-    {
-      "mes": "example user",
-      "name": "User"
-    },
-    {
-      "mes": "example char",
-      "name": "Char"
-    }
+    [
+      {
+        "content": "example user",
+        "name": "example_user"
+      },
+      {
+        "content": "example char",
+        "name": "example_assistant"
+      }
+    ]
   ],
-  "group_chat": false
+  "group_chat": false,
+  "dump_internals": true
 }

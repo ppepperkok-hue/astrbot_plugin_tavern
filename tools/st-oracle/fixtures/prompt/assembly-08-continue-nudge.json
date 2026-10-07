@@ -1,0 +1,45 @@
+{
+  "name": "08-continue-nudge",
+  "seed": 13,
+  "description": "type = 'continue' with continue_prefill OFF, so populateChatHistory takes its nudge branch (openai.js:907-927): the last non-injected message is spliced out of the list, re-prepared, put into the continueNudge collection in front of the nudge prompt itself, and that collection is appended at position -1 -- the very tail of the completion (openai.js:1088-1090). dialogueExamples sits at index 1, i.e. *before* the push position, because the collections are placed by slot assignment (openai.js:4002-4006) and a later `add(..., index)` overwrites whatever holds that slot: with dialogueExamples after chatHistory in this list the nudge would be silently replaced by it.",
+  "max_context": 1000000,
+  "response": 0,
+  "type": "continue",
+  "continue_prefill": false,
+  "cycle_prompt": "I was say",
+  "prompts": [
+    {
+      "identifier": "main",
+      "role": "system",
+      "content": "MAIN",
+      "system_prompt": true
+    },
+    {
+      "identifier": "dialogueExamples",
+      "role": "system",
+      "content": "",
+      "system_prompt": true
+    },
+    {
+      "identifier": "chatHistory",
+      "role": "system",
+      "content": "",
+      "system_prompt": true
+    }
+  ],
+  "chat": [
+    {
+      "mes": "hello there",
+      "is_user": true,
+      "name": "User"
+    },
+    {
+      "mes": "I was say",
+      "is_user": false,
+      "name": "Iris"
+    }
+  ],
+  "examples": [],
+  "group_chat": false,
+  "dump_internals": true
+}

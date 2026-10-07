@@ -1,0 +1,65 @@
+{
+  "name": "05-disabled-prompts",
+  "seed": 5,
+  "description": "Two prompts the active character disabled -- one system entry (nsfw) and one user-relative block (myChatPrompt). openai.js:1191-1194 skips them but exempts 'main', so 'main' must still be in the sequence while nsfw and myChatPrompt are absent.",
+  "max_context": 1000000,
+  "response": 0,
+  "disabled_prompts": [
+    "nsfw",
+    "myChatPrompt"
+  ],
+  "prompts": [
+    {
+      "identifier": "worldInfoBefore",
+      "role": "system",
+      "content": "WI_BEFORE",
+      "system_prompt": true
+    },
+    {
+      "identifier": "main",
+      "role": "system",
+      "content": "MAIN",
+      "system_prompt": true
+    },
+    {
+      "identifier": "myChatPrompt",
+      "role": "user",
+      "content": "USER_BLOCK",
+      "system_prompt": false
+    },
+    {
+      "identifier": "nsfw",
+      "role": "system",
+      "content": "NSFW",
+      "system_prompt": true
+    },
+    {
+      "identifier": "jailbreak",
+      "role": "system",
+      "content": "JB",
+      "system_prompt": true
+    },
+    {
+      "identifier": "chatHistory",
+      "role": "system",
+      "content": "",
+      "system_prompt": true
+    },
+    {
+      "identifier": "dialogueExamples",
+      "role": "system",
+      "content": "",
+      "system_prompt": true
+    }
+  ],
+  "chat": [
+    {
+      "mes": "hi",
+      "is_user": true,
+      "name": "User"
+    }
+  ],
+  "examples": [],
+  "group_chat": false,
+  "dump_internals": true
+}

@@ -22,6 +22,7 @@ from tavern.st.chat_completion import ChatCompletion, MessageCollection
 from tavern.st.prompt_build import (
     DEFAULT_INJECTION_ORDER,
     EXTENSION_PROMPT_ROLES,
+    MAX_INJECTION_DEPTH,
     CharacterNamesBehavior,
     ContinuePostfix,
     Prompt,
@@ -87,11 +88,11 @@ class FakeChatCompletion:
     objects that :mod:`tavern.st.prompt_build` creates, only the messages are
     :class:`FakeMessage`. The order semantics mirror the reference exactly:
 
-    * ``add(collection, index)`` (``openai.js:3998-4004``) splices at the index,
-      so an occupied slot *shifts* rather than being overwritten; ``None`` /
-      ``-1`` / an out-of-range index append (JS ``splice`` clamps).
-    * ``insert*`` (``openai.js:4042``) looks the identifier up as a *group* and
-      inserts into it -- ``'end'`` is an append, ``'start'`` an ``insert(0)``.
+    * ``add(collection, index)`` (``openai.js:3998-4006``) **assigns the slot**:
+      an occupied slot is replaced and an index past the end pads the array.
+      ``None`` / ``-1`` append.
+    * ``insert*`` (``openai.js:4021-4061``) looks the identifier up as a *group*
+      and inserts inside it -- ``'end'`` is an append, ``'start'`` a prepend.
       This is what makes ``injectToMain`` land inside the ``main`` group.
     """
 
@@ -224,15 +225,26 @@ class FakeChatCompletion:
         ``add`` can leave a ``None`` hole (``openai.js:4002-4006``), which has no
         identifier and is skipped by the reference ``getChat`` as well.
         """
-        return [item.identifier for item in self.messages.collection if item is not None]
+        return [
+            item.identifier
+            for item in self.messages.collection
+            if getattr(item, "identifier", None) is not None
+        ]
 
     def flat_names(self) -> list[str]:
-        """Every message identifier in chat order, with its name when set."""
+        """Every message identifier in chat order, with its name when set.
+
+        A message the builder created without an identifier falls back to the
+        identifier of the group that holds it (the reference ``createAsync``
+        calls always pass one, but nested prompt groups do not).
+        """
         out: list[str] = []
-        for message in self.flatten():
-            out.append(
-                f"{message.identifier}@{message.name}" if message.name else str(message.identifier)
-            )
+        for group in self.flatten_groups():
+            for message in group.collection:
+                if isinstance(message, MessageCollection) or message is None:
+                    continue
+                identifier = message.identifier or group.identifier
+                out.append(f"{identifier}@{message.name}" if message.name else str(identifier))
         return out
 
 
@@ -252,10 +264,11 @@ def chat(completion: FakeChatCompletion) -> list[dict[str, Any]]:
 
 
 def history_messages(completion: FakeChatCompletion) -> list[dict[str, Any]]:
-    """The chat-history messages only, oldest first.
+    """The chat-history turns only, oldest first.
 
-    ``insertAtStart`` prepends, so the raw order is newest-first; this helper
-    also drops the ``newMainChat`` marker, which is not a conversation turn.
+    ``newMainChat`` is prepended to the whole group (``openai.js:1079``) and is
+    not a conversation turn, so it is filtered out here; ``insertAtStart`` leaves
+    the raw order newest-first, which this helper flips back.
     """
     turns = [
         message
@@ -339,9 +352,10 @@ def test_injection_depths_and_the_total_inserted_offset():
     # splice(0) -> [D0, A]; splice(1 + 1) -> [D0, A, D1]; depth 2 empty;
     # splice(3 + 2) clamps to the end -> [D0, A, D1, D3]; then reverse().
     assert contents(result) == ["D3", "D1", "A", "D0"]
-    # Without the max-depth callback only depth 0 is visited (openai.js:819).
-    only_depth_zero = run(population_injection_prompts(prompts, [FakeMessage("user", "A")]))
-    assert contents(only_depth_zero) == ["A", "D0"]
+    # Without a callback the bound is the page's constant (script.js:3277), which
+    # is far above every depth here, so the same depths are visited.
+    without_callback = run(population_injection_prompts(prompts, [FakeMessage("user", "A")]))
+    assert contents(without_callback) == ["D3", "D1", "A", "D0"]
 
 
 def test_injection_uses_the_max_depth_callback():
@@ -353,8 +367,19 @@ def test_injection_uses_the_max_depth_callback():
     ]
     messages = [FakeMessage("user", "A")]
 
+    # ``script.js:3277-3285`` returns MAX_INJECTION_DEPTH and the version that
+    # derived the bound from the prompts is commented out in this snapshot, so the
+    # default is the constant -- a depth-1 prompt is visited without a callback.
+    assert MAX_INJECTION_DEPTH == 10000
     without = run(population_injection_prompts(prompts, list(messages)))
-    assert contents(without) == ["A"]
+    assert contents(without) == ["X", "A"]
+
+    bounded_to_zero = run(
+        population_injection_prompts(
+            prompts, list(messages), get_extension_prompt_max_depth=lambda: 0
+        )
+    )
+    assert contents(bounded_to_zero) == ["A"]
 
     with_callback = run(
         population_injection_prompts(
@@ -694,7 +719,9 @@ def test_history_names_behavior_completion_sanitizes_invalid_names():
         )
     )
 
-    newest, oldest = history_messages(completion)[::-1]
+    # Turns are named by their distance from the end of the raw list
+    # (``openai.js:954``), so ``chatHistory-N`` is the N-th *oldest* turn here.
+    oldest, newest = sorted(history_messages(completion), key=lambda m: m["identifier"])
     assert oldest["name"] == "Iris_01"
     assert newest["name"] == "Iris_Vale_"
     # The two helper functions the branch is built from.
@@ -720,7 +747,7 @@ def test_history_names_behavior_accepts_the_name_string():
         )
     )
 
-    assert history_messages(completion)[-1]["name"] == "a_b"
+    assert history_messages(completion)[0]["name"] == "a_b"
 
 
 def test_history_send_if_empty_pads_an_assistant_final_chat():
@@ -839,9 +866,12 @@ def test_history_continue_nudge_collection_is_appended():
     # (openai.js:1090 -- position -1). The dialogueExamples group of the same
     # collection was never populated, which is why it is not in the chat.
     assert completion.identifiers() == ["chatHistory", "continueNudge"]
+    # Two members: the displaced cycle prompt (no identifier of its own, so it
+    # inherits the group's) and then the nudge prompt itself.
     assert completion.flat_names() == [
         "newMainChat",
         "chatHistory-1",
+        "continueNudge",
         "continueNudge",
     ]
     nudge = only(completion, "continueNudge")
@@ -1073,26 +1103,37 @@ def test_assembly_order_entry_by_entry():
     )
 
     assert completion.identifiers() == [
-        "main",
         "worldInfoBefore",
+        "main",
         "worldInfoAfter",
         "charDescription",
         "charPersonality",
         "scenario",
         "personaDescription",
-        "enhanceDefinitions",
         "nsfw",
         "jailbreak",
         "myChatPrompt",
         "bias",
-        "chatHistory",
+        "enhanceDefinitions",
         "dialogueExamples",
+        "chatHistory",
         "controlPrompts",
     ]
-    assert completion.flat_names()[-4:] == [
-        "chatHistory-1",
+    assert completion.flat_names() == [
+        "worldInfoBefore",
+        "main",
+        "worldInfoAfter",
+        "charDescription",
+        "charPersonality",
+        "scenario",
+        "personaDescription",
+        "nsfw",
+        "jailbreak",
+        "myChatPrompt",
+        "bias",
+        "enhanceDefinitions",
         "newMainChat",
-        "quietPrompt",
+        "chatHistory-1",
         "quietPrompt",
     ]
     # openai.js:1210 -- the priming reservation happens before anything else.
@@ -1818,6 +1859,120 @@ def test_real_chat_completion_squash_keeps_the_new_main_chat():
     )
 
     run(populate_chat_completion(prompts, completion, messages=[]))
-    completion.squash_system_messages()
+    run(completion.squash_system_messages())
 
     assert completion.has("main")
+
+
+def test_real_classes_reproduce_the_assembly_oracle_fixture():
+    """The offline lock for ``fixtures/prompt/assembly-01-order.json``.
+
+    The expectations below are the reference run of that fixture, copied out of
+    ``tools/st-oracle/out/assembly-01-order.js.json`` (Node + the vendored
+    ``openai.js``); ``diff_assembly.py`` re-derives them on demand. The real
+    :class:`~tavern.st.chat_completion.ChatCompletion` is used, not a double, so
+    the slot assignment (``None`` holes included) and the message order are the
+    ones the port actually ships. The messages arrive newest-first, which is what
+    ``setOpenAIMessages`` hands the reference (``openai.js:578-644``).
+    """
+    entries = [
+        ("worldInfoBefore", "system", "WI_BEFORE", True),
+        ("main", "system", "MAIN", True),
+        ("worldInfoAfter", "system", "WI_AFTER", True),
+        ("charDescription", "system", "DESC", True),
+        ("myChatPrompt", "user", "USER_BLOCK", False),
+        ("charPersonality", "system", "PERS", True),
+        ("scenario", "system", "SCEN", True),
+        ("personaDescription", "system", "PERSONA", True),
+        ("nsfw", "system", "NSFW", True),
+        ("jailbreak", "system", "JB", True),
+        ("bias", "assistant", "BIAS", True),
+        ("enhanceDefinitions", "system", "ENHANCE", True),
+        ("quietPrompt", "system", "QUIET", True),
+        ("impersonate", "system", "IMPERSONATE", True),
+        ("dialogueExamples", "system", "", True),
+        ("chatHistory", "system", "", True),
+    ]
+    prompts = PromptCollection(
+        *(
+            {
+                "identifier": identifier,
+                "role": role,
+                "content": content,
+                "system_prompt": system_prompt,
+            }
+            for identifier, role, content, system_prompt in entries
+        )
+    )
+    # The character card overrode these two (openai.js:1502/1512).
+    for identifier in ("main", "jailbreak"):
+        prompts.override(prompts.get(identifier), prompts.index(identifier))
+
+    completion = ChatCompletion()
+    completion.set_token_budget(context=1_000_000, response=0)
+
+    run(
+        populate_chat_completion(
+            prompts,
+            completion,
+            bias="BIAS TEXT",
+            quiet_prompt="QUIET TEXT",
+            messages=[
+                {"role": "assistant", "content": "general kenobi", "name": "Iris"},
+                {"role": "user", "content": "hello there", "name": "User"},
+            ],
+            message_examples=[
+                [
+                    {"content": "example user", "name": "example_user"},
+                    {"content": "example char", "name": "example_assistant"},
+                ]
+            ],
+        )
+    )
+
+    assert [
+        item.identifier if item is not None else None for item in completion.messages.collection
+    ] == [
+        "worldInfoBefore",
+        "main",
+        "worldInfoAfter",
+        "charDescription",
+        "myChatPrompt",
+        "charPersonality",
+        "scenario",
+        "personaDescription",
+        "nsfw",
+        "jailbreak",
+        "bias",
+        "enhanceDefinitions",
+        None,
+        None,
+        "dialogueExamples",
+        "chatHistory",
+        "controlPrompts",
+    ]
+    assert [
+        (item["role"], item["content"], item.get("name")) for item in completion.get_chat()
+    ] == [
+        ("system", "WI_BEFORE", None),
+        ("system", "MAIN", None),
+        ("system", "WI_AFTER", None),
+        ("system", "DESC", None),
+        ("user", "USER_BLOCK", None),
+        ("system", "PERS", None),
+        ("system", "SCEN", None),
+        ("system", "PERSONA", None),
+        ("system", "NSFW", None),
+        ("system", "JB", None),
+        ("assistant", "BIAS", None),
+        ("system", "ENHANCE", None),
+        ("system", "[Example Chat]", None),
+        ("system", "example user", "example_user"),
+        ("system", "example char", "example_assistant"),
+        ("system", "[Start a new Chat]", None),
+        ("user", "hello there", None),
+        ("assistant", "general kenobi", None),
+        ("system", "QUIET", None),
+    ]
+    # openai.js:1221 -- forwarded from the collection's override bookkeeping.
+    assert completion.get_overridden_prompts() == ["main", "jailbreak"]

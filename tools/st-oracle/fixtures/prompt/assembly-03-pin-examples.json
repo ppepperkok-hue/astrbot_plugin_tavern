@@ -1,0 +1,45 @@
+{
+  "name": "03-pin-examples",
+  "seed": 7,
+  "description": "power_user.pin_examples = true with a budget that only one of the two groups can afford (openai.js:1337-1343): the dialogue examples are populated FIRST and spend the remaining tokens, so the history keeps only newMainChat -- the chat turn does not fit any more. assembly-07-examples-budget is the twin fixture, identical except for the flag, and there the history wins and the examples are dropped. That pair is what makes the switch observable: with a large budget both orders produce the same collection (the group order in the result follows the prompts' own indices either way).",
+  "max_context": 31,
+  "response": 0,
+  "pin_examples": true,
+  "prompts": [
+    {
+      "identifier": "main",
+      "role": "system",
+      "content": "MAIN",
+      "system_prompt": true
+    },
+    {
+      "identifier": "chatHistory",
+      "role": "system",
+      "content": "",
+      "system_prompt": true
+    },
+    {
+      "identifier": "dialogueExamples",
+      "role": "system",
+      "content": "",
+      "system_prompt": true
+    }
+  ],
+  "chat": [
+    {
+      "mes": "hi",
+      "is_user": true,
+      "name": "User"
+    }
+  ],
+  "examples": [
+    [
+      {
+        "content": "pinned one",
+        "name": "example_user"
+      }
+    ]
+  ],
+  "group_chat": false,
+  "dump_internals": true
+}

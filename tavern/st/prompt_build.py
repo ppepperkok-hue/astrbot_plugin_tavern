@@ -36,12 +36,15 @@ inside AstrBot with no DOM at all. Consequences, all deliberate:
 * **Injectable runtime callbacks.** ``getExtensionPrompt`` /
   ``getExtensionPromptMaxDepth`` read ``extension_settings`` at call time and
   cannot be ported. They are accepted as the injectable
-  ``get_extension_prompt`` / ``get_extension_prompt_max_depth`` callables and
-  default to ``""`` / ``0`` -- i.e. "there are no extension prompts", which is
-  exactly what a headless AstrBot turn wants. Their JS sources are
-  ``script.js:8926`` (``setExtensionPrompt``) and ``script.js:8971``
-  (``getExtensionPromptMaxDepth``); the ``IN_CHAT`` branch is
-  ``script.js:9016-9050``.
+  ``get_extension_prompt`` / ``get_extension_prompt_max_depth`` callables;
+  ``get_extension_prompt`` defaults to ``""`` -- i.e. "there are no extension
+  prompts", which is exactly what a headless AstrBot turn wants -- and
+  ``get_extension_prompt_max_depth`` defaults to the value the page returns,
+  :data:`MAX_INJECTION_DEPTH` (``10000``), **not** to ``0``: the loop bound is a
+  constant in this snapshot and the absolute prompts of a preset are looked up
+  at every depth below it. Their JS sources are ``script.js:8922``
+  (``setExtensionPrompt``) and ``script.js:3277`` (``getExtensionPromptMaxDepth``);
+  ``getExtensionPrompt`` is ``script.js:3297``.
 * **Async.** ``await getExtensionPrompt(...)`` and ``await Message.createAsync
   (...)`` become :func:`_maybe_await`, which accepts a coroutine function, a
   plain function or a value. Callers may hand in sync callbacks.
@@ -78,6 +81,21 @@ Known behaviour that must keep its exact literal
   DOUBLE_NEWLINE: '\\n\\n'}`` (``openai.js:213-218``).
 * ``INJECTION_POSITION`` is ``{RELATIVE: 0, ABSOLUTE: 1}``
   (``PromptManager.js:37-40``).
+* ``ChatCompletion.add(collection, index)`` **assigns the slot**
+  (``openai.js:4002-4006``: ``this.messages.collection[position] = collection``),
+  it does not splice. The reference reorders by index arithmetic alone: the
+  index is always the prompt block's own position in the prompt collection, and
+  a slot that is still empty is simply taken. ``add(collection, None)`` and
+  ``add(collection, -1)`` append, and an index past the end pads the array.
+* ``ChatCompletion.insert`` (``openai.js:4042``) resolves the identifier through
+  ``findMessageIndex`` and the found item must be a ``MessageCollection``, so
+  ``insertAtStart`` / ``insertAtEnd`` mean "prepend into" / "append into" the
+  prompt block -- ``injectToMain`` (``1268``) is what puts a relative prompt
+  inside the ``main`` group.
+* A chat turn gets a ``name`` **only** through the
+  ``names_behavior === COMPLETION`` branch (``openai.js:957-960``) or through the
+  dialogue examples' own ``setName`` (``1119-1121``); ``Message.fromPromptAsync``
+  does not carry ``prompt.name`` over by itself.
 """
 
 from __future__ import annotations
@@ -96,6 +114,7 @@ __all__ = [
     "DEFAULT_INJECTION_ORDER",
     "EXTENSION_PROMPT_ROLES",
     "INJECTION_POSITION",
+    "MAX_INJECTION_DEPTH",
     "NEW_MAIN_CHAT_IDENTIFIER",
     "PROMPT_COLLECTION_IDENTIFIERS",
     "CharacterNamesBehavior",
@@ -130,6 +149,16 @@ DEFAULT_INJECTION_ORDER = 100
 EXTENSION_PROMPTS_ORDER = 100
 #: ``openai.js:825``
 INJECTION_SEPARATOR = "\n"
+#: ``script.js:500`` / ``script.js:3277-3285`` -- the loop bound
+#: ``populationInjectionPrompts`` reads through ``getExtensionPromptMaxDepth()``.
+#: That function **returns the constant**: the version that derived the bound
+#: from the extension prompts' own depths is commented out in the snapshot
+#: (``script.js:3279-3284``), so the loop really does run ``0..10000``. The S2
+#: brief claimed the page computed the bound from the prompts; the source says
+#: otherwise, and the source wins. A headless AstrBot turn has no extension
+#: prompts at all, so this only matters for the *absolute* prompts a preset
+#: injects: they are looked up at every depth up to this bound.
+MAX_INJECTION_DEPTH = 10000
 #: ``openai.js:894`` -- identifier of the free-budget "start a new chat" message.
 NEW_MAIN_CHAT_IDENTIFIER = "newMainChat"
 
@@ -546,18 +575,18 @@ async def _message_from_prompt(
 ) -> Any:
     """``Message.fromPromptAsync(prompt)``.
 
-    Only ``role`` / ``content`` / ``identifier`` / ``name`` are forwarded; the
+    Only ``role`` / ``content`` / ``identifier`` are forwarded; the
     ``tool_calls``, ``ts`` and image branches are out of scope.
+
+    ``name`` is deliberately **not** copied. In the reference a chat turn only
+    gets a name through the explicit ``names_behavior === COMPLETION`` branch
+    (``openai.js:957-960``) and the dialogue examples through their own
+    ``setName`` (``1119-1121``); every other message stays nameless, and
+    ``squashSystemMessages`` keys off an empty ``name``.
     """
-    message = await _create_message(
+    return await _create_message(
         _get(prompt, "role"), _get(prompt, "content"), _get(prompt, "identifier"), message_factory
     )
-    name = _get(prompt, "name")
-    if name:
-        setter = _message_name_setter(message)
-        if setter is not None:
-            await _maybe_await(setter(name))
-    return message
 
 
 async def _set_message_name(message: Any, name: Any) -> None:
@@ -588,7 +617,12 @@ async def population_injection_prompts(
       depth so later splices land *after* the ones already inserted.
     * ``813-817`` ``roleTypes`` -- string role to the numeric enum, which is the
       form ``getExtensionPrompt`` expects (``openai.js:856``).
-    * ``819-820`` ``for (i = 0; i <= maxDepth; i++)`` -- depth 0 is included.
+    * ``819-820`` ``for (i = 0; i <= maxDepth; i++)`` -- depth 0 is included and
+      the bound comes from ``getExtensionPromptMaxDepth()``. That function
+      returns :data:`MAX_INJECTION_DEPTH` verbatim (``script.js:3277-3285``), so
+      ``get_extension_prompt_max_depth=None`` means "the page's constant", not
+      "no injections": the absolute prompts of a preset carry their own depths
+      and are found anywhere in ``0..10000``.
     * ``822`` ``prompts.filter(prompt => prompt.injection_depth === i &&
       prompt.content)`` -- the ``content`` test is the documented filter: an
       empty / missing content never reaches the message list.
@@ -608,7 +642,9 @@ async def population_injection_prompts(
     ``list`` passed in is mutated and returned; any other sequence is copied
     first.
     """
-    max_depth = 0
+    # openai.js:819 -- `getExtensionPromptMaxDepth()`; script.js:3277 returns the
+    # constant, so the default is 10000 rather than 0. See MAX_INJECTION_DEPTH.
+    max_depth = MAX_INJECTION_DEPTH
     if get_extension_prompt_max_depth is not None:
         max_depth = int(await _maybe_await(get_extension_prompt_max_depth()) or 0)
     role_types = dict(EXTENSION_PROMPT_ROLES)
@@ -1537,12 +1573,13 @@ async def _prompt_disabled(callback: Callable[[str], Any] | None, identifier: st
 # ---------------------------------------------------------------------------
 # ChatCompletion access helpers.
 #
-# The frozen contract exposes ``add`` / ``insert_at_start`` / ``insert_at_end``
-# but not ``insert(collection, identifier, position)`` / ``reserve_budget`` /
-# ``free_budget`` / ``set_overridden_prompts``. All four are used by openai.js on
-# this exact path (``1268``, ``1210``, ``1078``, ``1221``), so the Lead has to
-# add them; each helper below degrades to the closest contract method while they
-# are missing, so the port stays runnable and the gap stays visible.
+# Every method openai.js uses on this path now exists on the port's
+# :class:`~tavern.st.chat_completion.ChatCompletion`: ``insert(message,
+# identifier, position)`` (``1268``), ``reserve_budget`` (``1210``, ``1238``,
+# ``1330``), ``free_budget`` (``1078``, ``1345``), ``set_overridden_prompts``
+# (``1221``) and ``add(collection, index)`` (``1207``). The ``getattr`` guards
+# below are kept so a caller that hands in a narrower double (the offline tests
+# do) still runs; nothing is silently mis-ordered when they are absent.
 # ---------------------------------------------------------------------------
 
 

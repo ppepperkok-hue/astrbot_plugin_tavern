@@ -1,0 +1,53 @@
+{
+  "name": "04-continue-prefill",
+  "seed": 11,
+  "description": "type = 'continue' with continue_prefill on (a Claude-style prefill). openai.js:1320-1331 shifts the first entry off `messages` -- which is newest first, so the message being continued is the newest turn -- prefixes it with assistant_prefill when the source is Claude, and turns it into the continuePrefill control prompt that is appended last (openai.js:1346). Because continue_prefill is on, populateChatHistory skips its continueNudge branch (openai.js:907).",
+  "max_context": 1000000,
+  "response": 0,
+  "type": "continue",
+  "continue_prefill": true,
+  "chat_completion_source": "claude",
+  "assistant_prefill": "PRE",
+  "cycle_prompt": "",
+  "prompts": [
+    {
+      "identifier": "main",
+      "role": "system",
+      "content": "MAIN",
+      "system_prompt": true
+    },
+    {
+      "identifier": "quietPrompt",
+      "role": "system",
+      "content": "QUIET",
+      "system_prompt": true
+    },
+    {
+      "identifier": "chatHistory",
+      "role": "system",
+      "content": "",
+      "system_prompt": true
+    },
+    {
+      "identifier": "dialogueExamples",
+      "role": "system",
+      "content": "",
+      "system_prompt": true
+    }
+  ],
+  "chat": [
+    {
+      "mes": "hello there",
+      "is_user": true,
+      "name": "User"
+    },
+    {
+      "mes": "I was say",
+      "is_user": false,
+      "name": "Iris"
+    }
+  ],
+  "examples": [],
+  "group_chat": false,
+  "dump_internals": true
+}

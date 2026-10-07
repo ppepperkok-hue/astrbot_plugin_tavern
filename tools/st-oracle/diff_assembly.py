@@ -8,10 +8,24 @@ messages sent to the model. They are run by ``run_assembly.mjs`` against the
 vendored ``openai.js`` under Node and by ``run_assembly_python.py`` against
 ``tavern/st/prompt_build.py``; this script compares the two.
 
-Status: the reference side runs (the harness reaches the real function through
-the module's ``oracleSetPromptManager`` / ``oracleSetPowerUser`` hooks), and the
-identifier sequence it produces is the ground truth for the port. The port
-currently diverges -- see ``STATUS.md`` for the open defect and its diagnosis.
+What is compared, and how strictly
+---------------------------------
+* ``identifiers`` -- the top-level prompt blocks, **hard**: a hole (``null``) is
+  part of the sequence because ``ChatCompletion.add`` assigns slots.
+* ``overridden`` -- the list ``setOverriddenPrompts`` received, **hard**
+  (``openai.js:1221``).
+* ``chat`` -- ``(role, content, name)`` of every message the completion would
+  send, in order, covering the contents of each group.
+
+The chat comparison is only made when the *reference* declares it comparable. A
+fixture whose reference side never reached ``populateChatHistory`` would
+otherwise look like a port failure: the history group is empty, the port's is
+not, and the diff would blame the wrong side. ``run_assembly.mjs`` publishes
+``comparable.chat.ok`` (with a reason) for exactly that case; when it is false the
+fixture is reported as ``match (chat not comparable: ...)`` -- the hard
+comparisons still gate the verdict, and the reason is printed so the gap cannot
+be mistaken for agreement. This is a harness guard: as of the current snapshot the
+reference populates the history group, so every fixture is comparable.
 """
 
 from __future__ import annotations
@@ -73,8 +87,15 @@ def run_python(fixture: Path, out: Path) -> tuple[int, str]:
     return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
 
 
-def compare(js: dict[str, Any], py: dict[str, Any]) -> list[str]:
+def chat_entry(item: dict[str, Any]) -> tuple[Any, Any, Any]:
+    """``(role, content, name)`` -- one chat message, group boundaries removed."""
+    return (item.get("role"), item.get("content"), item.get("name"))
+
+
+def compare(js: dict[str, Any], py: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """Return ``(divergences, notes)``; notes are skipped-but-recorded checks."""
     divergences: list[str] = []
+    notes: list[str] = []
     if js.get("error"):
         divergences.append(f"reference error: {js['error']}")
     if py.get("error"):
@@ -83,24 +104,32 @@ def compare(js: dict[str, Any], py: dict[str, Any]) -> list[str]:
     py_steps = py.get("steps") or []
     if len(js_steps) != len(py_steps):
         divergences.append(f"step count: js={len(js_steps)} py={len(py_steps)}")
-        return divergences
+        return divergences, notes
     for index, (left, right) in enumerate(zip(js_steps, py_steps, strict=True)):
         if left.get("identifiers") != right.get("identifiers"):
             divergences.append(
                 f"step[{index}].identifiers:\n      js={left.get('identifiers')}\n"
                 f"      py={right.get('identifiers')}"
             )
-        js_chat = [item.get("content") for item in left.get("chat") or []]
-        py_chat = [item.get("content") for item in right.get("chat") or []]
-        if js_chat != py_chat:
-            divergences.append(
-                f"step[{index}].chat contents:\n      js={js_chat}\n      py={py_chat}"
-            )
         if left.get("overridden") != right.get("overridden"):
             divergences.append(
                 f"step[{index}].overridden: js={left.get('overridden')} py={right.get('overridden')}"
             )
-    return divergences
+        comparable = (js.get("comparable") or {}).get("chat") or {}
+        if comparable.get("ok", True) is False:
+            # The reference did not produce a history to compare against; saying
+            # "match" for this check would be dishonest, so it is recorded as a
+            # note instead of a divergence (see the module docstring).
+            reason = comparable.get("reason") or "the reference declared it not comparable"
+            notes.append(f"step[{index}].chat contents: not comparable -- {reason}")
+            continue
+        js_chat = [chat_entry(item) for item in left.get("chat") or []]
+        py_chat = [chat_entry(item) for item in right.get("chat") or []]
+        if js_chat != py_chat:
+            divergences.append(
+                f"step[{index}].chat contents:\n      js={js_chat}\n      py={py_chat}"
+            )
+    return divergences, notes
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -109,6 +138,7 @@ def main(argv: list[str] | None = None) -> int:
 
     rows: list[tuple[str, str, int]] = []
     total = 0
+    not_comparable = 0
     for fixture in fixture_paths(args):
         name = fixture.stem
         js_out = OUT / f"{name}.js.json"
@@ -130,22 +160,33 @@ def main(argv: list[str] | None = None) -> int:
 
         js = json.loads(js_out.read_text(encoding="utf-8"))
         py = json.loads(py_out.read_text(encoding="utf-8"))
-        divergences = compare(js, py)
+        divergences, notes = compare(js, py)
         total += len(divergences)
-        rows.append((name, "match" if not divergences else "diverged", len(divergences)))
+        not_comparable += len(notes)
+        if divergences:
+            status = "diverged"
+        elif notes:
+            status = "match (partial)"
+        else:
+            status = "match"
+        rows.append((name, status, len(divergences)))
+        if notes:
+            for note in notes:
+                print(f"    ! {name}: {note}")
         if divergences and args.verbose:
             for line in divergences:
                 print(f"    - {line}")
 
     width = max((len(name) for name, _s, _c in rows), default=10)
-    print(f"\n{'fixture':<{width}}  {'result':<14} divergences")
+    print(f"\n{'fixture':<{width}}  {'result':<16} divergences")
     for name, status, count in rows:
-        print(f"{name:<{width}}  {status:<14} {count}")
+        print(f"{name:<{width}}  {status:<16} {count}")
 
-    matched = sum(1 for _n, s, _c in rows if s == "match")
-    diverged = sum(1 for _n, s, _c in rows if s != "match")
+    matched = sum(1 for _n, s, _c in rows if s.startswith("match"))
+    diverged = sum(1 for _n, s, _c in rows if s != "match" and s != "match (partial)")
     print(
-        f"\nfixtures: {len(rows)} | match: {matched} | diverged: {diverged} | divergences: {total}"
+        f"\nfixtures: {len(rows)} | match: {matched} | diverged: {diverged} "
+        f"| not-comparable: {not_comparable} | divergences: {total}"
     )
     print(f"VERDICT: {'PASS' if diverged == 0 else 'FAIL'}")
     return 0 if diverged == 0 else 1

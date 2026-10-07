@@ -45,6 +45,21 @@ ENGINE_FILES: dict[str, str] = {
 #: these as globals; a module build does not, and the assembly oracle needs
 #: ``populateChatCompletion``. The appended line only *names* what is already
 #: defined at module scope -- nothing in the engine is rewritten.
+#: Names a specifier's generated stub must NOT re-declare, because the source
+#: emitted for it already provides them (see `extract_prompt_manager_source`).
+PROVIDED_BY_SOURCE: dict[str, frozenset[str]] = {
+    "./PromptManager.js": frozenset(
+        {
+            "Prompt",
+            "PromptCollection",
+            "INJECTION_POSITION",
+            "PromptManager",
+            "chatCompletionDefaultPrompts",
+            "promptManagerDefaultPromptOrders",
+        }
+    ),
+}
+
 ENGINE_EXTRA_EXPORTS: dict[str, tuple[str, ...]] = {
     "public/scripts/openai.js": ("populateChatCompletion",),
 }
@@ -80,6 +95,16 @@ OVERRIDES: dict[str, dict[str, str]] = {
     },
     "../script.js": {
         "substituteParams": "((s) => String(s ?? ''))",
+        # The injection loop bound and the in-chat extension prompt getter are
+        # real values in the page, not stubs: getExtensionPromptMaxDepth is
+        # literally "return MAX_INJECTION_DEPTH" (script.js:500; the computed
+        # version at script.js:3279-3284 is commented out upstream). As stubs the
+        # bound collapsed to 0 and the getter returned a truthy proxy, which made
+        # populationInjectionPrompts splice three phantom "0" messages into
+        # every injection depth.
+        "MAX_INJECTION_DEPTH": "10000",
+        "getExtensionPromptMaxDepth": "(() => 10000)",
+        "getExtensionPrompt": "((..._args) => '')",
         "chat_metadata": "{}",
         "this_chid": "0",
         "characters": "[]",
@@ -278,10 +303,19 @@ def generate(verbose: bool = True) -> dict:
 
         overrides = OVERRIDES.get(spec, {})
         lines = [HEADER.format(runtime=_runtime_relpath(target))]
+        if spec == "./PromptManager.js":
+            lines.append(extract_prompt_manager_source())
         real: list[str] = []
         missing: list[str] = []
 
+        # Prompt / PromptCollection / INJECTION_POSITION come from the extracted
+        # source above; emitting the stub line too would be a duplicate export.
+        provided = PROVIDED_BY_SOURCE.get(spec, frozenset())
+
         for name in sorted(names):
+            if name in provided:
+                real.append(name)
+                continue
             if name.startswith("*:"):
                 lines.append(
                     f"export const {name[2:]} = new Proxy({{}}, {{ get: () => __stub('{spec}') }});"
@@ -328,6 +362,72 @@ def generate(verbose: bool = True) -> dict:
         raise SystemExit(2)
 
     return {"modules": modules, "named": names_total, "overrides": real_total}
+
+
+def extract_prompt_manager_source() -> str:
+    """The parts of PromptManager.js the assembly path needs, verbatim.
+
+    openai.js imports Prompt / PromptCollection / INJECTION_POSITION from this
+    module. Rendering it as a permissive stub makes new Prompt(chatPrompt)
+    produce a proxy whose every read is fake, so chat turns lose their role and
+    content and insert drops them; it also makes INJECTION_POSITION.ABSOLUTE
+    never match. Importing the real module is not an option either: it imports
+    openai.js back, so the cycle fails to link.
+
+    The needed declarations are therefore lifted out of the vendored snapshot:
+    the two classes and the enum are copied verbatim (classes matched by brace
+    depth, because the next declaration is 1.8k lines away), and the singleton
+    exposes the methods the assembly calls. Nothing is hand-written from memory.
+    """
+    source = (SRC.parent / "PromptManager.js").read_text(encoding="utf-8")
+
+    def slice_class(marker: str) -> str:
+        start = source.index(marker)
+        depth = 0
+        for index in range(source.index("{", start), len(source)):
+            char = source[index]
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return source[start : index + 1].rstrip()
+        raise SystemExit(f"unbalanced braces while extracting {marker!r}")
+
+    prompt_class = slice_class("class Prompt {")
+    collection_class = slice_class("export class PromptCollection {")
+    return "\n\n".join(
+        [
+            "// --- copied verbatim from research/_raw/st-src/PromptManager.js ---",
+            "export const INJECTION_POSITION = { RELATIVE: 0, ABSOLUTE: 1 };",
+            # The two constants the Prompt constructor reads (PromptManager.js:96-97).
+            "export const DEFAULT_DEPTH = 4;",
+            "export const DEFAULT_ORDER = 100;",
+            prompt_class.replace("class Prompt {", "export class Prompt {", 1),
+            collection_class,
+            """export class PromptManager {}
+
+// default_settings (PromptManager.js) spreads these, so they must exist and be
+// spreadable even though the oracle replaces the manager itself.
+export const chatCompletionDefaultPrompts = {};
+export const promptManagerDefaultPromptOrders = {};
+
+export const promptManager = {
+    serviceSettings: {},
+    log: () => {},
+    isPromptDisabledForActiveCharacter: () => false,
+    // preparePrompt substitutes macros in the page; the oracle keeps the text and
+    // lets the fixture own the content.
+    preparePrompt: (prompt, content) => ({
+        ...(prompt ?? {}),
+        content: content ?? prompt?.content ?? '',
+    }),
+    isValidName: (name) => typeof name === 'string' && /^[\\w' -]+$/.test(name),
+    sanitizeName: (name) => String(name ?? '').replace(/[^\\w' -]+/g, '_'),
+};
+""",
+        ]
+    )
 
 
 def _runtime_relpath(target: Path) -> str:

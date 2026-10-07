@@ -1,0 +1,45 @@
+{
+  "name": "07-examples-budget",
+  "seed": 7,
+  "description": "The twin of assembly-03-pin-examples with pin_examples off (openai.js:1340-1343): populateChatHistory runs first, the chat turn and newMainChat take the last affordable tokens and the dialogue examples no longer fit. Together the two fixtures pin which group wins a tight budget, which is the only place the pin_examples switch changes the result.",
+  "max_context": 31,
+  "response": 0,
+  "pin_examples": false,
+  "prompts": [
+    {
+      "identifier": "main",
+      "role": "system",
+      "content": "MAIN",
+      "system_prompt": true
+    },
+    {
+      "identifier": "chatHistory",
+      "role": "system",
+      "content": "",
+      "system_prompt": true
+    },
+    {
+      "identifier": "dialogueExamples",
+      "role": "system",
+      "content": "",
+      "system_prompt": true
+    }
+  ],
+  "chat": [
+    {
+      "mes": "hi",
+      "is_user": true,
+      "name": "User"
+    }
+  ],
+  "examples": [
+    [
+      {
+        "content": "pinned one",
+        "name": "example_user"
+      }
+    ]
+  ],
+  "group_chat": false,
+  "dump_internals": true
+}

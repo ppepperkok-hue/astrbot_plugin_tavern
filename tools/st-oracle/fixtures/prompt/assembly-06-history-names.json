@@ -1,0 +1,43 @@
+{
+  "name": "06-history-names-completion",
+  "seed": 3,
+  "description": "names_behavior = COMPLETION (openai.js:206-211; the brief calls it ALWAYS). It is the only branch that puts a name on a chat turn: a valid OpenAI name is used as-is, anything else goes through PromptManager.sanitizeName (PromptManager.js:1343-1351). The reference reads it from promptManager.serviceSettings (openai.js:957), the port from its names_behavior argument; the recorded chat compares the resulting names.",
+  "max_context": 1000000,
+  "response": 0,
+  "names_behavior": "COMPLETION",
+  "prompts": [
+    {
+      "identifier": "main",
+      "role": "system",
+      "content": "MAIN",
+      "system_prompt": true
+    },
+    {
+      "identifier": "chatHistory",
+      "role": "system",
+      "content": "",
+      "system_prompt": true
+    },
+    {
+      "identifier": "dialogueExamples",
+      "role": "system",
+      "content": "",
+      "system_prompt": true
+    }
+  ],
+  "chat": [
+    {
+      "mes": "valid name",
+      "is_user": false,
+      "name": "Iris_01"
+    },
+    {
+      "mes": "invalid name",
+      "is_user": true,
+      "name": "Iris Vale!"
+    }
+  ],
+  "examples": [],
+  "group_chat": false,
+  "dump_internals": true
+}

@@ -1,0 +1,102 @@
+{
+  "name": "02-injection-depths",
+  "seed": 4242,
+  "description": "Absolute (in-chat) prompts at depths 0, 1 and 3, with two order buckets at depth 1 and one at depth 3, plus a user-relative prompt. populationInjectionPrompts walks 0..getExtensionPromptMaxDepth() -- 10000 in this snapshot (script.js:3277) -- and splices each depth at `i + totalInsertedMessages` before reversing the list, so this pins the depth arithmetic, the descending order bucket walk and the per-role join.",
+  "max_context": 1000000,
+  "response": 0,
+  "prompts": [
+    {
+      "identifier": "main",
+      "role": "system",
+      "content": "MAIN",
+      "system_prompt": true
+    },
+    {
+      "identifier": "myChatPrompt",
+      "role": "user",
+      "content": "USER_BLOCK",
+      "system_prompt": false
+    },
+    {
+      "identifier": "depthTwo",
+      "role": "system",
+      "content": "D2",
+      "system_prompt": true,
+      "injection_position": "absolute",
+      "injection_depth": 2,
+      "injection_order": 100
+    },
+    {
+      "identifier": "depthThree",
+      "role": "assistant",
+      "content": "D3",
+      "system_prompt": true,
+      "injection_position": "absolute",
+      "injection_depth": 3,
+      "injection_order": 100
+    },
+    {
+      "identifier": "depthZero",
+      "role": "user",
+      "content": "D0",
+      "system_prompt": true,
+      "injection_position": "absolute",
+      "injection_depth": 0,
+      "injection_order": 100
+    },
+    {
+      "identifier": "depthOneHigh",
+      "role": "system",
+      "content": "D1H",
+      "system_prompt": true,
+      "injection_position": "absolute",
+      "injection_depth": 1,
+      "injection_order": 200
+    },
+    {
+      "identifier": "depthOneLow",
+      "role": "assistant",
+      "content": "D1L",
+      "system_prompt": true,
+      "injection_position": "absolute",
+      "injection_depth": 1,
+      "injection_order": 50
+    },
+    {
+      "identifier": "depthNineThousand",
+      "role": "system",
+      "content": "D9999",
+      "system_prompt": true,
+      "injection_position": "absolute",
+      "injection_depth": 9999,
+      "injection_order": 100
+    },
+    {
+      "identifier": "chatHistory",
+      "role": "system",
+      "content": "",
+      "system_prompt": true
+    },
+    {
+      "identifier": "dialogueExamples",
+      "role": "system",
+      "content": "",
+      "system_prompt": true
+    }
+  ],
+  "chat": [
+    {
+      "mes": "one",
+      "is_user": true,
+      "name": "User"
+    },
+    {
+      "mes": "two",
+      "is_user": false,
+      "name": "Iris"
+    }
+  ],
+  "examples": [],
+  "group_chat": false,
+  "dump_internals": true
+}
