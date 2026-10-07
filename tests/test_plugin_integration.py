@@ -19,6 +19,10 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
+#: Imported at module level, not inside a function: several tests raise it from a
+#: nested class body, where a function-local import is not in scope.
+from tavern.backends.base import BackendError  # noqa: E402
+
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
@@ -460,6 +464,176 @@ def test_backend_error_is_reported(tavern, tmp_path: Path) -> None:
 
     sent = _run(_collect(plugin.handle_message(FakeEvent("你好", at=True))))
     assert any("生成失败" in item.text for item in sent)
+
+
+def _fallback_plugin(tavern, tmp_path: Path, **backend_config: Any):
+    """A plugin whose backend is a fallback over a failing tavern."""
+    from tavern.backends.fallback import FallbackBackend
+
+    class Boom:
+        name = "tavern"
+
+        async def generate(self, request: Any):
+            raise BackendError("无法连接酒馆 http://127.0.0.1:8000: refused")
+
+        async def close(self) -> None:
+            return None
+
+    class Works(FakeBackend):
+        async def close(self) -> None:
+            return None
+
+    plugin = _make_plugin(tavern, tmp_path, {"backend": backend_config})
+    _seed(plugin)
+    plugin.core.binding("aiocqhttp:GroupMessage:123").greeting_sent = True
+    plugin._backend = FallbackBackend(Boom(), Works(["来自 AstrBot 的回答"]))
+    return plugin
+
+
+def test_a_fallback_reply_says_so(tavern, tmp_path: Path) -> None:
+    """The point of the whole feature: the swap must be visible in the reply."""
+    plugin = _fallback_plugin(tavern, tmp_path, fallback_notice=True)
+
+    sent = _run(_collect(plugin.handle_message(FakeEvent("你好", at=True))))
+    text = "\n".join(item.text for item in sent)
+    assert "来自 AstrBot 的回答" in text, "the fallback answer must be delivered"
+    assert "外部酒馆不可用" in text, "the fallback must announce itself"
+    assert "AstrBot" in text
+
+
+def test_a_fallback_can_be_quiet_when_asked(tavern, tmp_path: Path) -> None:
+    """Notices are configurable -- but turning them off is a deliberate act."""
+    plugin = _fallback_plugin(tavern, tmp_path, fallback_notice=False)
+
+    sent = _run(_collect(plugin.handle_message(FakeEvent("你好", at=True))))
+    text = "\n".join(item.text for item in sent)
+    assert "来自 AstrBot 的回答" in text
+    assert "外部酒馆不可用" not in text
+
+
+def _status_lines(plugin: Any, tavern: Any, text: str = "/tavern 状态") -> str:
+    """The status text, for *this* plugin instance.
+
+    `cmd_status` is a ``staticmethod`` whose first argument is the plugin, so calling
+    it off :class:`TavernPlugin` with an explicit instance runs the real handler
+    against the instance under test -- no copy of its logic here.
+    """
+    event = FakeEvent(text, at=True)
+    results = list(_run(_collect(tavern.TavernPlugin.cmd_status(plugin, event))))
+    return "\n".join(item.text if hasattr(item, "text") else str(item) for item in results)
+
+
+def test_the_fallback_reason_is_remembered(tavern, tmp_path: Path) -> None:
+    """The notice scrolls away after one message; the reason has to persist.
+
+    `plugin._last_fallback` is what `/tavern status` reads, so it is asserted
+    directly, and the status rendering is exercised on this instance.
+    """
+    plugin = _fallback_plugin(tavern, tmp_path, fallback_notice=True)
+
+    _run(_collect(plugin.handle_message(FakeEvent("你好", at=True))))
+    assert plugin._last_fallback, "the reason must be recorded, not only printed"
+    assert "无法连接酒馆" in plugin._last_fallback
+
+    assert "上次回退原因" in _status_lines(plugin, tavern)
+    assert "无法连接酒馆" in _status_lines(plugin, tavern)
+
+
+def test_a_fallback_free_run_records_no_reason(tavern, tmp_path: Path) -> None:
+    plugin = _make_plugin(tavern, tmp_path)
+    _seed(plugin)
+    plugin.core.binding("aiocqhttp:GroupMessage:123").greeting_sent = True
+    plugin._backend = FakeBackend(["正常回答"])
+
+    _run(_collect(plugin.handle_message(FakeEvent("你好", at=True))))
+    assert plugin._last_fallback == "", "a clean turn must not leave a stale reason"
+    assert "上次回退原因" not in _status_lines(plugin, tavern)
+
+
+def test_no_fallback_means_the_error_is_reported(tavern, tmp_path: Path) -> None:
+    """With the fallback off, a tavern failure stays a failure -- not a silent swap."""
+    plugin = _make_plugin(tavern, tmp_path, {"backend": {"fallback_to_astrbot": False}})
+    _seed(plugin)
+    plugin.core.binding("aiocqhttp:GroupMessage:123").greeting_sent = True
+
+    class Boom:
+        name = "tavern"
+
+        async def generate(self, request: Any):
+            raise BackendError("无法连接酒馆")
+
+        async def close(self) -> None:
+            return None
+
+    plugin._backend = Boom()
+    sent = _run(_collect(plugin.handle_message(FakeEvent("你好", at=True))))
+    text = "\n".join(item.text for item in sent)
+    assert "生成失败" in text
+    assert "外部酒馆不可用" not in text, "nothing should claim a fallback that is off"
+
+
+def test_the_config_gate_builds_no_wrapper_by_default(tavern, tmp_path: Path) -> None:
+    """`backend()` must return the tavern bare unless the fallback is configured."""
+    from tavern.backends.sillytavern import SillyTavernBackend
+
+    plugin = _make_plugin(
+        tavern,
+        tmp_path,
+        {"backend": {"type": "sillytavern", "st_base_url": "http://127.0.0.1:8000"}},
+    )
+    assert isinstance(plugin.backend(), SillyTavernBackend)
+
+    wrapped = _make_plugin(
+        tavern,
+        tmp_path,
+        {
+            "backend": {
+                "type": "sillytavern",
+                "st_base_url": "http://127.0.0.1:8000",
+                "fallback_to_astrbot": True,
+            }
+        },
+    )
+    built = wrapped.backend()
+    assert not isinstance(built, SillyTavernBackend)
+    assert isinstance(built.primary, SillyTavernBackend)
+
+
+def test_the_newest_instance_wins_after_a_reload(tavern, tmp_path: Path) -> None:
+    """A reload must not leave the old, closed instance answering.
+
+    AstrBot constructs a fresh plugin on reload while this module stays imported, and
+    the runtime handlers are staticmethods that resolve the instance through
+    `PLUGIN_INSTANCES`. Reading `[0]` meant the *first* instance kept serving every
+    message and every command for the life of the process -- and after `terminate`
+    that instance is closed, so its backend is gone.
+    """
+    first = _make_plugin(tavern, tmp_path)
+    assert tavern._current_plugin() is first
+
+    second = _make_plugin(tavern, tmp_path)
+    assert tavern._current_plugin() is second, "the newest instance must win"
+    assert tavern.PLUGIN_INSTANCES == [second], "only the live instance is kept"
+
+    _run(first.terminate())
+    assert tavern.PLUGIN_INSTANCES == [second], "an unrelated terminate must not evict it"
+
+    _run(second.terminate())
+    assert tavern.PLUGIN_INSTANCES == [], "terminate drops its own entry"
+
+
+def test_a_handler_never_reaches_a_closed_instance(tavern, tmp_path: Path) -> None:
+    """The concrete symptom: `/tavern status` reading the wrong plugin's data dir."""
+    first = _make_plugin(tavern, tmp_path)
+    first.config.data_dir = tmp_path / "first"
+
+    second = _make_plugin(tavern, tmp_path)
+    second.config.data_dir = tmp_path / "second"
+
+    _run(first.terminate())
+    resolved = tavern._current_plugin()
+    assert resolved is second
+    assert resolved.config.data_dir == tmp_path / "second"
 
 
 def test_render_splits_long_answer(tavern, tmp_path: Path) -> None:

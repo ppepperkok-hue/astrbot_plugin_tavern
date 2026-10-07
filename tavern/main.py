@@ -107,7 +107,16 @@ class TavernPlugin(Star):  # type: ignore[misc]
         self._backend: GenerationBackend | None = None
         self._last_reply: dict[str, float] = {}
         self._inflight: dict[str, int] = {}
-        # Staticmethod handlers need a way back to this instance.
+        #: Why the most recent reply fell back to AstrBot's model, if it did. Read by
+        #: `/tavern status` so the reason survives past the one message that carried it.
+        self._last_fallback: str = ""
+        # Staticmethod handlers need a way back to this instance. Only the newest
+        # instance is ever kept: AstrBot constructs a fresh plugin on reload, and the
+        # modules are not re-imported, so a stale entry would otherwise survive in this
+        # list for the life of the process. Handlers resolve through
+        # `_current_plugin()`, and a stale instance is not merely old -- it is closed,
+        # so its backend and caches are dead.
+        PLUGIN_INSTANCES.clear()
         PLUGIN_INSTANCES.append(self)
 
     # ------------------------------------------------------------------
@@ -140,34 +149,58 @@ class TavernPlugin(Star):  # type: ignore[misc]
                 await backend.close()
             except Exception as exc:  # noqa: BLE001 - shutdown must not raise
                 _log("warning", f"closing backend failed: {exc}")
+        # Drop the entry so `_current_plugin()` cannot hand a closed instance to a
+        # handler in the window between a reload's terminate and initialize.
+        if self in PLUGIN_INSTANCES:
+            PLUGIN_INSTANCES.remove(self)
 
     # ------------------------------------------------------------------
     # backend
     # ------------------------------------------------------------------
     def backend(self) -> GenerationBackend:
-        """Return the configured backend, creating it on first use."""
+        """Return the configured backend, creating it on first use.
+
+        When the external tavern is selected and ``backend.fallback_to_astrbot`` is
+        on, the tavern is wrapped so a failure falls back to AstrBot's own model.
+        The wrapper is deliberately *observable*: it marks the request, and
+        :meth:`generate` turns that mark into a notice on the reply. A silent
+        fallback would swap the answering model mid-conversation without the user
+        being able to tell, which is worse than the error it replaces.
+        """
         if self._backend is not None:
             return self._backend
 
         if self.config.backend.uses_sillytavern:
+            from tavern.backends.fallback import build_fallback
             from tavern.backends.sillytavern import SillyTavernBackend
 
-            self._backend = SillyTavernBackend(
+            primary = SillyTavernBackend(
                 self.config.backend.st_base_url,
                 cookie=self.config.backend.st_cookie,
                 verify_ssl=self.config.backend.st_verify_ssl,
                 timeout=self.config.backend.request_timeout,
+            )
+            self._backend = build_fallback(
+                self.config.backend,
+                primary,
+                lambda: AstrBotProviderBackend(self.context, self.config.backend.provider_id),
             )
         else:
             self._backend = AstrBotProviderBackend(self.context, self.config.backend.provider_id)
         return self._backend
 
     async def generate(self, request: GenerationRequest) -> str:
+        from tavern.backends.fallback import MARKER, REASON, annotate
+
         backend = self.backend()
         if isinstance(backend, AstrBotProviderBackend) and not request.extra.get("provider_id"):
             request.extra["provider_id"] = await backend.resolve_provider_id()
         result = await backend.generate(request)
-        return result.text
+        text = result.text
+        if request.extra.pop(MARKER, False):
+            self._last_fallback = request.extra.pop(REASON, "")
+            text = annotate(text, self._last_fallback, notice=self.config.backend.fallback_notice)
+        return text
 
     # ------------------------------------------------------------------
     # gating
@@ -255,9 +288,20 @@ PLUGIN_INSTANCES: list[TavernPlugin] = []
 
 
 def _current_plugin() -> TavernPlugin | None:
-    """Return the live plugin instance, building one if AstrBot did not."""
+    """Return the live plugin instance, building one if AstrBot did not.
+
+    Uses the **newest** instance. AstrBot constructs a new ``TavernPlugin`` on every
+    reload while this module stays imported, so the list is a history of instances;
+    only the last one is alive. The closed predecessor must never be handed to a
+    handler -- its backend is shut down and its library state is stale.
+
+    :data:`PLUGIN_INSTANCES` is kept to at most one entry by ``__init__``, so this is
+    also the fix for the ordering: reading ``[0]`` meant a reload left the *old*,
+    closed instance answering `/tavern status` and every chat message, because the
+    new one was appended behind it.
+    """
     if PLUGIN_INSTANCES:
-        return PLUGIN_INSTANCES[0]
+        return PLUGIN_INSTANCES[-1]
     try:
         plugin = TavernPlugin(None)
     except Exception as exc:  # noqa: BLE001 - never let the handler explode
@@ -606,6 +650,11 @@ def _register_commands(plugin_cls: Any) -> bool:
             f"冷却: {plugin.config.trigger.cooldown_seconds}s",
             f"状态: {'启用' if plugin.config.enabled else '禁用'}",
         ]
+        backend = plugin.config.backend
+        if backend.uses_sillytavern and backend.fallback_to_astrbot:
+            lines.append("回退: 已开启（酒馆失败时改用 AstrBot 模型，并会在回复里说明）")
+        if plugin._last_fallback:
+            lines.append(f"上次回退原因: {plugin._last_fallback}")
         yield plugin._result(event, "\n".join(lines))
 
     @sub("list", "列表")

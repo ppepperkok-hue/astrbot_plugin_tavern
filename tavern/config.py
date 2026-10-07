@@ -175,6 +175,16 @@ class BackendConfig:
     reply_reserve_tokens: int = 1024
     #: Trailing messages that survive even when they alone blow the budget.
     keep_last_messages: int = 2
+    #: Fall back to AstrBot's own model when the external tavern fails.
+    #:
+    #: Off by default, and that is the point: falling back means the answer comes
+    #: from a *different* model, with different weights, a different preset and
+    #: different API billing. Doing that silently mid-conversation is worse than an
+    #: error, because the user cannot tell it happened. When enabled, the reply is
+    #: announced (see ``fallback_notice``) unless that is turned off too.
+    fallback_to_astrbot: bool = False
+    #: Prefix a fallen-back reply with a short note saying so.
+    fallback_notice: bool = True
 
     @property
     def uses_sillytavern(self) -> bool:
@@ -247,6 +257,8 @@ class TavernConfig:
                 st_base_url=as_str(backend.get("st_base_url")),
                 st_cookie=as_str(backend.get("st_cookie")),
                 st_verify_ssl=as_bool(backend.get("st_verify_ssl"), True),
+                fallback_to_astrbot=as_bool(backend.get("fallback_to_astrbot"), False),
+                fallback_notice=as_bool(backend.get("fallback_notice"), True),
                 max_context_tokens=max(0, as_int(backend.get("max_context_tokens"), 0)),
                 reply_reserve_tokens=max(0, as_int(backend.get("reply_reserve_tokens"), 1024)),
                 keep_last_messages=max(1, as_int(backend.get("keep_last_messages"), 2)),

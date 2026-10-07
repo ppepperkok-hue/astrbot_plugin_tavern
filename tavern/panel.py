@@ -112,6 +112,8 @@ def build_state(instance: Any) -> dict[str, Any]:
             "st_verify_ssl": config.backend.st_verify_ssl,
             "max_context_tokens": config.backend.max_context_tokens,
             "reply_reserve_tokens": config.backend.reply_reserve_tokens,
+            "fallback_to_astrbot": config.backend.fallback_to_astrbot,
+            "fallback_notice": config.backend.fallback_notice,
         },
         "sessions": [
             {"scope": scope, **LAST_TURNS.get(scope, {})} for scope in sorted(set(scopes))

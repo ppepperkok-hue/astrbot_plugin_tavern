@@ -167,6 +167,18 @@
         "description": "校验酒馆 TLS 证书",
         "default": true
       },
+      "fallback_to_astrbot": {
+        "type": "bool",
+        "description": "酒馆失败时改用 AstrBot 的模型",
+        "hint": "默认关闭。开启后，酒馆连不上、超时或返回错误时，这一轮会改用 AstrBot 已配置的模型继续回答——注意那是另一个模型（权重、预设、计费都可能不同）。回复里会明确说明发生了回退，除非把下面的提示也关掉。",
+        "default": false
+      },
+      "fallback_notice": {
+        "type": "bool",
+        "description": "回退时在回复里提示",
+        "hint": "只在上面的回退开启时生效。强烈建议保持开启：关掉之后模型会在对话中途被悄悄换掉，用户无从察觉。",
+        "default": true
+      },
       "max_context_tokens": {
         "type": "int",
         "description": "模型上下文窗口（token）",
