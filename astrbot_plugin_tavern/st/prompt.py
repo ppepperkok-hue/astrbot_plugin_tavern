@@ -343,6 +343,7 @@ _LEADING_NEWLINES = re.compile(r"^(?:[ \t]*\r?\n)+")
 
 
 def _normalise_key(key: Any) -> str:
+    """Lower-case a key and strip everything that is not ``[a-z0-9]``."""
     return re.sub(r"[^a-z0-9]", "", str(key).lower())
 
 
@@ -369,6 +370,7 @@ def _first_text(*values: Any) -> str:
 
 
 def _as_bool(value: Any, default: bool) -> bool:
+    """Parse a leniently typed boolean, falling back to ``default``."""
     if value is None:
         return default
     if isinstance(value, bool):
@@ -472,6 +474,7 @@ def _strip_leading_newlines(text: str) -> str:
 
 
 def _default_block_content(name: str) -> str:
+    """Static text :func:`default_preset` ships for ``name``."""
     return DEFAULT_MAIN_PROMPT if name == "main" else ""
 
 
@@ -784,6 +787,7 @@ def _speaker_name(line: str, options: RenderOptions) -> str | None:
 
 
 def _role_for_name(name: str, options: RenderOptions) -> str:
+    """Map a rendered speaker name onto a chat role."""
     if options.username and name.casefold() == options.username.casefold():
         return "user"
     return "assistant"
@@ -873,7 +877,9 @@ def build_messages(
             rendered.append((PromptBlock(spec.name, content, None, marker), messages))
             continue
         if spec.name == "chatHistory":
-            messages = _history_block_messages(history, targets, options, macros, at_depth_before_index)
+            messages = _history_block_messages(
+                history, targets, options, macros, at_depth_before_index
+            )
             content = "\n".join(message.content for message in messages)
             rendered.append((PromptBlock(spec.name, content, None, marker), messages))
             continue
@@ -942,6 +948,7 @@ def _example_block_messages(
     options: RenderOptions,
     macros: dict[str, str],
 ) -> list[PromptMessage]:
+    """``dialogueExamples``: ``em_top`` + card examples + ``em_bottom``."""
     messages = _injection_messages(targets.em_top, options, macros)
     messages.extend(parse_dialogue_examples(card.mes_example, options, extra=macros))
     messages.extend(_injection_messages(targets.em_bottom, options, macros))
@@ -955,6 +962,7 @@ def _history_block_messages(
     macros: dict[str, str],
     at_depth_before_index: int | None,
 ) -> list[PromptMessage]:
+    """``chatHistory``: ``an_top`` + history (+ ``at_depth``) + ``an_bottom``."""
     items = list(history)
     if at_depth_before_index is None:
         index = 0
@@ -974,6 +982,7 @@ def _history_messages(
     options: RenderOptions,
     macros: dict[str, str],
 ) -> list[PromptMessage]:
+    """Render history entries, dropping empty ones and normalising roles."""
     messages: list[PromptMessage] = []
     for item in items:
         content = render_macro(getattr(item, "content", "") or "", options, macros)
