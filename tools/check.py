@@ -32,6 +32,7 @@ def check_plugin_manifest() -> bool:
     """Sanity check the files AstrBot reads before it even imports the plugin."""
     print("\n=== manifest ===")
     problems: list[str] = []
+    notes: list[str] = []
 
     import yaml  # type: ignore[import-not-found]
 
@@ -43,13 +44,14 @@ def check_plugin_manifest() -> bool:
     name = str(metadata.get("name", ""))
     if not name.isidentifier():
         problems.append(f"metadata.yaml name {name!r} is not a python identifier")
-    # AstrBot installs plugins by directory name, so a mismatch is worth
-    # flagging -- but a plain "astrbot_plugin" checkout is a normal development
-    # layout, so only check when the directory name looks like a plugin name.
-    if REPO_ROOT.name.startswith("astrbot_plugin_") and name != REPO_ROOT.name:
-        problems.append(
-            f"metadata.yaml name {name!r} differs from the directory name {REPO_ROOT.name!r} "
-            "(AstrBot installs by directory name)"
+    # AstrBot installs plugins by directory name. A checkout whose directory
+    # name differs still loads (the plugin is identified by metadata.name), so
+    # this is reported as a note: the folder in data/plugins/ should use the
+    # plugin name so updates and the marketplace stay consistent.
+    if name != REPO_ROOT.name:
+        notes.append(
+            f"checkout directory is {REPO_ROOT.name!r} while metadata.yaml name is {name!r}; "
+            f"install it as data/plugins/{name}/"
         )
 
     schema_path = REPO_ROOT / "_conf_schema.json"
@@ -66,6 +68,8 @@ def check_plugin_manifest() -> bool:
 
     for problem in problems:
         print(f"  ! {problem}")
+    for note in notes:
+        print(f"  i {note}")
     print(f"--- manifest: {'PASS' if not problems else 'FAIL'}")
     return not problems
 

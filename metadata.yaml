@@ -12,15 +12,15 @@ desc: |
   支持：
   - 导入酒馆角色卡（.json / .png / .yaml，V1 / V2 / V3 规范）
   - 导入酒馆世界书（.json，关键词 / 正则 / 选择性触发、递归、sticky/cooldown、token 预算）
-  - 每个群或私聊独立绑定角色卡，多轮上下文由 AstrBot 会话维护
+  - 每个群或私聊独立绑定角色卡，多轮上下文由插件自管的分支记录维护
   - 世界书命中内容按轮注入，稳定人设与动态上下文分离，不破坏 prompt 缓存
   - 可选对接已部署的 SillyTavern（读卡片/世界书/聊天，或直接代理生成）
 
   格式与行为语义参考 SillyTavern（AGPL-3.0），仅借鉴公开的数据格式与交互设计，
-  未复制其代码。
+  未复制其代码、素材或预设文本。
 version: 0.1.0
-author: TARGET_AUTHOR
-repo: https://github.com/TARGET_OWNER/astrbot_plugin_tavern
+author: ppepperkok-hue
+repo: https://github.com/ppepperkok-hue/astrbot_plugin_tavern
 astrbot_version: ">=4.17,<5"
 support_platforms:
   - aiocqhttp

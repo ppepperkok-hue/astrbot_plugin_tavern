@@ -51,6 +51,8 @@ from tavern.core import (  # noqa: E402
 
 PLUGIN_NAME = "astrbot_plugin_tavern"
 PLUGIN_VERSION = "0.1.0"
+PLUGIN_AUTHOR = "ppepperkok-hue"
+PLUGIN_DESC = "酒馆风格角色扮演（角色卡 / 世界书 / 聊天记录）"
 
 #: Guarded imports: present inside AstrBot, tolerated in a plain checkout.
 try:  # pragma: no cover - exercised inside AstrBot
@@ -90,9 +92,7 @@ def _require_astrbot() -> bool:
     return filter is not None and Comp is not None
 
 
-@register(
-    PLUGIN_NAME, "TARGET_AUTHOR", "酒馆风格角色扮演（角色卡 / 世界书 / 聊天记录）", PLUGIN_VERSION
-)
+@register(PLUGIN_NAME, PLUGIN_AUTHOR, PLUGIN_DESC, PLUGIN_VERSION)
 class TavernPlugin(Star):  # type: ignore[misc]
     """AstrBot plugin implementing the SillyTavern experience."""
 
