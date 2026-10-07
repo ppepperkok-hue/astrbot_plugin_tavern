@@ -1,0 +1,6 @@
+{
+  "name": "53-budget-flash-auto",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "'gemini-2.5-flash' reaches getFlashBudget (:1317-1318, /flash/), the legacy token-arithmetic family. reasoningEffort 'auto' returns the sentinel -1 (:1187-1188), which is not a token count. Expected value: -1.",
+  "args": [100000, "auto", "gemini-2.5-flash"]
+}

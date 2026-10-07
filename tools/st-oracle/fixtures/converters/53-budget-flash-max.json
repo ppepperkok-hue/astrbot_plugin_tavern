@@ -1,0 +1,6 @@
+{
+  "name": "53-budget-flash-max",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Legacy flash family, reasoningEffort 'max' takes maxTokens whole (:1200-1202) and then the cap: with 10000 under the cap the answer is 10000, so this fixture reads the `max = maxTokens` line rather than the cap. Expected value: 10000.",
+  "args": [10000, "max", "gemini-2.5-flash"]
+}

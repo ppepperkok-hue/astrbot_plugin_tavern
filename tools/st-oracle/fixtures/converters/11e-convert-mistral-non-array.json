@@ -1,0 +1,8 @@
+{
+  "name": "11e-convert-mistral-non-array",
+  "function": "convertMistralMessages",
+  "description": "The non-array guard of convertMistralMessages (prompt-converters.js:704-706): a non-array argument returns a fresh empty list and is not touched. The object passed here is not a list, so the port's `isinstance(messages, list)` has to reject it BEFORE reaching `len(messages)`, the option read at :709 or the `messages[messages.length - 1]` dereference at :710 -- a port that only guards the later steps throws instead of matching. The empty-array case is 11d.",
+  "config": {},
+  "names": {},
+  "args": [{ "role": "user", "content": "not an array" }, { "charName": "", "userName": "", "groupNames": [] }]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "43-google-tool-args-tryparse",
+  "function": "convertGooglePrompt",
+  "description": "The args coercion at :554 is `tryParse(arguments) ?? arguments`, and `tryParse` is JSON.parse with `undefined` on failure (util.js:571-577). The fallback is *nullish*, not falsy, and that is the whole point of this fixture: 'null' parses to JSON null and therefore falls back to the raw string 'null', while 'false' parses to boolean false and is kept as false (a `|| args` port would replace it), '5' stays the number 5, and 'not-json{' stays the raw string. Expected functionCall args, in order: {'city':'Tokyo'}, 'null', False, 5, 'not-json{'. The one tool turn resolves 'call_num' through toolNameMap, so its functionResponse name is 'get_int' and not 'unknown'.",
+  "args": [
+    [
+      {
+        "role": "assistant",
+        "tool_calls": [
+          {"id": "call_obj", "function": {"name": "get_weather", "arguments": "{\"city\":\"Tokyo\"}"}},
+          {"id": "call_null", "function": {"name": "get_null", "arguments": "null"}},
+          {"id": "call_false", "function": {"name": "get_flag", "arguments": "false"}},
+          {"id": "call_num", "function": {"name": "get_int", "arguments": "5"}},
+          {"id": "call_bad", "function": {"name": "get_broken", "arguments": "not-json{"}}
+        ]
+      },
+      {"role": "tool", "tool_call_id": "call_num", "content": "5"}
+    ],
+    "gemini-2.5-pro",
+    false,
+    "$promptNames"
+  ]
+}

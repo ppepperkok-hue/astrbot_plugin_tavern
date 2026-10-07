@@ -1,0 +1,33 @@
+{
+  "name": "25-convert-claude-messages-tools-kept",
+  "function": "convertClaudeMessages",
+  "description": "convertClaudeMessages with `useSysPrompt` false and `useTools` true: the `tool_use` / `tool_result` content parts are kept as tools. An assistant turn's `tool_calls` array becomes `tool_use` parts with its function `arguments` parsed by `parse` (:233 as `JSON.parse` on a string, anything else passed straight through), and a `tool` turn becomes a one-part `tool_result` user turn carrying its `tool_call_id` (:244-251). Those two user turns then merge (:348-349), and the trailing assistant turn closes the exchange. The `name` on the plain user turn is folded into the text and then deleted (:273-275, :310), and the tool turn's `tool_calls` / `tool_call_id` keys are removed (:311-312).",
+  "args": [
+    [
+      { "role": "user", "name": "User", "content": "What is the weather?" },
+      {
+        "role": "assistant",
+        "content": "One moment.",
+        "tool_calls": [
+          {
+            "id": "call_1",
+            "type": "function",
+            "function": { "name": "get_weather", "arguments": "{\"city\":\"Kyoto\"}" }
+          },
+          {
+            "id": "call_2",
+            "type": "function",
+            "function": { "name": "get_time", "arguments": { "city": "Kyoto" } }
+          }
+        ]
+      },
+      { "role": "tool", "tool_call_id": "call_1", "content": "18C" },
+      { "role": "tool", "tool_call_id": "call_2", "content": "" },
+      { "role": "assistant", "content": "It is 18C in Kyoto." }
+    ],
+    "",
+    false,
+    true,
+    { "charName": "", "userName": "", "groupNames": [] }
+  ]
+}

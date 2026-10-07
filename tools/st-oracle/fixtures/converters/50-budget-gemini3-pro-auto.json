@@ -1,0 +1,6 @@
+{
+  "name": "50-budget-gemini3-pro-auto",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Model 'gemini-3.5-pro' matches /gemini-3[.\\d]*-pro/ (:1305), so getGemini3ProBudget runs. reasoningEffort 'auto' returns null (:1288-1289). maxTokens is not an input to this family. Expected value: null.",
+  "args": [100000, "auto", "gemini-3.5-pro"]
+}

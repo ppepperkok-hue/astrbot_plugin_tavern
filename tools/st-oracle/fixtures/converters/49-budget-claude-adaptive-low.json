@@ -1,0 +1,6 @@
+{
+  "name": "49-budget-claude-adaptive-low",
+  "function": "calculateClaudeBudgetTokens",
+  "description": "Adaptive model, reasoningEffort 'low' returns 'low' (:1132-1133): the same result as 'min', but from its own case, so dropping either one is only caught by its own fixture. Expected value: 'low'.",
+  "args": [100000, "low", true, true]
+}

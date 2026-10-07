@@ -1,0 +1,23 @@
+{
+  "name": "37-add-reasoning-content-to-tool-calls",
+  "function": "addReasoningContentToToolCalls",
+  "description": "addReasoningContentToToolCalls (prompt-converters.js:1377-1389). Only an assistant turn with an **array** `tool_calls` and **no** `reasoning_content` key gets the empty-string field, so the four turns here cover each guard: one is stamped, one already carries `reasoning_content: null` and is left alone (the check is `'reasoning_content' in message`, a presence test, not a truthy one), one has `tool_calls` as a plain string rather than an array, and one has no `tool_calls` at all. `reasoning_content` is inserted at the end of the object, so the recorded key order shows it was appended.",
+  "args": [
+    [
+      { "role": "system", "content": "Rules." },
+      {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [{ "id": "call_1", "function": { "name": "get_weather", "arguments": "{}" } }]
+      },
+      {
+        "role": "assistant",
+        "content": "",
+        "reasoning_content": null,
+        "tool_calls": [{ "id": "call_2", "function": { "name": "get_time", "arguments": "{}" } }]
+      },
+      { "role": "assistant", "content": "", "tool_calls": "not-an-array" },
+      { "role": "user", "content": "Carry on." }
+    ]
+  ]
+}

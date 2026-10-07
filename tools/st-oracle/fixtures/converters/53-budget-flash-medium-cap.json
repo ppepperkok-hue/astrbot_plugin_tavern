@@ -1,0 +1,6 @@
+{
+  "name": "53-budget-flash-medium-cap",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Legacy flash family, reasoningEffort 'medium' with maxTokens 100000: floor(100000 * 0.25) = 25000, then the cap at :1205 pins it to 24576. This is what distinguishes the flash cap (24576) from the pro cap (32768). Expected value: 24576.",
+  "args": [100000, "medium", "gemini-2.5-flash"]
+}

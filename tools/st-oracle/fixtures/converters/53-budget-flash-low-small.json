@@ -1,0 +1,6 @@
+{
+  "name": "53-budget-flash-low-small",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Legacy flash family, reasoningEffort 'low' with maxTokens 100: floor(100 * 0.1) = 10 and the only clamp is Math.min(budgetTokens, 24576) at :1205, so the answer is 10. getFlashLiteBudget's floor of 512 would have lifted the same input to 512, and the flash family has no floor. Expected value: 10.",
+  "args": [100, "low", "gemini-2.5-flash"]
+}

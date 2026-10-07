@@ -1,0 +1,6 @@
+{
+  "name": "48-budget-claude-high",
+  "function": "calculateClaudeBudgetTokens",
+  "description": "Non-adaptive path, reasoningEffort 'high': floor(100000 * 0.5) = 50000 (:1158-1160). Because stream is true the 21333 cap is NOT applied, which is what makes this fixture distinguish the cap's position from the fraction. Expected value: 50000.",
+  "args": [100000, "high", true, false]
+}

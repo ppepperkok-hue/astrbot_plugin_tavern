@@ -1,0 +1,17 @@
+{
+  "name": "47-google-no-prefill-and-content-coercion",
+  "function": "convertGooglePrompt",
+  "description": "Two things at once. (1) 'gemini-3.7-flash' matches /gemini-3\\.[67]-flash/ (:457), so the LAST turn is a prefill and its assistant role becomes 'user' (:466) -- which then merges it into the preceding user turn with '\\n\\n' -- while the earlier assistant turn (index 1, not last) keeps role 'model'. (2) The text of a non-array content goes through `String(message.content ?? '')` (:483): the integer 42 becomes '42' and the JSON float 5.0 becomes '5' (JavaScript numbers have no integral form), not '5.0'. Expected contents: [user[text 'A'], model[text '42'], user[text '5\\n\\nC\\n\\nD']].",
+  "args": [
+    [
+      {"role": "user", "content": "A"},
+      {"role": "assistant", "content": 42},
+      {"role": "user", "content": 5.0},
+      {"role": "user", "content": "C"},
+      {"role": "assistant", "content": "D"}
+    ],
+    "gemini-3.7-flash",
+    false,
+    "$promptNames"
+  ]
+}

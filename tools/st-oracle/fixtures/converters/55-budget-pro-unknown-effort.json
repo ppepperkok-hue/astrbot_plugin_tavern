@@ -1,0 +1,6 @@
+{
+  "name": "55-budget-pro-unknown-effort",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Legacy pro family with an effort the switch does not know: budgetTokens stays 0 and the clamp at :1260 lifts it to the 128 floor, where the same call on the flash family returns 0. Expected value: 128.",
+  "args": [100000, "warp", "gemini-2.5-pro"]
+}

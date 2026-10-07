@@ -1,0 +1,6 @@
+{
+  "name": "49-budget-claude-adaptive-unknown",
+  "function": "calculateClaudeBudgetTokens",
+  "description": "Adaptive model with an effort the switch does not know falls through to the trailing `return null` at :1141 -- it does NOT reach the 1024 floor of the non-adaptive path, because that code is behind the adaptive early return. Expected value: null.",
+  "args": [100000, "warp", true, true]
+}

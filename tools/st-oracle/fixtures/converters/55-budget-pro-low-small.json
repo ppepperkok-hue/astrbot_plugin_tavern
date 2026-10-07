@@ -1,0 +1,6 @@
+{
+  "name": "55-budget-pro-low-small",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Legacy pro family, reasoningEffort 'low' with maxTokens 100: floor(100 * 0.1) = 10, then `Math.max(Math.min(10, 32768), 128)` at :1260 lifts it to 128. This is the fixture that pins the pro floor. Expected value: 128.",
+  "args": [100, "low", "gemini-2.5-pro"]
+}

@@ -125,14 +125,15 @@ function resolveArgs(values) {
 
 // `PROMPT_PLACEHOLDER` and `enableThoughtSignatures` are read from the config at
 // module scope (prompt-converters.js:4 and :34), so the config has to be in place
-// *before* the module is imported. `setConvConfig` is the hook gen_adapter.py
-// generates for that; the same call covers `mistral.enablePrefix`, which is read
-// lazily at call time (:709).
+// *before* the module is imported -- and a hook exported by that module cannot do
+// it, because calling the hook requires the module to have been evaluated
+// already. The generated `util.js` shim copies `globalThis.__stConvConfig` into
+// the `_convConfig` object `getConfigValue` reads **at its own evaluation time**,
+// so the assignment has to come before even `util.js` is imported; it is the
+// first module the engine pulls in. This also covers `mistral.enablePrefix`,
+// which is read lazily at call time (:709).
+globalThis.__stConvConfig = structuredClone(fixture.config ?? {});
 const util = await import(pathToFileURL(UTIL).href);
-if (typeof util.setConvConfig === 'function') {
-    util.setConvConfig(fixture.config ?? {});
-}
-
 const converters = await import(pathToFileURL(MODULE).href);
 
 // `crypto.randomBytes(32)` (prompt-converters.js:846) hides a media part behind a

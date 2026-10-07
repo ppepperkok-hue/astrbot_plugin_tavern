@@ -1,0 +1,24 @@
+{
+  "name": "57-google-group-name-predicate",
+  "function": "convertGooglePrompt",
+  "description": "The group-name predicate (`names.startsWithGroupName`, :444 and :499), which a fixture can only drive because the runner substitutes the real PromptNames object for the '$promptNames' sentinel. The predicate tests `${name}: ` -- colon AND space -- so 'Seraphina: good evening' is already attributed and gets no prefix in the system-prompt collection, while 'Corin:no-space here' does NOT match and gets 'Iris: ' prepended. In the per-part loop the same rule applies to a non-system turn: 'Corin: part loop' is left alone, 'stranger' gets 'Iris: '. The example_user rule (:438-442) is exercised next to it, both for an already-prefixed and a bare content. Expected system_instruction.parts = [{'text':'Seraphina: good evening'},{'text':'Iris: Corin:no-space here'},{'text':'Iris: Nobody: hello'},{'text':'User: already'},{'text':'User: bare'}]; contents = [{'role':'user','parts':[{'text':'Corin: part loop'}]},{'role':'model','parts':[{'text':'Iris: stranger'}]}].",
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": ["Seraphina", "Corin"]
+  },
+  "args": [
+    [
+      {"role": "system", "name": "example_assistant", "content": "Seraphina: good evening"},
+      {"role": "system", "name": "example_assistant", "content": "Corin:no-space here"},
+      {"role": "system", "name": "example_assistant", "content": "Nobody: hello"},
+      {"role": "system", "name": "example_user", "content": "User: already"},
+      {"role": "system", "name": "example_user", "content": "bare"},
+      {"role": "user", "name": "example_assistant", "content": "Corin: part loop"},
+      {"role": "assistant", "name": "example_assistant", "content": "stranger"}
+    ],
+    "gemini-1.5-pro",
+    true,
+    "$promptNames"
+  ]
+}

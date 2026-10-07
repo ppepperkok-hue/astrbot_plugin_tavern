@@ -1,0 +1,6 @@
+{
+  "name": "48-budget-claude-medium",
+  "function": "calculateClaudeBudgetTokens",
+  "description": "Non-adaptive path, reasoningEffort 'medium': floor(100000 * 0.25) = 25000 (:1155-1157). Expected value: 25000.",
+  "args": [100000, "medium", true, false]
+}

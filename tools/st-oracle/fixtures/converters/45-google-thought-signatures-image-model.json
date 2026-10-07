@@ -1,0 +1,32 @@
+{
+  "name": "45-google-thought-signatures-image-model",
+  "function": "convertGooglePrompt",
+  "description": "Gemini 3 thought signatures with the config ON ('gemini.thoughtSignatures': true, the default) and an /-image/ model. Model 'gemini-3.5-flash-image'. (:577-597) First branch: a truthy message-level `signature` plus a string text part sets thoughtSignature to that signature (:582-583). Second branch, only for /gemini-3/: a functionCall without one gets the 'skip_thought_signature_validator' bypass (:586-588), and on an /-image/ model a model-role part that is text or inlineData gets the bypass too (:589-593). The two assistant turns merge (same role 'model'), so the functionCall lands beside the signed text part instead of in its own turn. The user-role image is NOT bypassed, because that branch requires role 'model', but it does get mediaResolution since detail is 'high'. Expected contents: [user[text], model[text+'SIG-A', functionCall+bypass], user[inlineData+media_resolution_high], model[inlineData+bypass, text 'look'+bypass]].",
+  "config": {"gemini.thoughtSignatures": true},
+  "args": [
+    [
+      {"role": "user", "content": "hi"},
+      {"role": "assistant", "signature": "SIG-A", "content": "thinking"},
+      {
+        "role": "assistant",
+        "tool_calls": [{"id": "c1", "function": {"name": "f", "arguments": "{}"}}]
+      },
+      {
+        "role": "user",
+        "content": [
+          {"type": "image_url", "image_url": {"url": "data:image/png;base64,ZZZ", "detail": "high"}}
+        ]
+      },
+      {
+        "role": "assistant",
+        "content": [
+          {"type": "image_url", "image_url": {"url": "data:image/png;base64,WWW"}},
+          {"type": "text", "text": "look"}
+        ]
+      }
+    ],
+    "gemini-3.5-flash-image",
+    false,
+    "$promptNames"
+  ]
+}

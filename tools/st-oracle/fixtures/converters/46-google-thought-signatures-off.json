@@ -1,0 +1,25 @@
+{
+  "name": "46-google-thought-signatures-off",
+  "function": "convertGooglePrompt",
+  "description": "Gemini 3 thought signatures with the config OFF ('gemini.thoughtSignatures': false), which is the only thing that can stop the first branch at :582. Model 'gemini-3.5-flash' (no /-image/), so the third branch at :589 cannot fire either. A model turn carrying a stored `signature` must therefore get NO thoughtSignature, while the mandatory functionCall bypass at :586-588 still applies -- the two conditions are an if/elif chain, and the bypass is not gated on the config. The last model turn holds only inlineData, which never takes the bypass on a non-image model. Expected contents: [user[text], model[text 'thinking' with no thoughtSignature], user[text], model[functionCall+bypass], user[text], model[inlineData, no bypass]].",
+  "config": {"gemini.thoughtSignatures": false},
+  "args": [
+    [
+      {"role": "user", "content": "hi"},
+      {"role": "assistant", "content": "thinking", "signature": "SIG-A"},
+      {"role": "user", "content": "and then?"},
+      {
+        "role": "assistant",
+        "tool_calls": [{"id": "c1", "function": {"name": "f", "arguments": "{}"}}]
+      },
+      {"role": "user", "content": "ok"},
+      {
+        "role": "assistant",
+        "content": [{"type": "image_url", "image_url": {"url": "data:image/png;base64,YYY"}}]
+      }
+    ],
+    "gemini-3.5-flash",
+    false,
+    "$promptNames"
+  ]
+}

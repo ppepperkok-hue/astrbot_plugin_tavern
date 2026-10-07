@@ -1,0 +1,16 @@
+{
+  "name": "33-caching-at-depth-openrouter",
+  "function": "cachingAtDepthForOpenRouterClaude",
+  "description": "cachingAtDepthForOpenRouterClaude (prompt-converters.js:1020-1063) at depth 1 with a 5m TTL. Two behaviours separate it from the Claude variant and both are on show. A **system** turn is skipped outright before the role comparison (:1033-1036): it neither counts toward depth nor receives a breakpoint, so the system turn at depth 1 is passed over and the user turn behind it is stamped instead. And a **string** content at a breakpoint is replaced by a one-part array carrying the cache_control (:1041-1046) rather than being indexed -- which is why the string user turn can be cached here while the same shape would throw in `cachingAtDepthForClaude`.",
+  "args": [
+    [
+      { "role": "system", "content": [{ "type": "text", "text": "Rules." }] },
+      { "role": "user", "content": "Hi." },
+      { "role": "system", "content": "Style." },
+      { "role": "user", "content": [{ "type": "text", "text": "More." }] },
+      { "role": "assistant", "content": [{ "type": "text", "text": "Sure," }] }
+    ],
+    1,
+    "5m"
+  ]
+}

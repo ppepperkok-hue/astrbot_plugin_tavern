@@ -1,0 +1,6 @@
+{
+  "name": "49-budget-claude-adaptive-max",
+  "function": "calculateClaudeBudgetTokens",
+  "description": "Adaptive model, reasoningEffort 'max' returns 'max' (:1138-1139) -- the one place the adaptive path returns a level that is not also a normal median level. Expected value: 'max'.",
+  "args": [100000, "max", true, true]
+}

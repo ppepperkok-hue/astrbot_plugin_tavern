@@ -1,0 +1,19 @@
+{
+  "name": "24-convert-claude-messages-no-sys-prompt",
+  "function": "convertClaudeMessages",
+  "description": "convertClaudeMessages with `useSysPrompt` false: nothing is lifted, so `systemPrompt` stays empty and every system turn takes the :253-267 path -- made into a 'user' turn and stripped of its `name`. `charName` is empty on purpose, so the `example_assistant` branch short circuits on `names.charName &&` and the `startsWithGroupName` predicate is never called (a fixture's `names` is plain JSON, so it could not supply that function). The last two turns are both assistant, which is the merge case at :346-353 for a repeated role; a lone 'system' turn at the very end also proves the merge is by role and not by index.",
+  "args": [
+    [
+      { "role": "system", "content": "Banner." },
+      { "role": "system", "name": "example_user", "content": "Hello." },
+      { "role": "user", "content": "Question." },
+      { "role": "assistant", "content": "First." },
+      { "role": "assistant", "content": "Second." },
+      { "role": "system", "content": "Tail." }
+    ],
+    "",
+    false,
+    false,
+    { "charName": "", "userName": "User", "groupNames": [] }
+  ]
+}

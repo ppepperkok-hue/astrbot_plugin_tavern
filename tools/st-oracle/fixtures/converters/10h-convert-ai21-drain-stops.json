@@ -1,0 +1,19 @@
+{
+  "name": "10h-convert-ai21-drain-stops",
+  "function": "convertAI21Messages",
+  "description": "The drain boundary of convertAI21Messages (prompt-converters.js:636-657), which is where the port's first real bug lived: the reference's `for (i = 0; i < messages.length; i++)` with a `break` on the first non-system turn leaves `i` equal to the NUMBER of leading system turns, because the `break` fires before the update expression. `messages.splice(0, i)` then removes exactly that leading run and keeps everything from the non-system turn on. A Python `for i in range(len(messages))` with a `break` does not behave that way at all -- it leaves `i` at the last index visited -- so a port that writes the loop that way deletes the wrong messages and duplicates the last system turn into the result. This input (two system turns then user/assistant) is therefore the regression pin: the system prompt must contain each system turn exactly once, and the user/assistant tail must survive untouched.",
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": []
+  },
+  "args": [
+    [
+      { "role": "system", "content": "you are Iris" },
+      { "role": "system", "content": "be brief" },
+      { "role": "user", "content": "hello" },
+      { "role": "assistant", "content": "hi" }
+    ],
+    "$promptNames"
+  ]
+}

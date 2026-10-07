@@ -1,0 +1,24 @@
+{
+  "name": "30-convert-claude-messages-image-migration-tail",
+  "function": "convertClaudeMessages",
+  "description": "The second half of the image migration at :315-333: an assistant turn is the *last* message and carries the only image, so the forward scan for a user turn runs off the end (`j === messages.length`). The reference then splices a fresh `{role: 'user', content: []}` in at `i + 1` (:327) and appends the images to `messages[j]` -- which is the message it just inserted. The assistant turn is left with a text part only, and the new user turn is the last turn of the result. This branch is the one a port is most likely to get wrong by re-scanning after the insert.",
+  "args": [
+    [
+      { "role": "user", "content": "Look at this." },
+      { "role": "assistant", "content": "See the photo I attached." },
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "image_url",
+            "image_url": { "url": "data:image/webp;base64,FFFFGGGG" }
+          }
+        ]
+      }
+    ],
+    "",
+    false,
+    false,
+    { "charName": "", "userName": "", "groupNames": [] }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "49-budget-claude-adaptive-medium",
+  "function": "calculateClaudeBudgetTokens",
+  "description": "Adaptive model, reasoningEffort 'medium' returns 'medium' (:1134-1135) and ignores maxTokens entirely. Expected value: 'medium'.",
+  "args": [100000, "medium", true, true]
+}

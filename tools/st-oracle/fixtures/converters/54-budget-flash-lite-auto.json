@@ -1,0 +1,6 @@
+{
+  "name": "54-budget-flash-lite-auto",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "'gemini-2.5-flash-lite' has no gemini-3 prefix, so it reaches getFlashLiteBudget (:1313-1314, /flash-lite/). reasoningEffort 'auto' returns the sentinel -1 (:1214-1215). Expected value: -1.",
+  "args": [100000, "auto", "gemini-2.5-flash-lite"]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "17-merge-messages-empty-input",
+  "function": "mergeMessages",
+  "description": "The empty-input degenerate case for mergeMessages (prompt-converters.js:902-908), and the `= {}` default on the options argument: the fixture passes NO third argument at all, so both sides have to apply `{ strict = false, placeholders = false, single = false, tools = false }` (the reference by destructuring default, the port by treating a missing/null options as an empty dict). The result is a single user turn whose content is the config's promptPlaceholder, unshifted into a fresh merged array -- the caller's (empty) array is untouched, which the `mutated` field shows. The fixture does not override the config, so the placeholder is the module default \"Let's get started.\" (read at :4).",
+  "args": [[], "$promptNames"]
+}

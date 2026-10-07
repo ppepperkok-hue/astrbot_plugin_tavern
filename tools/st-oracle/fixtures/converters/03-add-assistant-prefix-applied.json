@@ -1,0 +1,14 @@
+{
+  "name": "03-add-assistant-prefix-applied",
+  "function": "addAssistantPrefix",
+  "description": "addAssistantPrefix (prompt-converters.js:67-76): a non-empty prompt with no tools and a trailing assistant turn gets the flag `prompt[prompt.length - 1][property] = true` -- the property name is a *parameter*, not the hardcoded `prefix` the Mistral path happens to use, so this fixture passes `prefix` and the sibling fixture passes a different name to prove that. The function returns the same array it mutated (not a copy), which the oracle asserts through both `returned` and `mutated`.",
+  "args": [
+    [
+      { "role": "system", "content": "Rules." },
+      { "role": "user", "content": "Hi." },
+      { "role": "assistant", "content": "Hello." }
+    ],
+    null,
+    "prefix"
+  ]
+}

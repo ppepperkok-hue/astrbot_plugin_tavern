@@ -1,0 +1,6 @@
+{
+  "name": "52-budget-gemini3-7-flash-min",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Model 'gemini-3.7-flash' matches both the flash dispatch (:1309) and the noMinimalThinking test (:1267), so reasoningEffort 'min' returns 'low' instead of 'minimal' (:1272). This is the only branch where the model name changes the answer. Expected value: 'low'.",
+  "args": [100000, "min", "gemini-3.7-flash"]
+}

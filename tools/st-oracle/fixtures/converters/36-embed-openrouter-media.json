@@ -1,0 +1,20 @@
+{
+  "name": "36-embed-openrouter-media",
+  "function": "embedOpenRouterMedia",
+  "description": "embedOpenRouterMedia (prompt-converters.js:1336-1370) with the options object **omitted**, so the destructuring default `{audio: true, video: true}` applies and nothing can be skipped by a false flag. The audio part is a data URL: its header is matched by `/data:([^;]+)/` for the mime type, `audio/wav` is the one formatMap hit, and the content type becomes `input_audio` while `audio_url` is deleted. A second audio part uses a mime type the formatMap does not know, which falls back to 'mp3'. The non-data audio URL is left completely alone, the third part is a non-data video URL (the video branch is an assignment to a value it already has), and a message whose `content` is a string is skipped by the array guard at the top of the loop.",
+  "args": [
+    [
+      {
+        "role": "user",
+        "content": [
+          { "type": "audio_url", "audio_url": { "url": "data:audio/wav;base64,UklGRg==" } },
+          { "type": "audio_url", "audio_url": { "url": "data:audio/ogg;base64,T2dn" } },
+          { "type": "audio_url", "audio_url": { "url": "https://example.invalid/a.mp3" } },
+          { "type": "video_url", "video_url": { "url": "data:video/mp4;base64,AAAA" } },
+          { "type": "video_url", "video_url": { "url": "https://example.invalid/v.mp4" } }
+        ]
+      },
+      { "role": "assistant", "content": "No parts here." }
+    ]
+  ]
+}

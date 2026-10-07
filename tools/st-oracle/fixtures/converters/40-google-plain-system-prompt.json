@@ -1,0 +1,22 @@
+{
+  "name": "40-google-plain-system-prompt",
+  "function": "convertGooglePrompt",
+  "description": "convertGooglePrompt (prompt-converters.js:432-623) with useSysPrompt true. The two leading system turns are shifted off the input array (:436-450) and become system_instruction.parts; example_user gets 'User: ' glued on (:438-442) while example_assistant is already 'Iris: '-prefixed, so that branch short-circuits before the group predicate is reached (:443-447); the un-named user turn falls into the general `name: ` branch (:502-506); the two consecutive user turns merge with '\\n\\n' (:600-605); and 'gemini-1.5-pro' is not a no-prefill model, so the trailing assistant turn stays 'model' (:462-467). Expected: system_instruction.parts = [{'text':'User: Hello there'},{'text':'Iris: Good evening'}]; contents = [{'role':'user','parts':[{'text':'User: Real question\\n\\nSecond question'}]},{'role':'model','parts':[{'text':'Real answer'}]}]; and `messages` is mutated in place (two shifts, role rewrites, `name` deleted from both named turns).",
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": ["Seraphina", "Corin"]
+  },
+  "args": [
+    [
+      {"role": "system", "name": "example_user", "content": "Hello there"},
+      {"role": "system", "name": "example_assistant", "content": "Iris: Good evening"},
+      {"role": "user", "name": "User", "content": "Real question"},
+      {"role": "user", "content": "Second question"},
+      {"role": "assistant", "content": "Real answer"}
+    ],
+    "gemini-1.5-pro",
+    true,
+    "$promptNames"
+  ]
+}

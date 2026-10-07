@@ -1,0 +1,18 @@
+{
+  "name": "13-merge-messages-strict-placeholders",
+  "function": "mergeMessages",
+  "description": "strict + placeholders, case: messages[0] is NOT a user turn and not a system turn -- a leading assistant turn, followed by a user turn. The :946-947 branch unshifts the placeholder in FRONT of the assistant turn, so the merged array becomes [user(placeholder), assistant, user], and only then does the recursion at :950 run with strict:false / single:false / tools:false and return a fresh array. Pinning the placeholder's position (index 0, not index 1) is the point: the :944 branch would have put it at index 1 after a leading system turn, and the two branches are one character apart in the reference.",
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": []
+  },
+  "args": [
+    [
+      { "role": "assistant", "content": "as you wish" },
+      { "role": "user", "content": "now?" }
+    ],
+    "$promptNames",
+    { "strict": true, "placeholders": true, "single": false, "tools": false }
+  ]
+}

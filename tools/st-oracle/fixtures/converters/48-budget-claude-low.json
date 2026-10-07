@@ -1,0 +1,6 @@
+{
+  "name": "48-budget-claude-low",
+  "function": "calculateClaudeBudgetTokens",
+  "description": "Non-adaptive path, reasoningEffort 'low': floor(100000 * 0.1) = 10000 (:1152-1154), above the 1024 floor and below the non-streaming cap, so it is returned unchanged. Expected value: 10000.",
+  "args": [100000, "low", true, false]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "50-budget-gemini3-pro-min",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Gemini 3 pro family, reasoningEffort 'min' maps to the effort string 'low' (:1290-1291). Expected value: 'low'.",
+  "args": [100000, "min", "gemini-3.5-pro"]
+}

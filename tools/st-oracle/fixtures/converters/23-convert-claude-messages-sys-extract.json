@@ -1,0 +1,20 @@
+{
+  "name": "23-convert-claude-messages-sys-extract",
+  "function": "convertClaudeMessages",
+  "description": "convertClaudeMessages (prompt-converters.js:197-376) with `useSysPrompt` true: the leading run of system turns is lifted into `systemPrompt` and spliced off the array (:200-220), while the later system turn is *not* -- it is rewritten to 'user' in place and loses its `name` (:253-267). The example pairs exercise the name prefixing at :254-263: 'example_user' gains `userName + ': '`, and 'example_assistant' is left alone because it already starts with `charName + ': '`, so the `startsWithGroupName` predicate is short-circuited rather than called. `names` arrives through the `$promptNames` sentinel, so the object is the real one either way. The two user turns that result from the rewritten system turn are merged (:346-353).",
+  "names": { "charName": "Iris", "userName": "User", "groupNames": [] },
+  "args": [
+    [
+      { "role": "system", "content": "You are Iris." },
+      { "role": "system", "name": "example_user", "content": "Good evening." },
+      { "role": "system", "name": "example_assistant", "content": "Iris: Evening to you." },
+      { "role": "user", "content": "How are you?" },
+      { "role": "system", "content": "Be brief." },
+      { "role": "assistant", "content": "Well enough." }
+    ],
+    "",
+    true,
+    false,
+    "$promptNames"
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "54-budget-flash-lite-max",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Legacy flash-lite family, reasoningEffort 'max' takes maxTokens whole (:1227-1229); with 10000 it is returned unchanged by the clamp. Expected value: 10000.",
+  "args": [10000, "max", "gemini-2.5-flash-lite"]
+}

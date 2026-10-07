@@ -1,0 +1,14 @@
+{
+  "name": "03b-add-assistant-prefix-tools-present",
+  "function": "addAssistantPrefix",
+  "description": "The two guards at prompt-converters.js:71-72, both of which suppress the flag. `hasAnyTools` is true when the `tools` argument is a non-empty array OR when any message in the prompt has role `tool` -- so the second message here is what suppresses it, with `tools` null. A port that only checked the argument would set the flag and diverge. Also pins the property name: it is the caller's `property` argument, so `prefill` here versus `prefix` in fixture 03.",
+  "args": [
+    [
+      { "role": "system", "content": "Rules." },
+      { "role": "tool", "content": "{\"ok\":true}", "tool_call_id": "call_1" },
+      { "role": "assistant", "content": "Hello." }
+    ],
+    null,
+    "prefill"
+  ]
+}

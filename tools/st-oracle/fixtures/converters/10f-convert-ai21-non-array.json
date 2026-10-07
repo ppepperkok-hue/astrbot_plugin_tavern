@@ -1,0 +1,7 @@
+{
+  "name": "10f-convert-ai21-non-array",
+  "function": "convertAI21Messages",
+  "description": "The non-array guard is the FIRST line of convertAI21Messages (prompt-converters.js:632-634): anything that is not an array returns a fresh empty list rather than throwing, and the input is not touched (so `mutated` is the untouched argument). `null`, an object and a string all take this exit in JS -- Python's `isinstance(messages, list)` has to cover all three, which is exactly the kind of guard a port written from the happy path forgets. The all-system placeholder branch of the same function is the companion fixture 10g.",
+  "names": {},
+  "args": [{ "role": "system", "content": "not an array" }, "$promptNames"]
+}

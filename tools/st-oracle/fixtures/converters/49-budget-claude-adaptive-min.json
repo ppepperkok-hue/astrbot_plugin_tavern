@@ -1,0 +1,6 @@
+{
+  "name": "49-budget-claude-adaptive-min",
+  "function": "calculateClaudeBudgetTokens",
+  "description": "Adaptive model, reasoningEffort 'min' returns the effort string 'low' (:1130-1131) -- not 1024, which is what the non-adaptive path gives for the same effort. Expected value: 'low'.",
+  "args": [100000, "min", true, true]
+}

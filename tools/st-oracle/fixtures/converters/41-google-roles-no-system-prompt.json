@@ -1,0 +1,15 @@
+{
+  "name": "41-google-roles-no-system-prompt",
+  "function": "convertGooglePrompt",
+  "description": "useSysPrompt false, so nothing is shifted into system_instruction and the leading system turn is instead rewritten to 'user' (:462-463). The model string 'gemini-3.5-flash-lite' matches the second arm of the no-prefill test (:457), so the trailing assistant turn is rewritten to 'user' too (:466) and then merges into the same turn as the two other messages with '\\n\\n'. Expected: system_instruction.parts = []; contents = [{'role':'user','parts':[{'text':'SYS\\n\\nU1\\n\\nA1'}]}]; mutated messages all carry role 'user'.",
+  "args": [
+    [
+      {"role": "system", "content": "SYS"},
+      {"role": "user", "content": "U1"},
+      {"role": "assistant", "content": "A1"}
+    ],
+    "gemini-3.5-flash-lite",
+    false,
+    "$promptNames"
+  ]
+}

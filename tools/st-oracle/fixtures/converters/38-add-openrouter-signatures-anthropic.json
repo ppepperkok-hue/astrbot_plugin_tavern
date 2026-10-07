@@ -1,0 +1,21 @@
+{
+  "name": "38-add-openrouter-signatures-anthropic",
+  "function": "addOpenRouterSignatures",
+  "description": "addOpenRouterSignatures (prompt-converters.js:1397-1451) with an `anthropic/claude-...` model, so `getFormatForModel` (:1398-1412) returns 'anthropic-claude-v1'. Both signature sources feed one list, in order: the message's own `signature` first, then one detail per `tool_calls` entry, and each detail's `index` is its position in that list while its `id` is the tool call's own `id` (or `signature-<index>` when there is none). Every `signature` property is deleted afterwards. The second message has no signature anywhere and is untouched, and the third's non-string `signature` is neither emitted nor deleted (:1433 is a `typeof === 'string'` test).",
+  "args": [
+    [
+      {
+        "role": "assistant",
+        "content": "",
+        "signature": "sig-message",
+        "tool_calls": [
+          { "id": "call_1", "signature": "sig-tool-1", "function": { "name": "a" } },
+          { "signature": "sig-tool-2", "function": { "name": "b" } }
+        ]
+      },
+      { "role": "user", "content": "Plain." },
+      { "role": "assistant", "content": "", "signature": 42 }
+    ],
+    "anthropic/claude-sonnet-4"
+  ]
+}

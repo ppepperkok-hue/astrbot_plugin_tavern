@@ -1,0 +1,11 @@
+{
+  "name": "13c-convert-cohere-empty-and-tool-names",
+  "function": "convertCohereMessages",
+  "description": "The empty-input branch of convertCohereMessages (prompt-converters.js:385-390): an empty array gets the placeholder user turn unshifted into the CALLER's array and that same array is what `chatHistory` points at -- so `returned` and `mutated` both show it, which is the observable difference from the merge helpers, whose empty branch builds a separate merged array. The placeholder is the module default because the fixture does not override promptPlaceholder. The branch runs BEFORE the forEach, so the placeholder turn is also visited by the name rules -- it has no name, so nothing happens. The tool-primer branch that fires when a tool-call message is NOT preceded by an assistant ('I'm going to call a tool for that: ' at :399) is the companion fixture 13d.",
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": []
+  },
+  "args": [[], "$promptNames"]
+}

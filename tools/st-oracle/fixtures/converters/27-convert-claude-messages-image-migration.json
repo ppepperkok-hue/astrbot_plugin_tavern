@@ -1,0 +1,35 @@
+{
+  "name": "27-convert-claude-messages-image-migration",
+  "function": "convertClaudeMessages",
+  "description": "convertClaudeMessages with images on both sides of a turn, covering the migration at :315-333 and every content-part branch at :278-307. The assistant turn carries an `image_url` part alongside its text; Claude's API accepts images on user turns only, so the image is filtered out of the assistant turn and appended to the *next user* turn (`j` walks forward to it). The user turn's parts cover the three interesting shapes: an already-`text` part, an `image_url` whose data URL is split into `media_type` / `data`, and a part of an unknown type, which is returned untouched. The two user turns that end up adjacent merge, and the empty text part on the final assistant turn becomes the zero-width space of :302.",
+  "args": [
+    [
+      {
+        "role": "assistant",
+        "content": [
+          { "type": "text", "text": "Look at this." },
+          {
+            "type": "image_url",
+            "image_url": { "url": "data:image/png;base64,AAAABBBB" }
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "content": [
+          { "type": "text", "text": "I see it." },
+          {
+            "type": "image_url",
+            "image_url": { "url": "data:image/jpeg;base64,CCCCDDDD" }
+          },
+          { "type": "input_audio", "input_audio": { "format": "mp3", "data": "EEEE" } }
+        ]
+      },
+      { "role": "assistant", "content": "" }
+    ],
+    "",
+    false,
+    false,
+    { "charName": "", "userName": "", "groupNames": [] }
+  ]
+}

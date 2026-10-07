@@ -1,0 +1,11 @@
+{
+  "name": "12d-convert-xai-empty",
+  "function": "convertXAIMessages",
+  "description": "The empty-array case of convertXAIMessages (prompt-converters.js:785-814): there is no name to prefix and no delete to perform, so the function returns the SAME array instance it was handed -- which `mutated` shows as an empty array on both sides. It is here mainly as the counterweight to 12e: the port must not take the non-array exit for a list that happens to be empty (`.forEach` over [] is a no-op in JS, and the port's index/list checks must agree), and must not invent a placeholder, because unlike the merge/Cohere/AI21 paths this function has no empty-input branch at all.",
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": []
+  },
+  "args": [[], "$promptNames"]
+}

@@ -1,0 +1,18 @@
+{
+  "name": "15-merge-messages-single",
+  "function": "mergeMessages",
+  "description": "The `single` option, the last of the four flags fixture 12 does not touch. At :872-885 every role is rewritten to `user` BEFORE the squash pass, and the assistant/user halves gain the character/user name prefix unless the content already starts with it. So [assistant, user] collapses into ONE user turn whose content carries both prefixes: the first turn's own 'Iris: ' suppresses a second one (:874), the second turn genuinely gains 'User: ' (:879). The assistant turn's tool_calls are then dropped because tools is false (:887-890). A port that applies the single prefixes AFTER the squash, or that skips the already-prefixed guards, diverges on the content string here.",
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": []
+  },
+  "args": [
+    [
+      { "role": "assistant", "content": "Iris: as you wish", "tool_calls": [{ "id": "call_1" }] },
+      { "role": "user", "content": "now?" }
+    ],
+    "$promptNames",
+    { "strict": false, "placeholders": false, "single": true, "tools": false }
+  ]
+}

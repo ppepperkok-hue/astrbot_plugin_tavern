@@ -1,0 +1,23 @@
+{
+  "name": "14-merge-messages-tools-and-single",
+  "function": "mergeMessages",
+  "description": "The two options that change what the caller's array looks like independently of strict. `tools:true`: a `tool` turn keeps its role (:869-871), keeps tool_calls and keeps tool_call_id (:887-890), and the squash pass refuses to merge it because the role test at :895 excludes `tool` -- so the array keeps [assistant, tool, tool] verbatim. `single:true` is exercised by the companion fixture 15; this one is the tools-kept half, which the default fixture 12 (tools:false) does not cover. The `tool_call_id` key surviving is the sharpest signal here: a port that strips tool_calls but forgets tool_call_id, or that deletes them outside the `if (!tools)` guard, diverges on exactly this field.",
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": []
+  },
+  "args": [
+    [
+      {
+        "role": "assistant",
+        "content": "calling a tool",
+        "tool_calls": [{ "id": "call_1", "function": { "name": "get_weather" } }]
+      },
+      { "role": "tool", "name": "get_weather", "content": "12C", "tool_call_id": "call_1" },
+      { "role": "tool", "content": "still cold", "tool_call_id": "call_2" }
+    ],
+    "$promptNames",
+    { "strict": false, "placeholders": false, "single": false, "tools": true }
+  ]
+}

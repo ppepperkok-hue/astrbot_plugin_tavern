@@ -1,5 +1,6 @@
 [
   {
+    "js_source": "world-info.js",
     "js_name": "getWorldInfoSettings",
     "js_line": 795,
     "loc": 18,
@@ -8,6 +9,7 @@
     "note": "The port keeps the same knobs, but as plugin config (scan_depth/budget/recursion) instead of a global settings bag."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "updateWorldInfoSettings",
     "js_line": 819,
     "loc": 35,
@@ -16,6 +18,7 @@
     "note": "Runtime knobs travel as a WorldBookSettings value object; no global mutation."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "getWorldInfoPrompt",
     "js_line": 892,
     "loc": 24,
@@ -24,6 +27,7 @@
     "note": "7 of ST's 8 outputs exist as position buckets; outletEntries is missing and eventSource.emit(WORLD_INFO_ACTIVATED) has no equivalent. Oracle fixture 05 pins the assembled strings and buckets."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "setWorldInfoSettings",
     "js_line": 917,
     "loc": 117,
@@ -32,6 +36,7 @@
     "note": "Scan setup is derived from config plus SessionBinding.worldbooks per turn instead of global mutation. The oracle must set both the knobs and world_info.globalSelect or the engine silently scans with defaults (run.mjs guards this and exits 3)."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "reloadEditor",
     "js_line": 1040,
     "loc": 7,
@@ -40,6 +45,7 @@
     "note": "DOM reload helper."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "registerWorldInfoSlashCommands",
     "js_line": 1049,
     "loc": 961,
@@ -48,6 +54,7 @@
     "note": "Slash-command registration for the ST chat UI."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "showWorldEditor",
     "js_line": 2018,
     "loc": 9,
@@ -56,6 +63,7 @@
     "note": "Editor modal."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "loadWorldInfo",
     "js_line": 2036,
     "loc": 24,
@@ -64,6 +72,7 @@
     "note": "Files load from the plugin library with its own cache (reload_library); there is no /api/worldinfo/get hop."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "updateWorldInfoList",
     "js_line": 2061,
     "loc": 24,
@@ -72,6 +81,7 @@
     "note": ""
   },
   {
+    "js_source": "world-info.js",
     "js_name": "hideWorldEditor",
     "js_line": 2086,
     "loc": 3,
@@ -80,6 +90,7 @@
     "note": "Editor modal."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "getWIElement",
     "js_line": 2090,
     "loc": 7,
@@ -88,6 +99,7 @@
     "note": "jQuery lookup helper."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "addMissingWorldInfoFields",
     "js_line": 2104,
     "loc": 33,
@@ -96,6 +108,7 @@
     "note": ""
   },
   {
+    "js_source": "world-info.js",
     "js_name": "sortWorldInfoEntries",
     "js_line": 2146,
     "loc": 65,
@@ -104,6 +117,7 @@
     "note": "Scan-time order is (insertion_order, display_index); the editor's sort-mode UI is exempt."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "nullWorldInfo",
     "js_line": 2212,
     "loc": 3,
@@ -112,6 +126,7 @@
     "note": "Creates an empty book through the settings API."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "updateWorldEntryKeyOptionsCache",
     "js_line": 2226,
     "loc": 20,
@@ -120,6 +135,7 @@
     "note": "Autocomplete cache for the editor."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "clearEntryList",
     "js_line": 2247,
     "loc": 61,
@@ -128,6 +144,7 @@
     "note": "DOM list reset."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "displayWorldEntries",
     "js_line": 2310,
     "loc": 376,
@@ -136,6 +153,7 @@
     "note": "376 lines of editor rendering."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "verifyWorldInfoSearchSortRule",
     "js_line": 2727,
     "loc": 18,
@@ -144,6 +162,7 @@
     "note": "Editor search/sort state."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "setWIOriginalDataValue",
     "js_line": 2756,
     "loc": 11,
@@ -152,6 +171,7 @@
     "note": "Tracks original values for editor dirty-checking; relevant once the converters land, because originalData is what makes a round-trip lossless."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "deleteWIOriginalDataValue",
     "js_line": 2774,
     "loc": 11,
@@ -160,6 +180,7 @@
     "note": "Editor dirty-checking; pairs with setWIOriginalDataValue."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "splitKeywordsAndRegexes",
     "js_line": 2797,
     "loc": 19,
@@ -168,6 +189,7 @@
     "note": ""
   },
   {
+    "js_source": "world-info.js",
     "js_name": "customTokenizer",
     "js_line": 2825,
     "loc": 54,
@@ -176,6 +198,7 @@
     "note": "No real tokenizer: tiktoken when installed, else len//3. ST counts with the generation backend's tokenizer, so budget arithmetic is not comparable (oracle fixture 12 is comparable:false)."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "isValidRegex",
     "js_line": 2888,
     "loc": 3,
@@ -184,6 +207,7 @@
     "note": ""
   },
   {
+    "js_source": "world-info.js",
     "js_name": "parseRegexFromString",
     "js_line": 2901,
     "loc": 26,
@@ -192,6 +216,7 @@
     "note": "Same /pattern/flags grammar; flag letters beyond i/m/s/x are ignored. Oracle fixture 04 shows the port matching a case-sensitive regex the engine rejects -- a whole-word interaction, not the parser."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "enableKeysInputHelper",
     "js_line": 2938,
     "loc": 104,
@@ -200,6 +225,7 @@
     "note": "Editor input widget wiring."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "handleMatchCheckboxHelper",
     "js_line": 3052,
     "loc": 13,
@@ -208,6 +234,7 @@
     "note": "Editor checkbox wiring."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "updatePosOrdDisplayHelper",
     "js_line": 3073,
     "loc": 12,
@@ -216,6 +243,7 @@
     "note": "Editor display counter."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "initCharacterFilterSelect2Helper",
     "js_line": 3090,
     "loc": 10,
@@ -224,6 +252,7 @@
     "note": "Select2 widget wiring."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "fillCharacterAndTagOptionsHelper",
     "js_line": 3107,
     "loc": 20,
@@ -232,6 +261,7 @@
     "note": "Select2 option population."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "handleCharacterFilterChangeHelper",
     "js_line": 3136,
     "loc": 28,
@@ -240,6 +270,7 @@
     "note": "Editor change handler."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "handleProbabilityInputHelper",
     "js_line": 3173,
     "loc": 18,
@@ -248,6 +279,7 @@
     "note": "Editor number input wiring."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "handleProbabilityToggleHelper",
     "js_line": 3201,
     "loc": 20,
@@ -256,6 +288,7 @@
     "note": "Editor toggle wiring."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "handleBooleanSelectHelper",
     "js_line": 3231,
     "loc": 11,
@@ -264,6 +297,7 @@
     "note": "Editor select wiring."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "handleNumberInputHelper",
     "js_line": 3255,
     "loc": 20,
@@ -272,6 +306,7 @@
     "note": "Editor number input wiring."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "handleEntryStateSelectorHelper",
     "js_line": 3284,
     "loc": 33,
@@ -280,6 +315,7 @@
     "note": "Editor state selector (constant/normal) wiring."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "handleEntryKillSwitchHelper",
     "js_line": 3327,
     "loc": 17,
@@ -288,6 +324,7 @@
     "note": "Click handler only; the data side is entry.disable."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "setCommentPlaceholder",
     "js_line": 3350,
     "loc": 5,
@@ -296,6 +333,7 @@
     "note": "i18n placeholder text."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "getWorldEntry",
     "js_line": 3362,
     "loc": 512,
@@ -304,6 +342,7 @@
     "note": "512 lines of editor rendering plus the row->form mapping; the port never writes entries back, so the form half has no consumer."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "buildAutocompleteCallback",
     "js_line": 3884,
     "loc": 38,
@@ -312,6 +351,7 @@
     "note": "Editor autocomplete."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "getInclusionGroupCallback",
     "js_line": 3935,
     "loc": 18,
@@ -320,6 +360,7 @@
     "note": "Editor autocomplete data."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "getAutomationIdCallback",
     "js_line": 3954,
     "loc": 10,
@@ -328,6 +369,7 @@
     "note": "Editor autocomplete data."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "getOutletNameCallback",
     "js_line": 3965,
     "loc": 6,
@@ -336,6 +378,7 @@
     "note": "Editor autocomplete data."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "createEntryInputAutocomplete",
     "js_line": 3979,
     "loc": 32,
@@ -344,6 +387,7 @@
     "note": "Editor autocomplete wiring."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "duplicateWorldInfoEntry",
     "js_line": 4019,
     "loc": 15,
@@ -352,6 +396,7 @@
     "note": "Editor clone action; no equivalent."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "deleteWorldInfoEntry",
     "js_line": 4043,
     "loc": 31,
@@ -360,6 +405,7 @@
     "note": "Editor delete action; no equivalent."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "createWorldInfoEntry",
     "js_line": 4137,
     "loc": 13,
@@ -368,6 +414,7 @@
     "note": "Row defaults (order 100, depth 4, selective true in ST's editor definition) are modelled by the parser instead of a template object."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "_save",
     "js_line": 4151,
     "loc": 11,
@@ -376,6 +423,7 @@
     "note": "Persistence is a local file write rather than an IPC call; not covered by an oracle fixture."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "saveWorldInfo",
     "js_line": 4177,
     "loc": 14,
@@ -384,6 +432,7 @@
     "note": ""
   },
   {
+    "js_source": "world-info.js",
     "js_name": "renameWorldInfo",
     "js_line": 4192,
     "loc": 32,
@@ -392,6 +441,7 @@
     "note": "Only name de-duplication exists; there is no rename flow that keeps character and chat references consistent."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "updateWorldInfoLinks",
     "js_line": 4232,
     "loc": 107,
@@ -400,6 +450,7 @@
     "note": "Repoints character/chat/persona references after a rename; the plugin has no such reference graph yet."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "deleteWorldInfo",
     "js_line": 4346,
     "loc": 48,
@@ -408,6 +459,7 @@
     "note": "The plugin resolves and writes library files but exposes no delete path yet."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "getFreeWorldEntryUid",
     "js_line": 4395,
     "loc": 15,
@@ -416,6 +468,7 @@
     "note": "Editor-only uid allocation; the plugin never writes books back, so nothing allocates uids."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "getFreeWorldName",
     "js_line": 4422,
     "loc": 16,
@@ -424,6 +477,7 @@
     "note": ""
   },
   {
+    "js_source": "world-info.js",
     "js_name": "createNewWorldInfo",
     "js_line": 4448,
     "loc": 26,
@@ -432,6 +486,7 @@
     "note": "Books enter the library by importing a file rather than through a create dialog."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "getCharacterLore",
     "js_line": 4475,
     "loc": 51,
@@ -440,6 +495,7 @@
     "note": ""
   },
   {
+    "js_source": "world-info.js",
     "js_name": "getGlobalLore",
     "js_line": 4527,
     "loc": 16,
@@ -448,6 +504,7 @@
     "note": ""
   },
   {
+    "js_source": "world-info.js",
     "js_name": "getChatLore",
     "js_line": 4544,
     "loc": 19,
@@ -456,6 +513,7 @@
     "note": "The plugin merges chat-bound books into the session binding instead of tracking a per-chat world name."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "getPersonaLore",
     "js_line": 4564,
     "loc": 25,
@@ -464,6 +522,7 @@
     "note": "Persona-bound lorebook: AstrBot has no persona-lorebook concept yet."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "getSortedEntries",
     "js_line": 4590,
     "loc": 55,
@@ -472,6 +531,7 @@
     "note": "Book selection order (chat -> persona -> global) is not modelled; only the configured book list is walked. Ordering within a scan is (insertion_order, display_index)."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "parseDecorators",
     "js_line": 4652,
     "loc": 47,
@@ -480,6 +540,7 @@
     "note": "@@activate / @@dont_activate and leading-decorator stripping are not ported; oracle fixture 10 shows the port injecting a suppressed @@dont_activate entry and keeping decorator lines in the emitted content."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "checkWorldInfo",
     "js_line": 4709,
     "loc": 574,
@@ -488,14 +549,16 @@
     "note": "The orchestration loop exists but four behaviours diverge, all witnessed by the oracle: cumulative token budget with a pass-breaking overflow, min-activations depth advance, numeric delayUntilRecursion levels, and event emission."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "filterGroupsByScoring",
     "js_line": 5292,
     "loc": 37,
-    "python_target": "tavern/st/worldbook.py:_apply_group_scoring",
+    "python_target": "tavern/st/worldbook.py:_filter_by_inclusion_groups",
     "status": "ported",
-    "note": "Only a groupWeight comparison exists; ST scores by matched-key count (buffer.getScore) and never uses groupWeight for scoring. Oracle fixture 08 witnesses the gap."
+    "note": "Scores with buffer.get_score and keeps the members at the best score (worldbook.py:1001-1017), which is what the reference does; it is folded into the inclusion-group filter instead of standing alone. The scan-state value and the entry->buffer view come from the caller (_buffer_view, worldbook.py:629)."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "filterGroupsByTimedEffects",
     "js_line": 5337,
     "loc": 42,
@@ -504,14 +567,16 @@
     "note": "Sticky/cooldown windows exist but are turn-counted and never pin a group winner; oracle fixture 11 witnesses the delay half of the gap."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "filterByInclusionGroups",
     "js_line": 5388,
     "loc": 88,
-    "python_target": "tavern/st/worldbook.py:_apply_group_scoring",
-    "status": "pending",
-    "note": "Different model: the port only drops lighter members of a group. The engine always yields exactly one winner per group (scored filter, then weighted random roll, then groupOverride priority). Oracle fixture 08 pins both scans."
+    "python_target": "tavern/st/worldbook.py:_filter_by_inclusion_groups",
+    "status": "ported",
+    "note": "The one-winner-per-group filter is now mirrored (worldbook.py:933-1045): sticky members win, cooldown/delay members are dropped, useGroupScoring (global or per entry) keeps the best key score, groupOverride is a priority tier, else a groupWeight weighted roll through settings.rng. The earlier 'only drops lighter members' note is obsolete; fixture 08 is the current verdict."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "convertAgnaiMemoryBook",
     "js_line": 5477,
     "loc": 44,
@@ -520,6 +585,7 @@
     "note": "Agnai Memory Book import path."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "convertRisuLorebook",
     "js_line": 5522,
     "loc": 44,
@@ -528,6 +594,7 @@
     "note": "RisuAI lorebook import path."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "convertNovelLorebook",
     "js_line": 5567,
     "loc": 49,
@@ -536,6 +603,7 @@
     "note": "NovelAI lorebook import path."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "convertCharacterBook",
     "js_line": 5617,
     "loc": 58,
@@ -544,6 +612,7 @@
     "note": "The translation lives in the oracle, not in tavern/, so the plugin still cannot read embedded character_book lore. Oracle fixture 09 passes because both sides run the same adapter -- port it to tavern/st/cards.py."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "setWorldInfoButtonClass",
     "js_line": 5676,
     "loc": 14,
@@ -552,6 +621,7 @@
     "note": "jQuery button state."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "checkEmbeddedWorld",
     "js_line": 5691,
     "loc": 39,
@@ -560,6 +630,7 @@
     "note": "Detects an embedded character_book; the plugin does not look for one yet (see convertCharacterBook)."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "importEmbeddedWorldInfo",
     "js_line": 5731,
     "loc": 40,
@@ -568,6 +639,7 @@
     "note": "Imports the embedded book into the library; blocked on checkEmbeddedWorld."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "onWorldInfoChange",
     "js_line": 5772,
     "loc": 73,
@@ -576,6 +648,7 @@
     "note": ""
   },
   {
+    "js_source": "world-info.js",
     "js_name": "importWorldInfo",
     "js_line": 5850,
     "loc": 82,
@@ -584,6 +657,7 @@
     "note": "Import is a plugin command fed bytes by the adapter, not a browser file picker."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "openWorldInfoEditor",
     "js_line": 5937,
     "loc": 8,
@@ -592,6 +666,7 @@
     "note": "Editor open action."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "assignLorebookToChat",
     "js_line": 5951,
     "loc": 38,
@@ -600,6 +675,7 @@
     "note": "The plugin stores one book list per session binding; ST's global/character/chat split and the shift/alt click variants have no equivalent."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "moveWorldInfoEntry",
     "js_line": 6000,
     "loc": 90,
@@ -608,6 +684,7 @@
     "note": "Drag-and-drop between books; no equivalent."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "charUpdatePrimaryWorld",
     "js_line": 6097,
     "loc": 31,
@@ -616,6 +693,7 @@
     "note": "Binds a book to a character; the plugin only binds books per session (SessionBinding.worldbooks), and has no per-character concept."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "charUpdateAddAuxWorld",
     "js_line": 6134,
     "loc": 5,
@@ -624,6 +702,7 @@
     "note": "Auxiliary (additional) character books have no equivalent in the plugin."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "charSetAuxWorlds",
     "js_line": 6145,
     "loc": 3,
@@ -632,6 +711,7 @@
     "note": "Replaces the auxiliary book list for a character; no equivalent."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "updateAuxBooks",
     "js_line": 6149,
     "loc": 25,
@@ -640,11 +720,1128 @@
     "note": "Persists auxiliary book changes; no equivalent."
   },
   {
+    "js_source": "world-info.js",
     "js_name": "initWorldInfo",
     "js_line": 6175,
     "loc": 234,
     "python_target": "",
     "status": "exempt",
     "note": "234 lines of DOM/event bootstrap."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "PROMPT_PROCESSING_TYPE",
+    "js_line": 15,
+    "loc": 1,
+    "python_target": "tavern/st/prompt_converters.py:PROMPT_PROCESSING_TYPE",
+    "status": "ported",
+    "note": "The dispatch vocabulary postProcessPrompt switches on. Copied verbatim, including the deprecated CLAUDE alias that still has to behave like MERGE."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "getPromptNames",
+    "js_line": 49,
+    "loc": 10,
+    "python_target": "tavern/st/prompt_converters.py:get_prompt_names",
+    "status": "ported",
+    "note": "Fixtures 01/02. The predicate is method-shaped because the reference's reads `this.groupNames` (prompt-converters.js:54-56) -- a plain closure would be quietly more forgiving than the engine."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "addAssistantPrefix",
+    "js_line": 67,
+    "loc": 10,
+    "python_target": "tavern/st/prompt_converters.py:add_assistant_prefix",
+    "status": "ported",
+    "note": "Fixtures 03/03b/03c/04 pin every arm of the ``hasAnyTools`` disjunction (``:71``): the no-tools case sets the flag, a non-empty ``tools`` argument suppresses it, and a ``role == 'tool'`` message suppresses it with ``tools`` null. They also pin that the property name is the caller's argument rather than a hardcoded ``prefix``, and that an empty prompt returns before the trailing-message check."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "postProcessPrompt",
+    "js_line": 85,
+    "loc": 21,
+    "python_target": "tavern/st/prompt_converters.py:post_process_prompt",
+    "status": "ported",
+    "note": "Fixtures 10/11 pin the dispatch: an unknown type and NONE fall through with the messages unmutated, and STRICT routes into mergeMessages with placeholders (the splice at index 1)."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "convertClaudePrompt",
+    "js_line": 120,
+    "loc": 67,
+    "python_target": "tavern/st/prompt_converters.py:convert_claude_prompt",
+    "status": "ported",
+    "note": "Fixtures 20/21/22. Deprecated upstream -- only used for token counting -- but still reachable, and they pin the two easily-missed parts: the ``FixHumMsg`` role and the prefix table at :175-180, including the ``excludePrefixes`` spelling that names the group member instead."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "convertClaudeMessages",
+    "js_line": 197,
+    "loc": 180,
+    "python_target": "tavern/st/prompt_converters.py:convert_claude_messages",
+    "status": "ported",
+    "note": "Fixtures 23-30, 39, 40. The largest function in the module: system-prompt extraction, tool_use/tool_result rewriting, image migration between turns, role merging and prefill. The zero-width space of :302 for an empty text part is reproduced exactly, and 39/40 pin the group-name predicate on both the system-extraction and the in-place arms."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "convertCohereMessages",
+    "js_line": 384,
+    "loc": 39,
+    "python_target": "tavern/st/prompt_converters.py:convert_cohere_messages",
+    "status": "ported",
+    "note": "Fixtures 13b/13c/13d. 13b deliberately pins the reference's own quirk: ``messages.splice(index - 1, 1)`` (:397) runs *during* the forEach, so the tool-call message is revisited and its content written twice. That looked like a reference bug; it was re-read against :392-401 and pinned rather than 'fixed'. 13d pins ``tc?.function?.name`` joining to the empty string of JS ``Array.join``, not Python's ``'None'``."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "convertGooglePrompt",
+    "js_line": 432,
+    "loc": 192,
+    "python_target": "tavern/st/prompt_converters.py:convert_google_prompt",
+    "status": "ported",
+    "note": "Fixtures 40-47, 57-59. The most intricate arm, and the fixtures are one-per-branch because its behaviour is version-gated on the model name: thought-signature injection, the ``skip_thought_signature_validator`` fallback, the no-prefill model regex, the ``tryParse(args) ?? args`` fallback (43), media resolutions with ``auto`` deliberately unmapped (44), and the toolNameMap lookup falling back to ``'unknown'`` (42)."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "convertAI21Messages",
+    "js_line": 631,
+    "loc": 65,
+    "python_target": "tavern/st/prompt_converters.py:convert_ai21_messages",
+    "status": "ported",
+    "note": "Fixtures 10e-10h. 10h pins a drain boundary that a Python transliteration gets wrong by default: the reference's ``for (i = 0; ...) break`` leaves ``i`` at the count of leading system turns because ``break`` runs before the update expression, which is what ``splice(0, i)`` needs -- a ``range``-loop ``break`` leaves it at the last index visited and duplicates the final system turn."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "convertMistralMessages",
+    "js_line": 703,
+    "loc": 75,
+    "python_target": "tavern/st/prompt_converters.py:convert_mistral_messages",
+    "status": "ported",
+    "note": "Fixtures 11b-11f. Two traps pinned: the prefix flag is read from config at call time (:709) and tool ids are sha512-truncated to nine hex characters (:715); plus the ``fixToolMessages`` fixpoint. 11e/11f pin the empty and non-array inputs, where JS yields ``undefined`` and Python would raise ``IndexError``."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "convertXAIMessages",
+    "js_line": 785,
+    "loc": 30,
+    "python_target": "tavern/st/prompt_converters.py:convert_xai_messages",
+    "status": "ported",
+    "note": "Fixtures 12c/12d/12e. 12c pins the three-rule table and that the name is deleted on *every* matched rule, not only the one that added a prefix."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "mergeMessages",
+    "js_line": 827,
+    "loc": 1,
+    "python_target": "tavern/st/prompt_converters.py:merge_messages",
+    "status": "ported",
+    "note": "Fixtures 12-16, 14b-14c. Four interacting options (strict/placeholders/single/tools) plus a recursive re-entry when strict is set, so each combination has its own fixture; 16 drives the media token round trip at :910-934 and the group predicate through the sentinel. The reference's ``= {}`` default and an explicit ``null`` are different in JS and are modelled with a sentinel -- deliberately unpinnable, because a fixture that hands the reference null can never match (the differ scores the presence of a reference error, never its text)."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "convertTextCompletionPrompt",
+    "js_line": 961,
+    "loc": 17,
+    "python_target": "tavern/st/prompt_converters.py:convert_text_completion_prompt",
+    "status": "ported",
+    "note": "Fixtures 10b/10c/10d: all three render rules, the empty-array result (``'\\nassistant:'``), and the string passthrough that returns its argument untouched."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "cachingAtDepthForClaude",
+    "js_line": 985,
+    "loc": 27,
+    "python_target": "tavern/st/prompt_converters.py:caching_at_depth_for_claude",
+    "status": "ported",
+    "note": "Fixtures 31/32, including the prefill-break so the ``passedThePrefill`` arm is not dead code in the port."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "cachingAtDepthForOpenRouterClaude",
+    "js_line": 1020,
+    "loc": 45,
+    "python_target": "tavern/st/prompt_converters.py:caching_at_depth_for_open_router_claude",
+    "status": "ported",
+    "note": "Fixture 33. Same depth walk as the Claude arm with two differences the fixture pins: system messages are skipped without counting toward depth (:1033-1036), and the walk breaks at ``depth === cachingAtDepth + 2``."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "cachingSystemPromptForOpenRouter",
+    "js_line": 1072,
+    "loc": 42,
+    "python_target": "tavern/st/prompt_converters.py:caching_system_prompt_for_open_router",
+    "status": "ported",
+    "note": "Fixtures 34/35. Returns nothing and mutates, so it is scored on the post-call arguments -- which is what the converter oracle records. 34 pins the array-content arm and that only the *first* system message is ever considered; 35 pins the string arm, where the content is replaced by a one-part array. The cache-control object omits ``ttl`` entirely when none is given, so both spellings are pinned."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "calculateClaudeBudgetTokens",
+    "js_line": 1124,
+    "loc": 50,
+    "python_target": "tavern/st/prompt_converters.py:calculate_claude_budget_tokens",
+    "status": "ported",
+    "note": "Fixtures 48/49: every reasoning-effort value across both the numeric and the adaptive-model paths, plus an unknown effort and the stream and floor boundaries."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "calculateGoogleBudgetTokens",
+    "js_line": 1182,
+    "loc": 145,
+    "python_target": "tavern/st/prompt_converters.py:calculate_google_budget_tokens",
+    "status": "ported",
+    "note": "Fixtures 50-56: the whole matrix. Each fixture's maxTokens was chosen to pin a cap or a floor as a side effect -- flash has no 512 floor, flash-lite does, pro caps at 32768 -- and 52 pins the dispatch order (``gemini-3.5-flash-lite`` matches the flash branch first and returns ``'medium'``, not 25000) and the ``[.\\d]*`` regex allowing zero digits."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "embedOpenRouterMedia",
+    "js_line": 1336,
+    "loc": 1,
+    "python_target": "tavern/st/prompt_converters.py:embed_open_router_media",
+    "status": "ported",
+    "note": "Fixture 36."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "addReasoningContentToToolCalls",
+    "js_line": 1377,
+    "loc": 13,
+    "python_target": "tavern/st/prompt_converters.py:add_reasoning_content_to_tool_calls",
+    "status": "ported",
+    "note": "Fixture 37."
+  },
+  {
+    "js_source": "src/prompt-converters.js",
+    "js_name": "addOpenRouterSignatures",
+    "js_line": 1397,
+    "loc": 55,
+    "python_target": "tavern/st/prompt_converters.py:add_open_router_signatures",
+    "status": "ported",
+    "note": "Fixtures 38/38b, the second with thought signatures configured off so the ``signature`` field is not carried."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "validateReverseProxy",
+    "js_line": 537,
+    "loc": 27,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Reverse-proxy URL validation plus a jQuery warning."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "setOpenAIMessages",
+    "js_line": 570,
+    "loc": 80,
+    "python_target": "tavern/st/prompt_build.py:populate_chat_history",
+    "status": "ported",
+    "note": "The chat -> prompt-message conversion (newest-first iteration, prepending so the result reads oldest-first) is openai.js:945-1075 and is mirrored at prompt_build.py:867-888; the media/tool branches inside the loop (962-1064) are out of scope."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "setOpenAIMessageExamples",
+    "js_line": 656,
+    "loc": 12,
+    "python_target": "tavern/st/prompt_build.py:populate_dialogue_examples + tavern/st/prompt.py:parse_dialogue_examples",
+    "status": "ported",
+    "note": "'<START>' -> '{Example Dialogue:}' plus a per-block list of named turns; the port splits with parse_dialogue_examples and re-wraps in populate_dialogue_examples. The JS result is an array of arrays, the port's is a flat list of turns -- the wrapper carries the structure."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "setupChatCompletionPromptManager",
+    "js_line": 675,
+    "loc": 47,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Creates the page's PromptManager singleton, renders it and debounces character-change re-configuration. The port has no singleton: the caller builds a PromptCollection per turn and keeps no mutable global state."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "parseExampleIntoIndividual",
+    "js_line": 729,
+    "loc": 59,
+    "python_target": "tavern/st/prompt.py:parse_dialogue_examples",
+    "status": "ported",
+    "note": "Name-prefix detection, glueing prefix-less lines onto the current turn and the group-name branch are all present; the port takes the known names from RenderOptions instead of the page's name1/getGroupNames globals, and it has no appendNamesForGroup flag."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "formatWorldInfo",
+    "js_line": 789,
+    "loc": 13,
+    "python_target": "tavern/st/prompt_build.py:format_world_info",
+    "status": "ported",
+    "note": "{0} substitution of the already-activated blob; the reference reads power_user.wi_format when no override is passed, the port takes the format as an argument (wi_format=None returns the value untouched)."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "populationInjectionPrompts",
+    "js_line": 810,
+    "loc": 66,
+    "python_target": "tavern/st/prompt_build.py:population_injection_prompts",
+    "status": "ported",
+    "note": "Relative/absolute extension prompts, the string->numeric role mapping and the descending injection_order sort are copied; the port injects get_extension_prompt/get_extension_prompt_max_depth as callables instead of reading extension_settings."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "populateChatHistory",
+    "js_line": 885,
+    "loc": 208,
+    "python_target": "tavern/st/prompt_build.py:populate_chat_history",
+    "status": "ported",
+    "note": "Budget reservation for newMainChat/groupNudge/continueNudge, the continueNudge extraction, emptyUserMessageReplacement and the names_behavior COMPLETION branch are copied. Trimmed: media inlining, tool calls, isReasoningSignatureSupported. The function signature carries cycle_prompt because a harness bug once dropped it (see STATUS-S2.md defect 10)."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "populateDialogueExamples",
+    "js_line": 1101,
+    "loc": 34,
+    "python_target": "tavern/st/prompt_build.py:populate_dialogue_examples",
+    "status": "ported",
+    "note": "One newChat system message per dialogue inside the loop, forced system role, setName(prompt.name), the all-or-nothing affordability gate and the break (not continue) are all copied."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getPromptPosition",
+    "js_line": 1140,
+    "loc": 11,
+    "python_target": "tavern/st/prompt_build.py:get_prompt_position",
+    "status": "ported",
+    "note": ""
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getPromptRole",
+    "js_line": 1157,
+    "loc": 12,
+    "python_target": "tavern/st/prompt_build.py:get_prompt_role",
+    "status": "ported",
+    "note": ""
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "populateChatCompletion",
+    "js_line": 1185,
+    "loc": 163,
+    "python_target": "tavern/st/prompt_build.py:populate_chat_completion",
+    "status": "ported",
+    "note": "The assembly order of the whole prompt, pinned by the 8 diff_assembly.py fixtures. Trimmed: media, tools, reasoning signatures. The port accepts the optional prompts (impersonate/quietPrompt/bias/enhanceDefinitions) as arguments because the reference merges them in preparePromptsForChatCompletion (STATUS-S2.md defect 9)."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "preparePromptsForChatCompletion",
+    "js_line": 1367,
+    "loc": 150,
+    "python_target": "tavern/st/prompt_build.py:prepare_prompts_for_chat_completion",
+    "status": "ported",
+    "note": "The nine system blocks plus the user-relative extension prompts and the substituted scenario/personality/bias templates are copied; the port takes a settings mapping plus injectable callbacks instead of oai_settings, power_user and promptManager."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "prepareOpenAIMessages",
+    "js_line": 1542,
+    "loc": 83,
+    "python_target": "tavern/core.py:PluginCore.build_turn + tavern/st/prompt_build.py:prepare_prompts_for_chat_completion",
+    "status": "ported",
+    "note": "The assembly it orchestrates exists and the 8 assembly fixtures pin it, assembled headlessly by build_turn. Gaps: setTokenBudget is never called, squash is left to the backend and the CHAT_COMPLETION_PROMPT_READY event has no equivalent."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getChatCompletionErrorMessage",
+    "js_line": 1635,
+    "loc": 5,
+    "python_target": "tavern/backends/base.py:BackendError",
+    "status": "pending",
+    "note": "Extracting data.error / data.detail.error / message / code / type from a provider response body. The port only wraps exceptions into BackendError with str(exc); a provider payload's error object is never read."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "tryParseStreamingError",
+    "js_line": 1648,
+    "loc": 32,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Streaming, out of scope: the port never consumes a stream (the AstrBot backend awaits one completion; backends/base.py::collect_stream exists only for adapters that already stream)."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "checkQuotaError",
+    "js_line": 1689,
+    "loc": 13,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Quota-error UI notification (Popup.show). Provider failures already surface as BackendError with a message; revisiting this means revisiting the deliberate error strategy, not porting one function."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "checkModerationError",
+    "js_line": 1708,
+    "loc": 8,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Moderation-error toastr.info (flagged text + reasons). Same call as checkQuotaError: AstrBot's provider surface reports the failure."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getChatCompletionModel",
+    "js_line": 1722,
+    "loc": 61,
+    "python_target": "tavern/config.py:BackendConfig",
+    "status": "pending",
+    "note": "source -> model-name resolution. The port has a single configured provider id and no chat_completion_source switch, so the per-source spellings (claude_model/openai_model/openrouter_model/...) have no equivalent."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getOpenRouterModelTemplate",
+    "js_line": 1784,
+    "loc": 18,
+    "python_target": "",
+    "status": "exempt",
+    "note": "DOMPurify + jQuery option template."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "calculateOpenRouterCost",
+    "js_line": 1803,
+    "loc": 26,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Model cost display (jQuery + i18n)."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getElectronHubModelTemplate",
+    "js_line": 1830,
+    "loc": 30,
+    "python_target": "",
+    "status": "exempt",
+    "note": "DOMPurify + jQuery option template."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "calculateElectronHubCost",
+    "js_line": 1861,
+    "loc": 21,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Model cost display."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getChutesModelTemplate",
+    "js_line": 1883,
+    "loc": 38,
+    "python_target": "",
+    "status": "exempt",
+    "note": "DOMPurify + jQuery option template."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "calculateChutesCost",
+    "js_line": 1922,
+    "loc": 26,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Model cost display."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getNanoGptModelTemplate",
+    "js_line": 1949,
+    "loc": 59,
+    "python_target": "",
+    "status": "exempt",
+    "note": "DOMPurify + jQuery option template."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getAimlapiModelTemplate",
+    "js_line": 2009,
+    "loc": 15,
+    "python_target": "",
+    "status": "exempt",
+    "note": "DOMPurify + jQuery option template."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "saveModelList",
+    "js_line": 2025,
+    "loc": 383,
+    "python_target": "",
+    "status": "exempt",
+    "note": "383 lines of model-list rendering and sorting UI."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "sortModelsBy",
+    "js_line": 2416,
+    "loc": 63,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Helper for the model-list dropdown (called only from saveModelList); pure, but it exists to order a UI list the plugin does not have."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "groupModelsByVendor",
+    "js_line": 2486,
+    "loc": 52,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Model-list dropdown grouping helper."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getReasoningEffort",
+    "js_line": 2545,
+    "loc": 120,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Provider-specific reasoning-effort parameter (string vs numeric per source, 120 lines of source/model tables) for the request body; see createGenerationParameters."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getVerbosity",
+    "js_line": 2671,
+    "loc": 10,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Same request-body family: maps the display setting to the provider's verbosity parameter."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "createGenerationParameters",
+    "js_line": 2691,
+    "loc": 437,
+    "python_target": "",
+    "status": "exempt",
+    "note": "437 lines that build the provider request body (generate_data, per-provider params, reasoning signatures, media migration). The plugin never sends its own request body: astrbot_provider.py::build_kwargs hands messages to AstrBot's provider and sillytavern.py builds the ST payload. Copying it would be provider-specific work with no consumer."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "sendOpenAIRequest",
+    "js_line": 3138,
+    "loc": 74,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Transport (fetch + SSE + abort) plus the pre-request orchestration. The port delegates transport entirely to the backend layer."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getStreamingReply",
+    "js_line": 3222,
+    "loc": 85,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Streaming delta parsing, out of scope."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "parseChatCompletionLogprobs",
+    "js_line": 3314,
+    "loc": 30,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Logprobs, out of scope: the plugin does not display or store token probabilities, and the per-provider shapes are a debug/analysis feature."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "parseOpenAIChatLogprobs",
+    "js_line": 3352,
+    "loc": 21,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Logprobs, out of scope."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "parseOpenAITextLogprobs",
+    "js_line": 3381,
+    "loc": 19,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Logprobs, out of scope."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "calculateLogitBias",
+    "js_line": 3401,
+    "loc": 18,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Per-token bias values are fetched from the SillyTavern dev server (`/api/backends/chat-completions/bias`), which the plugin does not have. The `bias` prompt *block* is a separate thing and is in scope."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "ChatCompletion",
+    "js_line": 3917,
+    "loc": 352,
+    "python_target": "tavern/st/chat_completion.py:ChatCompletion",
+    "status": "ported",
+    "note": "The class and its message model are ported there (Message/MessageCollection/ChatCompletion/TokenHandler, chat_completion.py:187-630) and diff_prompt.py plus the 8-diff_assembly.py fixtures pin the assembly-visible members. Note: the probe walks *top-level functions* and so lists this class under its JS camel-case spelling; the port spells classes in PascalCase, which is why a name-derived verdict could never resolve it. Not carried over: media inlining, tool-call/reasoning paths, and setTokenBudget is reachable only from tests and the oracle (see the getMaxContext* rows)."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "migrateChatCompletionSettings",
+    "js_line": 4274,
+    "loc": 40,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Rewrites a legacy SillyTavern *preset* (old key names, old model aliases) in place at load time. This is browser-app data migration for a preset file the port does not own; TavernConfig.from_raw reads the plugin's own config instead."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "loadOpenAISettings",
+    "js_line": 4320,
+    "loc": 86,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Loads ST preset names into the settings dropdown."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "setNamesBehaviorControls",
+    "js_line": 4407,
+    "loc": 19,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Radio-button state for names_behavior."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "setContinuePostfixControls",
+    "js_line": 4427,
+    "loc": 25,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Radio-button state for continue_postfix."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "setToolReasoningControls",
+    "js_line": 4453,
+    "loc": 5,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Disables a reasoning-mode <select>."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getStatusOpen",
+    "js_line": 4459,
+    "loc": 117,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Connectivity check against the ST server plus a status toast; the port asks AstrBot's provider instead (and its own /酒馆 状态 command)."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getChatCompletionPreset",
+    "js_line": 4582,
+    "loc": 7,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Collects the preset body that gets POSTed to ST."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "saveOpenAIPreset",
+    "js_line": 4598,
+    "loc": 35,
+    "python_target": "",
+    "status": "exempt",
+    "note": "POST /api/presets/save plus a dropdown refresh."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onLogitBiasPresetChange",
+    "js_line": 4634,
+    "loc": 43,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Logit-bias preset selection (DOM + i18n)."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "createNewLogitBiasEntry",
+    "js_line": 4678,
+    "loc": 7,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Adds a bias entry to the in-page preset object."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "createLogitBiasListItem",
+    "js_line": 4686,
+    "loc": 42,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Renders one bias row."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "createNewLogitBiasPreset",
+    "js_line": 4729,
+    "loc": 18,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Popup-driven new bias preset."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "addLogitBiasPresetOption",
+    "js_line": 4748,
+    "loc": 9,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Appends an <option> to the bias-preset select."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onImportPresetClick",
+    "js_line": 4758,
+    "loc": 3,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Triggers a hidden file input's click."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onLogitBiasPresetImportClick",
+    "js_line": 4762,
+    "loc": 3,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Triggers a hidden file input's click."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onPresetImportFileChange",
+    "js_line": 4766,
+    "loc": 82,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Reads a browser File, then POSTs the preset to /api/presets/import; the plugin imports cards and world books by message attachment instead."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onExportPresetClick",
+    "js_line": 4849,
+    "loc": 43,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Browser download of the ST preset JSON."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onLogitBiasPresetImportFileChange",
+    "js_line": 4893,
+    "loc": 41,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Browser File -> bias preset."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onLogitBiasPresetExportClick",
+    "js_line": 4935,
+    "loc": 9,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Browser download of a bias preset."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onDeletePresetClick",
+    "js_line": 4945,
+    "loc": 35,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Popup confirm + /api/presets/delete."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onLogitBiasPresetDeleteClick",
+    "js_line": 4981,
+    "loc": 20,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Popup confirm + DOM option removal."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getPresetApplicationPromise",
+    "js_line": 5015,
+    "loc": 3,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Returns the page's in-flight preset-application promise; there is no preset application lifecycle in the port to wait on."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onSettingsPresetChange",
+    "js_line": 5020,
+    "loc": 62,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Reads the selected preset from the settings dropdown and applies it in the page; the port resolves its preset per turn (PluginCore.preset_for)."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getMaxContextOpenAI",
+    "js_line": 5088,
+    "loc": 35,
+    "python_target": "tavern/config.py:BackendConfig + tavern/st/prompt.py:trim_history",
+    "status": "pending",
+    "note": "A regex -> context-size table for the OpenAI models; nothing in the port resolves a provider context window. Today build_turn never sets a token budget, so trim_history is only reachable from tests and the oracle."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getGeminiMaxContext",
+    "js_line": 5130,
+    "loc": 33,
+    "python_target": "",
+    "status": "pending",
+    "note": "Gemini inputTokenLimit lookup from model_list."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getGeminiMaxTemp",
+    "js_line": 5169,
+    "loc": 14,
+    "python_target": "",
+    "status": "pending",
+    "note": "Gemini maxTemperature lookup from model_list."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getMistralMaxContext",
+    "js_line": 5190,
+    "loc": 15,
+    "python_target": "",
+    "status": "pending",
+    "note": "Mistral context lookup from model_list."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getGroqMaxContext",
+    "js_line": 5212,
+    "loc": 40,
+    "python_target": "",
+    "status": "pending",
+    "note": "Groq context map and model_list lookup."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getZaiMaxContext",
+    "js_line": 5259,
+    "loc": 28,
+    "python_target": "",
+    "status": "pending",
+    "note": "Static GLM model -> context map."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getSiliconflowMaxContext",
+    "js_line": 5294,
+    "loc": 51,
+    "python_target": "",
+    "status": "pending",
+    "note": "Static SiliconFlow model -> context map."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getMoonshotMaxContext",
+    "js_line": 5352,
+    "loc": 33,
+    "python_target": "",
+    "status": "pending",
+    "note": "Moonshot context lookup from model_list."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getFireworksMaxContext",
+    "js_line": 5392,
+    "loc": 18,
+    "python_target": "",
+    "status": "pending",
+    "note": "Fireworks context lookup from model_list."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getChutesMaxContext",
+    "js_line": 5417,
+    "loc": 13,
+    "python_target": "",
+    "status": "pending",
+    "note": "Chutes context lookup from model_list."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getElectronHubMaxContext",
+    "js_line": 5437,
+    "loc": 13,
+    "python_target": "",
+    "status": "pending",
+    "note": "ElectronHub token lookup from model_list."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getNanoGptMaxContext",
+    "js_line": 5457,
+    "loc": 14,
+    "python_target": "",
+    "status": "pending",
+    "note": "NanoGPT context lookup from model_list."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onModelChange",
+    "js_line": 5472,
+    "loc": 547,
+    "python_target": "",
+    "status": "exempt",
+    "note": "547 lines of model-dropdown change handling (per-source model selects, context sizes, visibility toggles)."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onNewPresetClick",
+    "js_line": 6020,
+    "loc": 9,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Popup + saveOpenAIPreset."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onReverseProxyInput",
+    "js_line": 6030,
+    "loc": 5,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Reads a proxy text input and saves settings."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onConnectButtonClick",
+    "js_line": 6036,
+    "loc": 63,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Reads API keys out of the page and writes them to the browser secret store."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "toggleChatCompletionForms",
+    "js_line": 6100,
+    "loc": 71,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Shows/hides the per-source settings forms."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "testApiConnection",
+    "js_line": 6172,
+    "loc": 15,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Clicks the connect button and toasts the outcome; the port surfaces provider failures through BackendError."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "reconnectOpenAi",
+    "js_line": 6188,
+    "loc": 7,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Sets the online-status dot and clicks the API button."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onProxyAccessKeyShowClick",
+    "js_line": 6196,
+    "loc": 4,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Toggles a masked-secret input."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onCustomizeParametersClick",
+    "js_line": 6201,
+    "loc": 20,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Popup form for raw custom-endpoint body/header parameters; request-body concerns belong to AstrBot's provider config."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "isImageInliningSupported",
+    "js_line": 6226,
+    "loc": 135,
+    "python_target": "",
+    "status": "exempt",
+    "note": "135 lines of per-provider/per-model capability detection for image inlining; media inlining is out of scope by decision (prompt_build.py module docstring)."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "isVideoInliningSupported",
+    "js_line": 6366,
+    "loc": 35,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Video inlining capability detection, out of scope."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "isAudioInliningSupported",
+    "js_line": 6406,
+    "loc": 37,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Audio inlining capability detection, out of scope."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getToolReasoningMode",
+    "js_line": 6449,
+    "loc": 7,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Tool-call reasoning mode, out of scope."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "getEffectiveToolReasoningMode",
+    "js_line": 6463,
+    "loc": 7,
+    "python_target": "",
+    "status": "exempt",
+    "note": "show_thoughts gating for the same tool-reasoning mode; out of scope."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "isReasoningSignatureSupported",
+    "js_line": 6476,
+    "loc": 7,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Reasoning-signature support check for the request body; out of scope by decision (prompt_build.py module docstring)."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "loadProxyPresets",
+    "js_line": 6487,
+    "loc": 21,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Fills the proxy dropdown; global proxies array."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "setProxyPreset",
+    "js_line": 6509,
+    "loc": 19,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Mutates the in-page proxy list; no DOM-free consumer."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onProxyPresetChange",
+    "js_line": 6529,
+    "loc": 11,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Proxy dropdown change handler."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "runProxyCallback",
+    "js_line": 6588,
+    "loc": 18,
+    "python_target": "",
+    "status": "exempt",
+    "note": "`/proxy` slash-command autocomplete callback (Fuse + DOM)."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onVertexAIAuthModeChange",
+    "js_line": 6610,
+    "loc": 12,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Vertex AI auth-mode form toggling."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onVertexAIValidateServiceAccount",
+    "js_line": 6626,
+    "loc": 40,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Validates a service-account JSON from a textarea and writes it to the browser secret store; AstrBot owns provider credentials."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onVertexAIClearServiceAccount",
+    "js_line": 6670,
+    "loc": 10,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Clears the service account from the secret store."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "onVertexAIServiceAccountJsonChange",
+    "js_line": 6684,
+    "loc": 30,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Textarea input validation + status text."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "updateVertexAIServiceAccountStatus",
+    "js_line": 6720,
+    "loc": 20,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Service-account status badge text."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "updateFeatureSupportFlags",
+    "js_line": 6741,
+    "loc": 15,
+    "python_target": "",
+    "status": "exempt",
+    "note": "Publishes inlining/tool-calling capability flags to the page."
+  },
+  {
+    "js_source": "openai.js",
+    "js_name": "initOpenAI",
+    "js_line": 6757,
+    "loc": 640,
+    "python_target": "",
+    "status": "exempt",
+    "note": "640 lines of page bootstrap: jQuery/template wiring, dropdowns, slash-command registration and settings-form handlers. The plugin's own command surface is tavern/main.py::_register_commands."
+  },
+  {
+    "js_source": "PromptManager.js",
+    "js_name": "debouncePromise",
+    "js_line": 16,
+    "loc": 14,
+    "python_target": "",
+    "status": "pending",
+    "note": "Module-private (not exported) promise debouncer. The port has an equivalent of neither half: no call is debounced, and there is no promise-returning debounce helper anywhere under tavern/. Its only reference caller is setupChatCompletionPromptManager (exempt), so this is cheap but real: rapid preset/binding changes re-assemble without any coalescing or write de-duplication."
+  },
+  {
+    "js_source": "PromptManager.js",
+    "js_name": "PromptCollection",
+    "js_line": 201,
+    "loc": 98,
+    "python_target": "tavern/st/prompt_build.py:PromptCollection",
+    "status": "ported",
+    "note": "add/get/index/has/set/override/checkPromptInstance are mirrored at prompt_build.py:495-547, including override() recording the identifier. Two deliberate differences: checkPromptInstance becomes as_prompt() coercion (the port accepts mappings and objects, not just Prompt instances), and copy() has no JS counterpart -- it exists because the reference rebuilds the collection from the saved configuration on every call."
   }
 ]

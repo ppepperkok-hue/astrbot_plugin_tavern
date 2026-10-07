@@ -1,0 +1,13 @@
+{
+  "name": "04-add-assistant-prefix-tools-arg-nonempty",
+  "function": "addAssistantPrefix",
+  "description": "The other half of the `hasAnyTools` disjunction at prompt-converters.js:71: `Array.isArray(tools) && tools.length > 0`. Here no message has role `tool`, so the only thing suppressing the flag is the `tools` argument itself -- fixture 03b covers the message-role route and 03 covers the no-tools case, so between the three every arm of that boolean is pinned. `tools` is a non-empty array of definitions whose contents are never read; only its length matters, which is why they are placeholders.",
+  "args": [
+    [
+      { "role": "system", "content": "Rules." },
+      { "role": "assistant", "content": "Hello." }
+    ],
+    [{ "type": "function", "function": { "name": "get_time" } }],
+    "prefix"
+  ]
+}

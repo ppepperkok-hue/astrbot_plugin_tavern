@@ -1,0 +1,6 @@
+{
+  "name": "55-budget-pro-max",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Legacy pro family, reasoningEffort 'max' takes maxTokens whole (:1256-1257); with 10000, below both the cap and above the floor, it is returned unchanged. Expected value: 10000.",
+  "args": [10000, "max", "gemini-2.5-pro"]
+}

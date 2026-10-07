@@ -1,0 +1,20 @@
+{
+  "name": "12c-convert-xai-messages",
+  "function": "convertXAIMessages",
+  "description": "convertXAIMessages (prompt-converters.js:785-814) and its three-rule table, one message per rule. The guard at :791-793 skips a message with no `name` and any `user`-role message (which is why the system and user turns at the end are untouched). For the rest, the table at :795-803 is searched in order and the FIRST match decides; the rule's `condition` is a tri-state value (falsy, or a boolean), and the reference's `find` tests it for truthiness, so a rule whose condition is `''`/`false` is skipped rather than matched. The prefix at :806 is `userName` only for the system+example_user pair, otherwise `charName`. The `delete msg.name` at :810 runs for EVERY message that reaches the body -- matching or not -- so a named assistant turn whose content is already prefixed still loses its `name`. That delete-not-just-on-match behaviour is the sharp signal here.",
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": ["Seraphina"]
+  },
+  "args": [
+    [
+      { "role": "assistant", "name": "Iris", "content": "the fog lifts" },
+      { "role": "system", "name": "example_assistant", "content": "Seraphina: I see it" },
+      { "role": "system", "name": "example_user", "content": "where are we" },
+      { "role": "user", "name": "Corin", "content": "over here" },
+      { "role": "assistant", "content": "no name to delete" }
+    ],
+    "$promptNames"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "59-google-empty-text-and-empty-tool-calls",
+  "function": "convertGooglePrompt",
+  "description": "Two truthiness guards in one call. (1) `hasToolCalls` requires `tool_calls.length > 0` (:472), so an EMPTY tool_calls array does not produce a tool_calls part -- the turn stays a plain text part and its content survives. (2) The merge branch tests `if (part.text)` (:602), so a text part whose text is the empty string is neither appended to the previous text part nor caught by the second guard at :610, and that turn vanishes from the merged contents without a trace. Expected: contents = [{'role':'user','parts':[{'text':'Hello\\n\\nstill text'}]}] -- three input turns in, one part out.",
+  "args": [
+    [
+      {"role": "user", "content": "Hello"},
+      {"role": "user", "content": "still text", "tool_calls": []},
+      {"role": "user", "content": ""}
+    ],
+    "gemini-1.5-pro",
+    false,
+    "$promptNames"
+  ]
+}

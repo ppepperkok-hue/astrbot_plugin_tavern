@@ -1,0 +1,6 @@
+{
+  "name": "48-budget-claude-auto",
+  "function": "calculateClaudeBudgetTokens",
+  "description": "Non-adaptive path, reasoningEffort 'auto': the switch returns null before any arithmetic (:1147-1148), so the 1024 floor never runs. Expected value: null.",
+  "args": [100000, "auto", true, false]
+}

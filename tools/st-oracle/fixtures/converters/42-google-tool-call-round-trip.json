@@ -1,0 +1,27 @@
+{
+  "name": "42-google-tool-call-round-trip",
+  "function": "convertGooglePrompt",
+  "description": "The tool path of convertGooglePrompt. An assistant turn carrying `tool_calls` becomes one part of type 'tool_calls' (:475-477); each call becomes a functionCall whose args go through `tryParse(...) ?? ...arguments` (:554) and whose `signature` is spread onto the part only when truthy (:556); every call id is recorded in toolNameMap (:559). The two following 'tool' turns become role 'user' (:462-463) holding a 'tool_call_id' part, whose functionResponse name is looked up in toolNameMap -- 'call_1' resolves to 'get_weather' while 'call_missing' falls back to 'unknown' (:542) -- and the second one merges into the first, because a functionResponse part is re-pushed during a merge (:610-611). Model 'gemini-2.5-pro' is inside the signature guard (:577) but no message carries a signature, so nothing is injected (:595: Gemini 2.5 needs no bypass). Expected: contents = [user[text], model[functionCall+thoughtSignature 'SIG-TOOL', functionCall(args='not-json{')], user[functionResponse get_weather, functionResponse unknown], model[text 'It is sunny.' + thoughtSignature 'SIG-TEXT']]; the last turn's signature comes from the injected message-level `signature`, and the first call's args parse back to the object {'city':'Tokyo'}.",
+  "args": [
+    [
+      {"role": "user", "content": "Weather and time?"},
+      {
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "id": "call_1",
+            "function": {"name": "get_weather", "arguments": "{\"city\":\"Tokyo\"}"},
+            "signature": "SIG-TOOL"
+          },
+          {"id": "call_2", "function": {"name": "get_time", "arguments": "not-json{"}}
+        ]
+      },
+      {"role": "tool", "tool_call_id": "call_1", "content": "sunny 22C"},
+      {"role": "tool", "tool_call_id": "call_missing", "content": "?"},
+      {"role": "assistant", "content": "It is sunny.", "signature": "SIG-TEXT"}
+    ],
+    "gemini-2.5-pro",
+    false,
+    "$promptNames"
+  ]
+}

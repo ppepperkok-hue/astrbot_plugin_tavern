@@ -1,0 +1,6 @@
+{
+  "name": "48-budget-claude-nostream-cap",
+  "function": "calculateClaudeBudgetTokens",
+  "description": "Non-adaptive path, reasoningEffort 'max' and stream false: floor(100000 * 0.95) = 95000, then :1169 (Math.min(budgetTokens, 21333)) caps it at 21333. Pairs with 48-budget-claude-max, which is the same call with stream true and returns 95000 -- the two together pin the cap's value and its position. Expected value: 21333.",
+  "args": [100000, "max", false, false]
+}

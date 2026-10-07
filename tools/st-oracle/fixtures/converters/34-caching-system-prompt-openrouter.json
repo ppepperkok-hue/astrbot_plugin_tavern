@@ -1,0 +1,21 @@
+{
+  "name": "34-caching-system-prompt-openrouter",
+  "function": "cachingSystemPromptForOpenRouter",
+  "description": "cachingSystemPromptForOpenRouter (prompt-converters.js:1072-1113) with a 1h TTL. The first system turn (`find` at :1078, not a filter over every system turn) has **array** content whose *last* part is not text -- an image sits after the text part -- so the backward scan at :1098-1103 skips it and stamps the text part before it. The second system turn is left alone: only the first one is ever considered. The two non-system turns are untouched. Because the function returns nothing, the post-call arguments are the whole assertion.",
+  "args": [
+    [
+      {
+        "role": "system",
+        "content": [
+          { "type": "text", "text": "Rules." },
+          { "type": "text", "text": "Style." },
+          { "type": "image", "source": { "type": "base64", "media_type": "image/png", "data": "AAAA" } }
+        ]
+      },
+      { "role": "system", "content": "Second." },
+      { "role": "user", "content": "Hi." },
+      { "role": "assistant", "content": "Hello." }
+    ],
+    "1h"
+  ]
+}

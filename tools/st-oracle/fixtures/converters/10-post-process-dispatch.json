@@ -1,0 +1,19 @@
+{
+  "name": "10-post-process-dispatch",
+  "function": "postProcessPrompt",
+  "description": "postProcessPrompt (prompt-converters.js:85-105) is a pure dispatch over PROMPT_PROCESSING_TYPE, and this pins both halves of that: (a) NONE -- the empty string -- and an unrecognised type fall through to `default` (:102-104) and hand back the SAME array, unmutated, which is why `returned` and `mutated` both show the untouched input; (b) STRICT routes to mergeMessages with `{strict:true, placeholders:true, single:false, tools:false}` (:96-97), which the two-system-message input makes observable: the mid-prompt system turn becomes `user` (:939-941) and a placeholder user turn is spliced in at index 1, because messages[1] is a system turn and not a user turn (:944-945). The names object comes through the `$promptNames` sentinel so the reference's startsWithGroupName predicate is a real function on both sides.",
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": ["Seraphina"]
+  },
+  "args": [
+    [
+      { "role": "user", "content": "hello" },
+      { "role": "assistant", "content": "hi" },
+      { "role": "user", "content": "still there?" }
+    ],
+    "none",
+    "$promptNames"
+  ]
+}

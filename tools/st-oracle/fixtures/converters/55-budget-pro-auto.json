@@ -1,0 +1,6 @@
+{
+  "name": "55-budget-pro-auto",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "'gemini-2.5-pro' has no gemini-3 prefix and no 'flash', so it reaches getProBudget (:1321-1322, /pro/), the last family before the fall-through. reasoningEffort 'auto' returns the sentinel -1 (:1241-1242). Expected value: -1.",
+  "args": [100000, "auto", "gemini-2.5-pro"]
+}

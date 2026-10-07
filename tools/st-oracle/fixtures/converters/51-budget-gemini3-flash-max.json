@@ -1,0 +1,6 @@
+{
+  "name": "51-budget-gemini3-flash-max",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Gemini 3 flash family, reasoningEffort 'max' returns 'high' (:1279-1280) from its own case, so the flash and pro families agree on the ceiling. Expected value: 'high'.",
+  "args": [100000, "max", "gemini-3.5-flash"]
+}

@@ -1,0 +1,18 @@
+{
+  "name": "14c-merge-messages-partial-options",
+  "function": "mergeMessages",
+  "description": "The reference's destructuring defaults, per key rather than per object: the options object supplies only `strict` (`{ strict = false, placeholders = false, single = false, tools = false } = {}`, :827), so `placeholders`, `single` and `tools` must each fall back to false individually. `strict` with placeholders OFF is the observable part: a leading non-user turn does NOT get a placeholder unshifted (:943-947 is gated on placeholders), while the mid-prompt system demotion at :937-942 still runs. A port that reads the option flags with bare indexing -- or that fills defaults only when the whole object is absent -- fails here.",
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": []
+  },
+  "args": [
+    [
+      { "role": "assistant", "content": "as you wish" },
+      { "role": "user", "content": "hello" }
+    ],
+    "$promptNames",
+    { "strict": true }
+  ]
+}

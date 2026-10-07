@@ -1,0 +1,18 @@
+{
+  "name": "40-convert-claude-messages-group-predicate-inplace",
+  "function": "convertClaudeMessages",
+  "description": "The second call site of the `startsWithGroupName` predicate (:259-263), on the non-system turns that are rewritten to 'user' when `useSysPrompt` is false. A leading group turn at index 0 is not special-cased -- only the first turn of the *system* run is exempt from the rewrite -- so the message at index 0 takes the same branch as the one at index 2: it already starts with `Corin: `, so the predicate is true and `Iris: ` is withheld, while the turn in between gets the character prefix. `names` comes from the `$promptNames` sentinel, so both sides call a real method-shaped predicate.",
+  "names": { "charName": "Iris", "userName": "User", "groupNames": ["Seraphina", "Corin"] },
+  "args": [
+    [
+      { "role": "system", "name": "example_assistant", "content": "Corin: evening." },
+      { "role": "system", "name": "example_assistant", "content": "Seraphina: hi." },
+      { "role": "system", "name": "example_assistant", "content": "Noon." },
+      { "role": "assistant", "content": "Shall we begin?" }
+    ],
+    "",
+    false,
+    false,
+    "$promptNames"
+  ]
+}

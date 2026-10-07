@@ -1,0 +1,14 @@
+{
+  "name": "58-google-system-prompt-leftover",
+  "function": "convertGooglePrompt",
+  "description": "The system-prompt collection is guarded by `messages.length > 1` (:436), so it can never consume the LAST message of the array. With two leading system turns and nothing else, S1 is shifted into system_instruction while S2 is left behind; S2 then falls through the role fix to 'user' (:462-463) and becomes the only content turn. A port written as `while messages and messages[0].role == 'system'` would consume both and return contents = []. Expected: system_instruction.parts = [{'text':'S1'}]; contents = [{'role':'user','parts':[{'text':'S2'}]}].",
+  "args": [
+    [
+      {"role": "system", "content": "S1"},
+      {"role": "system", "content": "S2"}
+    ],
+    "gemini-1.5-pro",
+    true,
+    "$promptNames"
+  ]
+}

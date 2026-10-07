@@ -1,0 +1,7 @@
+{
+  "name": "10d-convert-text-completion-string",
+  "function": "convertTextCompletionPrompt",
+  "description": "The string passthrough of convertTextCompletionPrompt (prompt-converters.js:962-964): a caller may hand over an already-rendered prompt, and the reference returns it unchanged -- it does not wrap it, append 'assistant:', or try to iterate it. A port that assumes an array on this path throws on `.get`/indexing instead of matching. The argument is a bare string, so `mutated` is the same string on both sides.",
+  "names": {},
+  "args": ["System: you are Iris\nuser: hi\nassistant:"]
+}

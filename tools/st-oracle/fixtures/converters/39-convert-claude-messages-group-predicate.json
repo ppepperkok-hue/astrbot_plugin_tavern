@@ -1,0 +1,18 @@
+{
+  "name": "39-convert-claude-messages-group-predicate",
+  "function": "convertClaudeMessages",
+  "description": "The `startsWithGroupName` predicate of convertClaudeMessages, at the system-extraction call site (:212-216). Three `example_assistant` system turns go in and they must come out differently: 'Seraphina: good evening' already begins with a group member's name (`name + ': '`, colon **and** space, prompt-converters.js:55), so the predicate returns true and `charName` is *not* prepended; 'Narrator: hi' matches no group member, so it gets `Iris: `; and a turn with no name at all never enters the branch. This is the case a JSON `names` object cannot express at all -- the sentinel supplies a real function on both sides. The predicate's own behaviour is pinned separately by 01-prompt-names and 02-prompt-names-empty.",
+  "names": { "charName": "Iris", "userName": "User", "groupNames": ["Seraphina", "Corin"] },
+  "args": [
+    [
+      { "role": "system", "name": "example_assistant", "content": "Seraphina: good evening" },
+      { "role": "system", "name": "example_assistant", "content": "Narrator: hi" },
+      { "role": "system", "name": "example_assistant", "content": "No name at all." },
+      { "role": "user", "content": "Carry on." }
+    ],
+    "",
+    true,
+    false,
+    "$promptNames"
+  ]
+}

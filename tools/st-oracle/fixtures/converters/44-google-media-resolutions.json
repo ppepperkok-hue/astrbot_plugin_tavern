@@ -1,0 +1,28 @@
+{
+  "name": "44-google-media-resolutions",
+  "function": "convertGooglePrompt",
+  "description": "Every data-URL branch of addDataUrlPart (:515-537) in one message whose content is ALREADY a part array (so the :470 conversion is skipped). Model 'gemini-3.5-flash' matches /gemini-3/, so a mapped detail adds part.mediaResolution = {level: ...} (:529-533). GEMINI_MEDIA_RESOLUTION maps only 'low' and 'high' (:29-32), so detail 'auto' and a missing detail must emit NO mediaResolution at all. The mime type comes from the header's `data:([^;]+)` capture, falling back to the call's default ('data:,HHHH' has nothing between 'data:' and the comma, so it falls back to image/png); a 'data:image/png' URL with no comma at all leaves the split's second element undefined, so JSON.stringify drops the `data` key and the part is {inlineData:{mimeType:'image/png'}} with no data field. A non-data URL is skipped entirely, video_url takes 'video/mp4' with its detail, and audio_url passes no detail so it can never carry a resolution. Expected parts, in order: image/png+low, image/jpeg+high, image/webp (auto, no resolution), image/png (no detail, no resolution), video/mp4+high, audio/mpeg, image/png from the 'data:,' fallback, text/plain from the explicit header, image/png with no data key, then the trailing text part.",
+  "args": [
+    [
+      {
+        "role": "user",
+        "content": [
+          {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA", "detail": "low"}},
+          {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,BBBB", "detail": "high"}},
+          {"type": "image_url", "image_url": {"url": "data:image/webp;base64,CCCC", "detail": "auto"}},
+          {"type": "image_url", "image_url": {"url": "data:image/png;base64,DDDD"}},
+          {"type": "image_url", "image_url": {"url": "https://example.test/cat.png", "detail": "high"}},
+          {"type": "video_url", "video_url": {"url": "data:video/mp4;base64,EEEE", "detail": "high"}},
+          {"type": "audio_url", "audio_url": {"url": "data:audio/mpeg;base64,FFFF", "detail": "high"}},
+          {"type": "image_url", "image_url": {"url": "data:,HHHH"}},
+          {"type": "image_url", "image_url": {"url": "data:text/plain;base64,GGGG", "detail": "low"}},
+          {"type": "image_url", "image_url": {"url": "data:image/png"}},
+          {"type": "text", "text": "Describe these."}
+        ]
+      }
+    ],
+    "gemini-3.5-flash",
+    false,
+    "$promptNames"
+  ]
+}

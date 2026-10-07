@@ -1,0 +1,10 @@
+{
+  "name": "03c-add-assistant-prefix-empty-and-last-user",
+  "function": "addAssistantPrefix",
+  "description": "Two suppress paths that are easy to conflate. First an empty prompt: the early `if (!prompt.length) return prompt;` at prompt-converters.js:68-70 must return without touching anything -- a port that indexed `prompt[-1]` first would raise here. Then, in the same fixture, a prompt whose last message is a *user* turn: `hasAnyTools` is false, so the only thing stopping the flag is the `role === 'assistant'` check at :72. Since the function mutates its argument, running the two calls in sequence inside one fixture is what makes the empty-prompt case observable at all (its return value is the same empty array either way).",
+  "args": [
+    [],
+    null,
+    "prefix"
+  ]
+}

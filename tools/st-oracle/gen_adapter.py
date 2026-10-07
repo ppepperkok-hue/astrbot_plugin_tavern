@@ -66,27 +66,31 @@ ENGINE_EXTRA_EXPORTS: dict[str, tuple[str, ...]] = {
     "public/scripts/openai.js": ("populateChatCompletion",),
 }
 
-#: Module-scope private state an ``ENGINE_EXTRA_CODE`` block closes over, emitted
-#: as a ``const`` declaration instead of an expression. `prompt-converters.js`
-#: exposes `setConvConfig` for the oracle, and that hook has to assign into the
-#: same object `getConfigValue` reads -- a render-time import cannot do it,
-#: because the engine module is copied byte for byte with nothing added to its
-#: import list.
-ENGINE_EXTRA_DECLS: dict[str, dict[str, str]] = {
-    "./util.js": {"_convConfig": "{}"},
-}
+#: Module-scope private state an engine's generated shim has to declare for
+#: itself. Empty today: the one piece of state in play (`_convConfig`) belongs to
+#: the `./util.js` override that reads it, and every engine takes it from there.
+ENGINE_EXTRA_DECLS: dict[str, dict[str, str]] = {}
 ENGINE_EXTRA_CODE: dict[str, str] = {
     "public/scripts/prompt-converters.js": """
 // Oracle-only hook (see gen_adapter.py). `prompt-converters.js` reads two config
 // values at module scope -- `promptPlaceholder` (:4) and `gemini.thoughtSignatures`
 // (:34) -- and `mistral.enablePrefix` at call time. The runner has to set them
-// *before* the module is imported, and it cannot do that through `util.js`,
-// because the module's import list is the snapshot's own and does not name this
-// hook. So the hook lives here and assigns into the same `_convConfig` object the
-// `./util.js` override's `getConfigValue` reads.
-export function setConvConfig(values) {
-    Object.assign(_convConfig, values);
+// *before* the module is imported, and it cannot do that by importing a second
+// name from `./util.js`: the engine's import list is the snapshot's own, copied
+// byte for byte. So the hook lives here and forwards to the `./util.js` override's
+// `setConvConfig`, which owns the single `_convConfig` object that `getConfigValue`
+// reads. The values go through a copy because the runner's config object is
+// shared with the fixture and must not gain the forwarding key.
+export function oracleSetConvConfig(values) {
+    // Copy: the runner's object is the fixture's and must not gain the key below.
+    const forwarded = Object.assign({}, values);
+    forwarded.__stConvConfigApply = true;
+    setConvConfig(forwarded);
+    delete forwarded.__stConvConfigApply;
 }
+// The rule below is what puts `setConvConfig` in this engine's generated import
+// list -- the appended code cannot import by name itself. Keep the spelling.
+import { setConvConfig } from './util.js';
 """,
     "public/scripts/openai.js": """
 // Oracle-only hook (see gen_adapter.py): the browser assigns this in setup(),
@@ -269,7 +273,14 @@ OVERRIDES: dict[str, dict[str, str]] = {
     # `tryParse(args) ?? args`, so a fallback to the raw string is the caller's,
     # not the parser's.
     "./util.js": {
-        "_convConfig": "({})",
+        # The config is read *inside* `prompt-converters.js` at module scope
+        # (``:4`` and ``:34``), so it has to be in place before that module is
+        # evaluated -- which rules out a hook the module exports. The runner puts
+        # the fixture's config on ``globalThis`` instead, and this module -- the
+        # first thing the engine evaluates -- copies it in. `setConvConfig` stays
+        # as the hook for anything that wants to change the values afterwards
+        # (``mistral.enablePrefix`` is read at call time, ``:709``).
+        "_convConfig": "(Object.assign({}, globalThis.__stConvConfig || {}))",
         "getConfigValue": (
             "((key, defaultValue = null, typeConverter = null) => {"
             " const envKey = 'ST_' + String(key).replace(/[.-]/g, '_')"
@@ -397,7 +408,10 @@ def generate(verbose: bool = True) -> dict:
         # `ENGINE_EXTRA_DECLS` instead, because its hook has to assign into the
         # very object `getConfigValue` reads, not a second copy of it.)
         for private_name, private_value in overrides.items():
-            if private_name.startswith("_") and private_name not in extra_decls:
+            if private_name.startswith("_"):
+                lines.append(f"const {private_name} = {private_value};")
+        for private_name, private_value in extra_decls.items():
+            if private_name not in overrides:
                 lines.append(f"const {private_name} = {private_value};")
         if spec == "./PromptManager.js":
             lines.append(extract_prompt_manager_source())

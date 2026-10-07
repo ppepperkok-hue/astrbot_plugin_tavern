@@ -1,0 +1,6 @@
+{
+  "name": "48-budget-claude-min",
+  "function": "calculateClaudeBudgetTokens",
+  "description": "Non-adaptive path, reasoningEffort 'min': a flat 1024, not a fraction of maxTokens (:1149-1151). Expected value: 1024.",
+  "args": [100000, "min", true, false]
+}

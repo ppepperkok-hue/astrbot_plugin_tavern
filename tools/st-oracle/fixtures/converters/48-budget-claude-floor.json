@@ -1,0 +1,6 @@
+{
+  "name": "48-budget-claude-floor",
+  "function": "calculateClaudeBudgetTokens",
+  "description": "Non-adaptive path, reasoningEffort 'low' with a tiny maxTokens: floor(100 * 0.1) = 10, then the floor at :1166 (Math.max(budgetTokens, 1024)) lifts it to exactly 1024 -- the boundary the 'low' fixture cannot reach. Expected value: 1024.",
+  "args": [100, "low", true, false]
+}

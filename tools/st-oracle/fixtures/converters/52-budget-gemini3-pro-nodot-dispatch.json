@@ -1,0 +1,6 @@
+{
+  "name": "52-budget-gemini3-pro-nodot-dispatch",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "The pro dispatch regex is /gemini-3[.\\d]*-pro/ (:1305), where the character class is `*` (zero or more), so a bare 'gemini-3-pro' still reaches getGemini3ProBudget: reasoningEffort 'high' returns the effort string 'high' rather than the 32768 that getProBudget's 'high' would return. Expected value: 'high'.",
+  "args": [100000, "high", "gemini-3-pro"]
+}

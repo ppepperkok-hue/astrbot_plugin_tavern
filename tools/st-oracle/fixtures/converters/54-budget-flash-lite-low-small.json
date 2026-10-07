@@ -1,0 +1,6 @@
+{
+  "name": "54-budget-flash-lite-low-small",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Legacy flash-lite family, reasoningEffort 'low' with maxTokens 100: floor(100 * 0.1) = 10, then the clamp `Math.max(Math.min(10, 24576), 512)` at :1232 lifts it to 512. This is the fixture that pins the 512 floor. Expected value: 512.",
+  "args": [100, "low", "gemini-2.5-flash-lite"]
+}

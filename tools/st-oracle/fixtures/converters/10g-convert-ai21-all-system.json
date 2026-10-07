@@ -1,0 +1,13 @@
+{
+  "name": "10g-convert-ai21-all-system",
+  "function": "convertAI21Messages",
+  "description": "The all-system input of convertAI21Messages (prompt-converters.js:631-695): the drain at :636-657 empties the array, the :659-665 branch unshifts a placeholder user turn, and only then is the drained system prompt unshifted in front of it (:667-672). So the result is [system(joined), user(placeholder)] and the ORDER is the observable part -- a port that unshifts the system prompt first gets [system, user] too, but a port that skips the empty branch or trims the wrong end diverges. The placeholder is the module default (nothing overrides promptPlaceholder here); the `:654` join uses '\\n\\n' between turns and leaves a trailing separator that `trim()` at :670 removes.",
+  "names": {},
+  "args": [
+    [
+      { "role": "system", "content": "only a system turn" },
+      { "role": "system", "content": "and another" }
+    ],
+    { "charName": "", "userName": "", "groupNames": [] }
+  ]
+}

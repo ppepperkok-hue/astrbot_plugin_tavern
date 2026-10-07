@@ -1,0 +1,12 @@
+{
+  "name": "35-caching-system-prompt-openrouter-string",
+  "function": "cachingSystemPromptForOpenRouter",
+  "description": "The string-content branch of cachingSystemPromptForOpenRouter (:1104-1112) with the TTL argument **omitted**, so the `ttl ? {...} : {...}` at :1088-1090 yields the bare `{type: 'ephemeral'}` with no ttl key at all -- a fixture that passed `null` would compare the same, but omitting the argument is what the reference's own default (`ttl = undefined`) does. The first system turn is a plain string, so its content is *replaced* by a one-part array, not indexed. The array-content system turn in second place is not touched.",
+  "args": [
+    [
+      { "role": "system", "content": "You are Iris." },
+      { "role": "system", "content": [{ "type": "text", "text": "Style." }] },
+      { "role": "user", "content": "Hi." }
+    ]
+  ]
+}

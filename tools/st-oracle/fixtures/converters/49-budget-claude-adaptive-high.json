@@ -1,0 +1,6 @@
+{
+  "name": "49-budget-claude-adaptive-high",
+  "function": "calculateClaudeBudgetTokens",
+  "description": "Adaptive model, reasoningEffort 'high' returns 'high' (:1136-1137). Expected value: 'high'.",
+  "args": [100000, "high", true, true]
+}

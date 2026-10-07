@@ -1,0 +1,6 @@
+{
+  "name": "51-budget-gemini3-flash-auto",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Model 'gemini-3.5-flash' matches /gemini-3[.\\d]*-flash/ (:1309), so getGemini3FlashBudget runs. reasoningEffort 'auto' returns null (:1269-1270). Expected value: null.",
+  "args": [100000, "auto", "gemini-3.5-flash"]
+}

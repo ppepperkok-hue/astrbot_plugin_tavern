@@ -183,6 +183,30 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"\nfixtures: {len(rows)} | match: {matched} | diverged: {diverged} | divergences: {total}"
     )
+
+    # A run where nothing matched but nothing diverged either is not a port
+    # result. It is what an environment failure looks like: every fixture reports
+    # `node-error`/`python-error`, so there is no field to differ on. The usual
+    # cause is `gen_adapter.py` rebuilding `.build/` (`generate()` starts with
+    # `shutil.rmtree`) while this ran, which also makes the *reference* report the
+    # anomaly, so blaming the port here would be exactly backwards. Say so loudly
+    # and exit 2 -- "the judge could not run" is a different answer from "the port
+    # is wrong", and collapsing the two has cost this repository real time.
+    if rows and matched == 0 and total == 0:
+        failed = {status for _n, status, _c in rows}
+        print(
+            "\nENVIRONMENT FAILURE, not a port verdict: 0 match, 0 divergences, "
+            f"statuses={sorted(failed)}.\n"
+            "  Every fixture failed before a single field could be compared. If that "
+            "is `node-error`,\n"
+            "  check whether something rebuilt tools/st-oracle/.build/ while this ran "
+            "(`gen_adapter.py`\n"
+            "  deletes the tree before regenerating). Re-run once the rebuild has "
+            "settled.",
+            file=sys.stderr,
+        )
+        return 2
+
     print(f"VERDICT: {'PASS' if diverged == 0 else 'FAIL'}")
     return 0 if diverged == 0 else 1
 

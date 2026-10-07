@@ -1,0 +1,30 @@
+{
+  "name": "11b-convert-mistral-messages",
+  "function": "convertMistralMessages",
+  "description": "convertMistralMessages (prompt-converters.js:703-777) on a full tool-using prompt with `mistral.enablePrefix` ON -- the config block matters, because that value is read at CALL time (:709), not at import time like PROMPT_PLACEHOLDER. Four rules are pinned here: (1) the last assistant turn gets `prefix: true` (:711-713) -- and here the last turn is a SYSTEM turn, so the prefix lands on the assistant turn before it, which is what distinguishes the guard's `lastMsg` from 'some assistant turn'; (2) every tool_call id and tool_call_id is replaced by the first 9 hex chars of its sha512 (:715, :719-726); (3) `example_assistant` / `example_user` system turns lose their `name` and gain a prefix, while a non-system named turn gains the 'name: ' prefix and then loses `name` (:727-744); (4) `fixToolMessages` (:748-766) is a FIXPOINT loop -- each pass folds an immediately-following user turn into the last non-empty user turn before the tool turn and splices it out, then re-runs, so the two trailing user turns collapse one at a time and the `i === length - 1` early return stops the scan. The final pass (:770-774) then turns the assistant-followed-by-system pair into a user turn.",
+  "config": {
+    "mistral.enablePrefix": true
+  },
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": []
+  },
+  "args": [
+    [
+      { "role": "system", "content": "you are Iris" },
+      { "role": "user", "name": "Corin", "content": "check the weather" },
+      {
+        "role": "tool",
+        "content": "12C",
+        "tool_call_id": "call_1",
+        "tool_calls": [{ "id": "call_1", "function": { "name": "get_weather" } }]
+      },
+      { "role": "user", "content": "first" },
+      { "role": "user", "content": "second" },
+      { "role": "assistant", "content": "as you wish" },
+      { "role": "system", "name": "example_user", "content": "User: thanks" }
+    ],
+    "$promptNames"
+  ]
+}

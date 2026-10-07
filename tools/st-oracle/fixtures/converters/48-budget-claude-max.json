@@ -1,0 +1,6 @@
+{
+  "name": "48-budget-claude-max",
+  "function": "calculateClaudeBudgetTokens",
+  "description": "Non-adaptive path, reasoningEffort 'max': floor(100000 * 0.95) = 95000 (:1161-1163), returned unchanged while streaming. Expected value: 95000.",
+  "args": [100000, "max", true, false]
+}

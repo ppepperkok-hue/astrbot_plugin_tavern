@@ -1,0 +1,10 @@
+{
+  "name": "11f-convert-mistral-empty-prefix-on",
+  "function": "convertMistralMessages",
+  "description": "The one empty-input shape where the reference itself FAILS: with `mistral.enablePrefix` on, `const lastMsg = messages[messages.length - 1]` is `undefined` and the `lastMsg?.role === 'assistant'` test dereferences it (:711), so the whole call throws instead of returning []. The port cannot throw the same TypeError, but it must still fail rather than quietly return a value -- it indexes the empty list the same way. The oracle compares the PRESENCE of an error, not its text, so this fixture checks that both sides refuse the input; the sane empty-array case is 11d, where the flag is off and both sides return the untouched empty array.",
+  "config": {
+    "mistral.enablePrefix": true
+  },
+  "names": {},
+  "args": [[], "$promptNames"]
+}

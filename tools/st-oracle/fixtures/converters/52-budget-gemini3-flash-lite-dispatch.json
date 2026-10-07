@@ -1,0 +1,6 @@
+{
+  "name": "52-budget-gemini3-flash-lite-dispatch",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Dispatch-order fixture: the model 'gemini-3.5-flash-lite' matches /gemini-3[.\\d]*-flash/ at :1309 before the /flash-lite/ test at :1313, so it gets the Gemini 3 flash effort strings and NOT getFlashLiteBudget's token arithmetic -- reasoningEffort 'medium' returns the string 'medium', where getFlashLiteBudget would have returned 25000. Expected value: 'medium'.",
+  "args": [100000, "medium", "gemini-3.5-flash-lite"]
+}

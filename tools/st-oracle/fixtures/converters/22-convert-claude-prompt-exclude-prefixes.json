@@ -1,0 +1,23 @@
+{
+  "name": "22-convert-claude-prompt-exclude-prefixes",
+  "function": "convertClaudePrompt",
+  "description": "convertClaudePrompt with `excludePrefixes` on. Every turn but the last has its role overwritten with 'system' (:132-134), which is also what eats the 'FixHumMsg' branch -- that branch is guarded on `!excludePrefixes`. The examples keep their names, and an *unrecognised* system name falls through to the `excludePrefixes && v.name` arm of the prefix table, so it is emitted as `\\n\\n<name>: `; the two reserved names 'example_assistant' and 'example_user' are matched first and become 'A:' / 'H:' (:178). Because none of these turns is the last, all four are 'system' and the name-before-content prefix at :182 is suppressed for them.",
+  "config": {
+    "promptPlaceholder": "Let's get started."
+  },
+  "args": [
+    [
+      { "role": "system", "content": "System banner." },
+      { "role": "system", "name": "example_assistant", "content": "Good evening." },
+      { "role": "system", "name": "example_user", "content": "Evening." },
+      { "role": "system", "name": "Narrator", "content": "The room is quiet." },
+      { "role": "assistant", "content": "Let us begin." }
+    ],
+    false,
+    "",
+    false,
+    false,
+    "",
+    true
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "12e-convert-xai-non-array",
+  "function": "convertXAIMessages",
+  "description": "The non-array guard of convertXAIMessages (prompt-converters.js:786-788): a non-array returns a fresh empty list and leaves the argument untouched. A string is the interesting shape -- Python would happily iterate it and hand characters to `.get`, but the reference's Array.isArray check rejects it, so the port's `isinstance(messages, list)` must run before anything else. The empty-array case is 12d.",
+  "names": {},
+  "args": ["not an array", { "charName": "", "userName": "", "groupNames": [] }]
+}

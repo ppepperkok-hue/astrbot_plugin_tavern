@@ -1,0 +1,6 @@
+{
+  "name": "50-budget-gemini3-pro-max",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Gemini 3 pro family, reasoningEffort 'max' returns 'high' (:1298-1299): there is no 'max' level, so the top level is the ceiling. Expected value: 'high'.",
+  "args": [100000, "max", "gemini-3.5-pro"]
+}

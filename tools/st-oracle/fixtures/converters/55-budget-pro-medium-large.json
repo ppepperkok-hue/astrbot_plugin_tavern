@@ -1,0 +1,6 @@
+{
+  "name": "55-budget-pro-medium-large",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Legacy pro family, reasoningEffort 'medium' with maxTokens 100000: floor(100000 * 0.25) = 25000, which is BELOW the 32768 pro cap, so it is returned unchanged. The same input on the flash family would have been capped at 24576 (53-budget-flash-medium-cap). Expected value: 25000.",
+  "args": [100000, "medium", "gemini-2.5-pro"]
+}

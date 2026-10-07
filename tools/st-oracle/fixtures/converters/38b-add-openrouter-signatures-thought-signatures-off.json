@@ -1,0 +1,21 @@
+{
+  "name": "38b-add-openrouter-signatures-thought-signatures-off",
+  "function": "addOpenRouterSignatures",
+  "description": "addOpenRouterSignatures with `gemini.thoughtSignatures` set to false, which is the config route :1434 guards. The message-level `signature` is therefore **not** emitted as a reasoning detail -- but it is still deleted, because the delete at :1437 sits outside the config check, and that asymmetry is the point of this fixture. The tool call signatures are unaffected by the config (they have no gate), so they are still emitted, and because `details.length` was 0 when the first tool call was visited, the message detail that would have been index 0 simply does not exist: the first reasoning detail has index 0 and carries the tool call's `id`. The model matches no `getFormatForModel` pattern, so the format falls through to 'unknown'.",
+  "config": { "gemini.thoughtSignatures": false },
+  "args": [
+    [
+      {
+        "role": "assistant",
+        "content": "",
+        "signature": "sig-message",
+        "tool_calls": [
+          { "id": "call_1", "signature": "sig-tool-1", "function": { "name": "a" } },
+          { "id": "call_2", "function": { "name": "b" } }
+        ]
+      },
+      { "role": "user", "content": "Plain." }
+    ],
+    "vendor/some-model"
+  ]
+}

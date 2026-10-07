@@ -1,0 +1,8 @@
+{
+  "name": "11d-convert-mistral-empty",
+  "function": "convertMistralMessages",
+  "description": "The empty-array input of convertMistralMessages (prompt-converters.js:703-777), with the prefix flag OFF. Nothing fires -- there is no message to prefix, `lastMsg` is `undefined` but the `prefixEnabled` short-circuit at :711 stops before dereferencing it, so the result is the same (now empty) array instance the caller passed, returned at :776. This is the safe half of the empty-input behaviour; the unsafe half is `enablePrefix` ON over an empty array, where the reference dereferences `undefined.role` and throws -- the oracle compares the mere PRESENCE of an error, not its text, so that case would pass for the wrong reason and is deliberately not a fixture. The non-array guard at :704-706 is the companion fixture 11e.",
+  "config": {},
+  "names": {},
+  "args": [[], { "charName": "", "userName": "", "groupNames": [] }]
+}

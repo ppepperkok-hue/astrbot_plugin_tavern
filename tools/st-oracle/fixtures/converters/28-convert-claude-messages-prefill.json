@@ -1,0 +1,16 @@
+{
+  "name": "28-convert-claude-messages-prefill",
+  "function": "convertClaudeMessages",
+  "description": "convertClaudeMessages with `prefillString` set, which appends an assistant turn whose text is the prefill with its trailing whitespace stripped (:335-342) -- the one place in this function that trims, because the messaging API rejects dangling whitespace while prefilling. The appended assistant turn lands next to the assistant turn already there, so the merge at :346-353 folds the two together and the prefill text becomes a second text part of the same turn. Consecutive user turns in the input merge the same way.",
+  "args": [
+    [
+      { "role": "user", "content": "Tell me a story." },
+      { "role": "user", "content": "Please." },
+      { "role": "assistant", "content": "Once upon a time," }
+    ],
+    "  Sure, here is  \n\n",
+    false,
+    false,
+    { "charName": "", "userName": "", "groupNames": [] }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "name": "99-scaffold-check",
+  "function": "mergeMessages",
+  "description": "Scaffold self-test (not a port claim): exercises the two runner contracts that a fixture must be able to rely on. `args[1]` is the `$promptNames` sentinel, so both runners substitute a real PromptNames object -- whose `startsWithGroupName` is a function and therefore cannot be written in JSON -- and the media part is a data URL, so `mergeMessages` has to hide it behind a token from the pinned byte source (prompt-converters.js:846). Without the sentinel this fixture cannot reproduce the reference at all; without the pin the two tokens differ and it can never match. The single-message strict path also re-enters mergeMessages recursively, which is where the token round trip at :910-934 actually happens.",
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": ["Seraphina"]
+  },
+  "args": [
+    [
+      {
+        "role": "system",
+        "name": "example_assistant",
+        "content": "the fog lifts"
+      },
+      {
+        "role": "user",
+        "content": [
+          { "type": "text", "text": "look at this" },
+          { "type": "image_url", "image_url": { "url": "data:image/png;base64,AAAA" } }
+        ]
+      }
+    ],
+    "$promptNames",
+    { "strict": true, "placeholders": true, "single": false, "tools": false }
+  ]
+}

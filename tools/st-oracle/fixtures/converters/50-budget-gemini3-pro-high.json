@@ -1,0 +1,6 @@
+{
+  "name": "50-budget-gemini3-pro-high",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Gemini 3 pro family, reasoningEffort 'high' returns 'high' (:1296-1297) as an effort string, not a token count. Expected value: 'high'.",
+  "args": [100000, "high", "gemini-3.5-pro"]
+}

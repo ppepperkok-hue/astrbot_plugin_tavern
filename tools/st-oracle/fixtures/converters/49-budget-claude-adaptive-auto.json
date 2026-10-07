@@ -1,0 +1,6 @@
+{
+  "name": "49-budget-claude-adaptive-auto",
+  "function": "calculateClaudeBudgetTokens",
+  "description": "Adaptive model (isAdaptiveModel true, e.g. Opus 4.6+), reasoningEffort 'auto': the adaptive switch returns null (:1128-1129) and no token arithmetic runs at all. Expected value: null.",
+  "args": [100000, "auto", true, true]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "10c-convert-text-completion-degenerate",
+  "function": "convertTextCompletionPrompt",
+  "description": "The empty-array degenerate case of convertTextCompletionPrompt (prompt-converters.js:961-977). An empty array is NOT an empty string: the join produces '', and the tail at :976 is appended unconditionally, so the result is exactly '\\nassistant:'. A port that early-returns '' for an empty prompt -- a very natural Python instinct -- diverges here. The string passthrough at :962-964 is the companion fixture 10d, because the runner calls one fixture once and the function takes one argument.",
+  "names": {},
+  "args": [[]]
+}

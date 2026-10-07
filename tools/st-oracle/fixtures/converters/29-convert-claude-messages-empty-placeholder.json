@@ -1,0 +1,16 @@
+{
+  "name": "29-convert-claude-messages-empty-placeholder",
+  "function": "convertClaudeMessages",
+  "description": "The empty-messages path of convertClaudeMessages: `useSysPrompt` true and the input is nothing but system turns, so the extraction at :220 empties the array and the guard at :224-229 unshifts the `PROMPT_PLACEHOLDER` user turn. That placeholder is read from the config at module scope (:4), so this fixture also pins the `promptPlaceholder` config route. The key is written in the **nested** spelling a `config.yaml` would carry, which is what both `_.get` and the JS shim's literal lookup accept; the value is deliberately non-default, so a run that ignores the fixture's config fails on the text rather than passing by luck.",
+  "config": { "promptPlaceholder": "Start where we left off." },
+  "args": [
+    [
+      { "role": "system", "content": "You are Iris." },
+      { "role": "system", "content": "Reply in two sentences." }
+    ],
+    "",
+    true,
+    false,
+    { "charName": "Iris", "userName": "User", "groupNames": [] }
+  ]
+}

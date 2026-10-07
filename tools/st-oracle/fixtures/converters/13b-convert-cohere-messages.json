@@ -1,0 +1,29 @@
+{
+  "name": "13b-convert-cohere-messages",
+  "function": "convertCohereMessages",
+  "description": "convertCohereMessages (prompt-converters.js:384-422), two things at once. (1) The tool-call branch at :394-401: a tool-call message whose PREVIOUS turn is an assistant takes that assistant's content as its own primer and the previous turn is spliced out -- while `forEach` is iterating, so the CURRENT message shifts into the slot just vacated and the next iteration revisits it. That revisit is observable and deliberate: the function returns the same array it mutated, so `returned.chatHistory` and `mutated[0]` are the same list, and the double visit appends the primer content TWICE (once for the original index, once for the index the splice shifted it to). A port that snapshots the array before iterating visits each message exactly once and diverges on that content string. (2) The name rules at :403-418: example_assistant/example_user get their name prefix and then lose `name`, and any other named non-system turn gets the 'name: ' prefix -- but a named USER turn only loses its name, because the prefix rule at :414 requires role !== 'system' while the sibling converters additionally require a non-user role. (3) The return shape is an object, `{chatHistory: messages}`, so `returned` and `mutated` both carry the array.",
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": ["Seraphina"]
+  },
+  "args": [
+    [
+      { "role": "system", "content": "you are Iris" },
+      { "role": "assistant", "content": "I'll look that up" },
+      {
+        "role": "tool",
+        "content": "x",
+        "tool_calls": [
+          { "id": "call_1", "function": { "name": "get_weather" } },
+          { "id": "call_2", "function": { "name": "get_time" } },
+          { "function": {} }
+        ]
+      },
+      { "role": "user", "name": "Corin", "content": "over here" },
+      { "role": "system", "name": "example_assistant", "content": "Seraphina: I see it" },
+      { "role": "system", "name": "example_user", "content": "where are we" }
+    ],
+    "$promptNames"
+  ]
+}

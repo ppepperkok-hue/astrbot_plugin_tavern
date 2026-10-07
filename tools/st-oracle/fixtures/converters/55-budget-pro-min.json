@@ -1,0 +1,6 @@
+{
+  "name": "55-budget-pro-min",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Legacy pro family, reasoningEffort 'min' sets 128 (:1243-1245) -- a `break`, not an early return, so it does go through the clamp, which leaves 128. The pro family is the only one whose 'min' is non-zero. Expected value: 128.",
+  "args": [100000, "min", "gemini-2.5-pro"]
+}

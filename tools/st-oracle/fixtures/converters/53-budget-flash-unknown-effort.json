@@ -1,0 +1,6 @@
+{
+  "name": "53-budget-flash-unknown-effort",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Legacy flash family with an effort the switch does not know: budgetTokens stays 0 and the only clamp (`Math.min`) leaves it at 0, because the flash family has NO floor. Contrast 54-budget-flash-lite-unknown-effort (512) and 55-budget-pro-unknown-effort (128). Expected value: 0.",
+  "args": [100000, "warp", "gemini-2.5-flash"]
+}

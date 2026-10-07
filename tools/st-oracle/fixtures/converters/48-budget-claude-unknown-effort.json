@@ -1,0 +1,6 @@
+{
+  "name": "48-budget-claude-unknown-effort",
+  "function": "calculateClaudeBudgetTokens",
+  "description": "Non-adaptive path with an effort the switch does not know: budgetTokens stays 0 and the Math.max at :1166 lifts it to 1024. An unrecognised effort therefore behaves like 'min', not like 'auto' (which returns early) and not like 0. Expected value: 1024.",
+  "args": [100000, "warp", true, false]
+}

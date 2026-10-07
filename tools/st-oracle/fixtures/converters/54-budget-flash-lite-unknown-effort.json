@@ -1,0 +1,6 @@
+{
+  "name": "54-budget-flash-lite-unknown-effort",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Legacy flash-lite family with an effort the switch does not know: budgetTokens stays 0, and the clamp at :1232 lifts it to the 512 floor. Contrast the same call on the plain flash family (53-budget-flash-unknown-effort, 0). Expected value: 512.",
+  "args": [100000, "warp", "gemini-2.5-flash-lite"]
+}

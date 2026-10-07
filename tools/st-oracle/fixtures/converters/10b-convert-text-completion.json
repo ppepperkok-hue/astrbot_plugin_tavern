@@ -1,0 +1,14 @@
+{
+  "name": "10b-convert-text-completion",
+  "function": "convertTextCompletionPrompt",
+  "description": "convertTextCompletionPrompt (prompt-converters.js:961-977). Three messages cover all three render rules: an unnamed system turn renders as 'System: ' (:968-969), a NAMED system turn (example_assistant here) renders as 'name: ' (:970-971), and every other role renders as 'role: ' (:972-973). The joiner is a single '\\n' -- not the '\\n\\n' the merge functions use -- and the whole thing is terminated with '\\nassistant:' (:976), which is why the tail looks like a dangling turn. `name` is NOT deleted here; the reference only reads it, so a port that mutates the messages would diverge in `mutated`.",
+  "names": {},
+  "args": [
+    [
+      { "role": "system", "content": "you are Iris" },
+      { "role": "system", "name": "example_assistant", "content": "Iris: the fog lifts" },
+      { "role": "user", "name": "Corin", "content": "over here" },
+      { "role": "assistant", "content": "as you wish" }
+    ]
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "12-merge-messages-head",
+  "function": "mergeMessages",
+  "description": "mergeMessages (prompt-converters.js:827-954) on the non-strict defaults, which is the shape `postProcessPrompt`'s MERGE branch uses. It pins the four rules that run before the squash pass, in the order the reference runs them: the example_assistant prefix (:854-858, skipped here because the turn already starts with the character name), the example_user prefix (:859-863), the generic `name + ': '` prefix for a non-system named turn (:864-868), and the tools-off demotion of a `tool` turn to `user` (:869-871) plus the `delete` of tool_calls/tool_call_id (:887-890). The squash pass (:894-900) then folds the three consecutive user turns into one, joined with '\\n\\n' -- and note the merged turn keeps the FIRST turn's extra keys, which is why the surviving `tool_calls` key is the assistant's, not the demoted tool turn's. `name` is deleted from every message (:886). The sentinel supplies startsWithGroupName, and `groupNames` holds a member whose name the example_assistant rule would accept.",
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": ["Seraphina"]
+  },
+  "args": [
+    [
+      { "role": "system", "name": "example_assistant", "content": "Iris: the fog lifts" },
+      { "role": "system", "name": "example_user", "content": "where are we" },
+      { "role": "user", "name": "Corin", "content": "over here" },
+      { "role": "user", "content": "hello" },
+      { "role": "tool", "name": "get_weather", "content": "12C", "tool_call_id": "call_1" },
+      {
+        "role": "assistant",
+        "name": "Iris",
+        "content": "as you wish",
+        "tool_calls": [{ "id": "call_2", "function": { "name": "get_time" } }]
+      }
+    ],
+    "$promptNames",
+    { "strict": false, "placeholders": false, "single": false, "tools": false }
+  ]
+}

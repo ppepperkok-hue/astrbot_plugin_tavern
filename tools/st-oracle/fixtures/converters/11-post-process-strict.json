@@ -1,0 +1,18 @@
+{
+  "name": "11-post-process-strict",
+  "function": "postProcessPrompt",
+  "description": "The STRICT branch of the same dispatch (prompt-converters.js:96-97): mergeMessages gets `{strict:true, placeholders:true, single:false, tools:false}`. Two leading system turns are squashed into one by the :893-900 pass, then at :944-945 the strict/placeholder splice runs because messages[1] is not a user turn -- the result is [system, user(placeholder), user], and the mid-prompt system demotion at :939-941 has nothing left to demote. This is the only route through postProcessPrompt that puts the placeholder into a message the caller can see, so it is the one that proves `placeholders:true` is wired to STRICT and not just to mergeMessages directly.",
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": []
+  },
+  "args": [
+    [
+      { "role": "system", "content": "you are Iris" },
+      { "role": "system", "content": "be brief" }
+    ],
+    "strict",
+    "$promptNames"
+  ]
+}

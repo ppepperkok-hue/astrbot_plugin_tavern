@@ -1,0 +1,6 @@
+{
+  "name": "51-budget-gemini3-flash-high",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Gemini 3 flash family, reasoningEffort 'high' returns 'high' (:1277-1278). Expected value: 'high'.",
+  "args": [100000, "high", "gemini-3.5-flash"]
+}

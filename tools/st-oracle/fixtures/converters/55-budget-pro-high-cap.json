@@ -1,0 +1,6 @@
+{
+  "name": "55-budget-pro-high-cap",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Legacy pro family, reasoningEffort 'high' with maxTokens 100000: floor(100000 * 0.5) = 50000, capped at 32768 by :1260. This is what pins the pro cap as distinct from the flash caps. Expected value: 32768.",
+  "args": [100000, "high", "gemini-2.5-pro"]
+}

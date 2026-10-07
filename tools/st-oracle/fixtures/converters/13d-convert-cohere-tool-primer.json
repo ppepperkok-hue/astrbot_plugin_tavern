@@ -1,0 +1,21 @@
+{
+  "name": "13d-convert-cohere-tool-primer",
+  "function": "convertCohereMessages",
+  "description": "The 'else' half of the tool-call branch in convertCohereMessages (prompt-converters.js:398-400): when a tool-call message is NOT immediately preceded by an assistant turn, its content is replaced by a human-readable primer built from the tool names -- `I'm going to call a tool for that: ` plus `tc?.function?.name` joined with ', '. The second tool call has no `function` at all, which is what pins the optional-chaining semantics: in JS the missing name contributes the EMPTY string that Array.join gives `undefined` (`[undefined].join(', ')` === ''), so the result ends in a trailing ', '. A port that stringifies a missing member as 'None' produces 'get_weather, None' and diverges. Note the message is FIRST in the array, so the `index > 0` guard at :395 is false and this is the branch taken, not the splice.",
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": []
+  },
+  "args": [
+    [
+      {
+        "role": "tool",
+        "content": "x",
+        "tool_calls": [{ "id": "call_1", "function": { "name": "get_weather" } }, { "id": "call_2" }]
+      },
+      { "role": "user", "content": "hello" }
+    ],
+    "$promptNames"
+  ]
+}

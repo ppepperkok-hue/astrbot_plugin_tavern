@@ -1,0 +1,15 @@
+{
+  "name": "32-caching-at-depth-claude-prefill-break",
+  "function": "cachingAtDepthForClaude",
+  "description": "cachingAtDepthForClaude at depth 0, which exercises both guards the field `passedThePrefill` exists for. The trailing assistant turn is a prefill: it is skipped by `!passedThePrefill && role === 'assistant'` without counting as a role switch and without a breakpoint, and only the turn before it turns the flag on. The first non-assistant turn from the end is the user turn at depth 0, so it takes the `depth === cachingAtDepth` breakpoint, and walking back reaches `depth === cachingAtDepth + 2` on the assistant turn above it, which takes the second breakpoint and then breaks the loop -- so the system turns at the head of the array are never reached.",
+  "args": [
+    [
+      { "role": "system", "content": [{ "type": "text", "text": "Rules." }] },
+      { "role": "user", "content": [{ "type": "text", "text": "Hi." }] },
+      { "role": "assistant", "content": [{ "type": "text", "text": "Hello." }] },
+      { "role": "user", "content": [{ "type": "text", "text": "More." }] },
+      { "role": "assistant", "content": [{ "type": "text", "text": "Sure," }] }
+    ],
+    0
+  ]
+}

@@ -1,4 +1,16 @@
-# 07 · 世界书引擎移植映射：SillyTavern → `tavern/st/*`
+# 07 · 函数级移植映射：SillyTavern → `tavern/st/*`（S1 + S2 + S4）
+
+> 机读副本是 [`tools/st-oracle/port-map.json`](../../tools/st-oracle/port-map.json)（205 行），
+> 由 [`tools/st-oracle/gen_port_map.py`](../../tools/st-oracle/gen_port_map.py) 从
+> `research/_raw/dep_*.json` 四份探针重建。**两边的每一条状态都必须一致**：改一边就跑一次
+> `python tools/st-oracle/gen_port_map.py`，它对着探针逐条 fail-closed（探针多一条、表多一条、
+> 探针文件缺一个都直接退 2）。
+>
+> 当前计数：S1 `ported 27 / pending 23 / exempt 31`（81）；S2 chat completion
+> `ported 13 / pending 14 / exempt 74`（101）；S2 prompt manager `ported 1 / pending 1`（2）；
+> S4 converters `ported 2 / pending 19`（21）。**合计 ported 43 / pending 57 / exempt 105 = 205**。
+> §1–§5 是 S1（`world-info.js`）的详表与坑位，§6 是 S2 装配层与 S4 转换器的表，
+> §7 是后文用到的 Python 符号锚点（行号按当前工作树，动手前先 grep 复核）。
 
 **源锁定**：SillyTavern `public/scripts/world-info.js` @
 `06bde939fb1e9c4c8d8641d810f0a916b5bce127`（`release` 分支头，`package.json` = 1.19.0，
@@ -25,7 +37,9 @@ tag 1.19.0 字节一致**）。快照与校验见 [`research/_raw/st-src/PROVENA
 | **pending** | Python 侧**完全没有**该行为。`Python 目标` 是**建议名**，前缀 `（建议）`。 | 已 grep 确认无对应 |
 | **exempt** | DOM / jQuery / select2 / i18n / toastr / 编辑器渲染 / 斜杠命令注册等**服务端无意义**的部分，故意不移植。 | 依赖里含 `jQuery$`/`document`/`select2`/`toastr` |
 
-统计：**ported 23 / pending 26 / exempt 32 = 81**。
+统计：**ported 27 / pending 23 / exempt 31 = 81**（与 `port-map.json` 里 `js_source: world-info.js`
+的计数一致）。其中 `filterByInclusionGroups` 从 pending 翻成 ported 是后来的一次纠正，
+见 §1 第 64 行的说明。
 
 `research/_raw/dep_world-info.json` 只有 81 条，它是**顶层函数/声明**的 AST 清单；两个类
 （`WorldInfoBuffer`、`WorldInfoTimedEffects`）与全部模块级 `const/let` 不在里面，所以它们放在
@@ -38,6 +52,8 @@ tag 1.19.0 字节一致**）。快照与校验见 [`research/_raw/st-src/PROVENA
 
 > 行号区间与 LOC 逐字取自 `dep_world-info.json`。
 > `Python 目标` 一列里，带 `:` 的是真实现（`文件:行号`），带 `（建议）` 的是待建。
+> **§1 的行号是 S1 收口时的**，之后 `worldbook.py` 被重构过（`core.py` 也漂了）；
+> 与状态冲突时以 §0 的计数和 `port-map.json` 为准，符号名一律 grep 复核。
 
 | # | JS 函数（行号 / LOC） | 职责一句话 | Python 目标 | 状态 | 难点与坑 |
 |---|---|---|---|---|---|
@@ -104,7 +120,7 @@ tag 1.19.0 字节一致**）。快照与校验见 [`research/_raw/st-src/PROVENA
 | 61 | `checkWorldInfo` 4709–5282 / **574** | 主扫描循环：注入缓冲 → 多轮递归 / min-activations → 概率 → budget → inclusion group → 按 position 建 prompt | `tavern/st/worldbook.py::activate` `worldbook.py:503-694` | ported | 最大的偏差源。依赖分类见 §4-1；行为差异见 §5 |
 | 62 | `filterGroupsByScoring` 5292–5328 / 37 | 组内只留 key 命中分最高的 | `tavern/st/worldbook.py::_apply_group_scoring` `worldbook.py:697-713` | ported | **算法不同**：ST 用 `buffer.getScore()`（主键命中数 + AND_ANY 下的次键命中数，`world-info.js:428-473`）淘汰；Python 按 `group_weight` 留最重的。要真正对齐必须把"扫描缓冲"传进组过滤，Python 现在的签名没有这个参数 |
 | 63 | `filterGroupsByTimedEffects` 5337–5378 / 42 | 组内有 sticky 就淘汰其余；剔掉在 cooldown/delay 的 | `tavern/st/worldbook.py::ActivationState` `worldbook.py:425-495` + `activate` `worldbook.py:555-566` | ported | ST 是**组级**淘汰并回传 `hasStickyMap`（"本组已被 sticky 占位"），Python 是**条目级**屏蔽，没有这个组级语义 |
-| 64 | `filterByInclusionGroups` 5388–5475 / 88 | 组映射 → 时间效果 → 打分 → `groupOverride` 优先 → 按 `groupWeight` 加权随机取一 | `worldbook.filter_by_inclusion_groups`（建议） | pending | **核心语义缺口**：`activate` 里只有单组过滤 `active_group`（`worldbook.py:632-633`）和 opt-in 的 group scoring（`worldbook.py:669-670`），**没有"一个包含组最终只能活一条条目"**。另外 `group` 字段支持逗号分隔多组（`world-info.js:5392` 的 `split(/,\s*/)`），Python 把 `entry.group` 当单值字符串用（`worldbook.py:118`） |
+| 64 | `filterByInclusionGroups` 5388–5475 / 88 | 组映射 → 时间效果 → 打分 → `groupOverride` 优先 → 按 `groupWeight` 加权随机取一 | `tavern/st/worldbook.py::_filter_by_inclusion_groups` `worldbook.py:933-1045` | ported（**本行已纠正**） | 原判 pending，理由"没有'一个包含组只能活一条'"。后来这块被重写：sticky 先占位 → cooldown/delay 剔除 → `useGroupScoring`（全局或条目级）按 `buffer.get_score` 留最高分 → `group_override` 优先级层 → 否则 `group_weight` 加权随机（`settings.rng`）；逗号分隔多组也做了（`_resolved_group_names` `worldbook.py:906`）。§1 其余行的行号仍是重构前的，见 §1 抬头说明 |
 | 65 | `convertAgnaiMemoryBook` 5477–5520 / 44 | Agnai 记忆书 → ST 格式 | `worldbook.convert_agnai_memory_book`（建议） | pending | 三个 converter 都是"字段重命名 + 补 `newWorldInfoEntryTemplate`"，可直接照抄 |
 | 66 | `convertRisuLorebook` 5522–5565 / 44 | Risu lorebook → ST | `worldbook.convert_risu_lorebook`（建议） | pending | `entry.key.split(',')`（`world-info.js:5529`）——又是"用逗号分 key"的坑；且 `useProbability: entry.activationPercent ?? true` 是类型混用的历史 bug（数字当布尔） |
 | 67 | `convertNovelLorebook` 5567–5615 / 49 | NovelAI lorebook → ST | `worldbook.convert_novel_lorebook`（建议） | pending | |
@@ -543,22 +559,88 @@ Python 的 `activate` 只有"第一遍 + 最多 `max_recursion_steps-1` 遍递�
 
 ---
 
-## 6. Python 现状锚点（便于 grep 复核）
+## 6. S2 装配层与 S4 转换器（机读表的补充说明）
+
+
+两张表的逐行判定在 [`port-map.json`](../../tools/st-oracle/port-map.json)，
+生成器在 [`gen_port_map.py`](../../tools/st-oracle/gen_port_map.py)。
+这里只记"为什么这样算"，免得下一个人看到 `exempt 74` 以为是在缩数字。
+
+判定口径沿用 §0，并补一句 S2 特有的：
+
+- **`exempt` ≠ 没价值，而是"这个插件故意不做"**。S2 的 74 条 exempt 落在四个家族里：
+  DOM / 编辑器接线（`tavern/` 根本没有 DOM）、浏览器设置面板与下拉/复选框、SillyTavern
+  开发服务器的 HTTP 端点（`/api/*`）与浏览器 secret store、以及 S2 明确外包出去的行为
+  （流式、媒体内联、工具调用、按 provider 组请求体 —— 请求体归 AstrBot 的 provider 层）。
+  每条的 `note` 都写了是哪一家族、为什么。
+- **`pending` 只留给"无头引擎真的还缺"的东西**。S2 只剩 14 条，其中 13 条是同一个洞：
+  上下文预算。`ChatCompletion.set_token_budget` 早就移植了，但
+  `PluginCore.build_turn`（`core.py:542-652`）从不调它，`trim_history` 也只有测试和
+  oracle 在调 —— 缺的是"把 provider 的上下文窗口查出来并接上预算"这一层。
+  第 14 条是 provider 响应体的错误提取（`getChatCompletionErrorMessage`），
+  目前只有 `BackendError(str(exc))`。
+
+**S2 装配层 ported（13 条，全部逐符号验证过）**
+
+| JS 函数 | Python 目标 |
+|---|---|
+| `formatWorldInfo` | `tavern/st/prompt_build.py::format_world_info` |
+| `populationInjectionPrompts` | `tavern/st/prompt_build.py::population_injection_prompts` |
+| `populateChatHistory` | `tavern/st/prompt_build.py::populate_chat_history` |
+| `populateDialogueExamples` | `tavern/st/prompt_build.py::populate_dialogue_examples` |
+| `getPromptPosition` / `getPromptRole` | `tavern/st/prompt_build.py::get_prompt_position` / `get_prompt_role` |
+| `populateChatCompletion` | `tavern/st/prompt_build.py::populate_chat_completion` |
+| `preparePromptsForChatCompletion` | `tavern/st/prompt_build.py::prepare_prompts_for_chat_completion` |
+| `prepareOpenAIMessages` | `tavern/core.py::PluginCore.build_turn`（+ 上面的 prepare） |
+| `setOpenAIMessages` | `tavern/st/prompt_build.py::populate_chat_history`（历史→消息那半段） |
+| `setOpenAIMessageExamples` | `tavern/st/prompt_build.py::populate_dialogue_examples` |
+| `parseExampleIntoIndividual` | `tavern/st/prompt.py::parse_dialogue_examples` |
+| `class ChatCompletion` | `tavern/st/chat_completion.py::ChatCompletion` |
+| `class PromptCollection`（PromptManager.js） | `tavern/st/prompt_build.py::PromptCollection` |
+
+**S2 pending（14 条 openai + 1 条 prompt manager）**
+
+`getMaxContextOpenAI`、`getGeminiMaxContext`、`getGeminiMaxTemp`、`getMistralMaxContext`、
+`getGroqMaxContext`、`getZaiMaxContext`、`getSiliconflowMaxContext`、`getMoonshotMaxContext`、
+`getFireworksMaxContext`、`getChutesMaxContext`、`getElectronHubMaxContext`、
+`getNanoGptMaxContext`、`getChatCompletionModel`、`getChatCompletionErrorMessage`，
+外加 `PromptManager.js::debouncePromise`（模块私有的 promise 防抖；`tavern/` 下没有任何防抖）。
+
+**两条"看着像 pending、其实是 exempt"的典型**（名字最容易骗人）：
+
+- `validateReverseProxy`：名字像引擎连通性检查，读体内是 URL 校验 + jQuery 警告 —— exempt。
+- `getChatCompletionPreset`：名字像核心预设状态，读体内是"攒一个要 POST 给酒馆服务器的
+  preset body" —— exempt。
+- 反向的：`setOpenAIMessages` / `setOpenAIMessageExamples` 名字像设置面板，
+  读体内才知道是历史与示例的**数据转换**（`openai.js:945-1075` / `:1113-1131`）—— ported。
+
+**S4 converters**：2 ported（`PROMPT_PROCESSING_TYPE`、`getPromptNames`），19 pending，
+详见 [`tools/st-oracle/STATUS-S4.md`](../../tools/st-oracle/STATUS-S4.md)。
+S4 的 `pending` 判定比 S2 严：**没有 fixture 就不算 ported**，哪怕端口里已经有同名函数。
+
+---
+
+## 7. Python 现状锚点（便于 grep 复核）
+
+> 行号按写这份表时的**当前工作树**（S1 之后 `worldbook.py` 被重构过：旧表里的
+> `_apply_group_scoring` 已经不存在，组过滤现在是 `_filter_by_inclusion_groups`）。
+> 行号会漂，动手前一律 grep 复核符号名，别信数字。
 
 | 概念 | 位置 |
 |---|---|
-| 条目 schema / 默认值 | `tavern/st/worldbook.py:96-136`、`entry_from_dict` `:206-244` |
-| 书容器解析 | `book_from_dict` `tavern/st/worldbook.py:259-293`、`load_world_book` `:296`、`scan_world_books` `:310` |
-| key 匹配 | `is_regex_key` `:334`、`compile_key` `:340`、`_whole_word_match` `:366`、`key_matches` `:378` |
-| 激活主流程（≈ `checkWorldInfo`） | `activate` `tavern/st/worldbook.py:503-694` |
-| sticky/cooldown/delay | `ActivationState` `tavern/st/worldbook.py:425-495` |
-| 组打分 | `_apply_group_scoring` `tavern/st/worldbook.py:697-713` |
-| token 计数 | `greedy_token_count` `tavern/st/worldbook.py:716`、`_tiktoken_counter` `:737`；`prompt.count_tokens` `tavern/st/prompt.py:664` |
-| 配置 | `WorldBookConfig` + `TavernConfig.from_raw` `tavern/config.py:192-219` |
-| 会话级书目绑定 | `SessionBinding` `tavern/core.py:63-106`；`toggle_book` `:372`、`set_books` `:388` |
-| 装配入口（≈ `getWorldInfoPrompt`） | `PluginCore.build_turn` `tavern/core.py:422-530`；`_targets_from_entries` `:624-637` |
-| 位置 → prompt 落点 | `InChatTargets` `tavern/st/prompt.py:270-338`、`build_messages` `:805` |
-| 注入角色（写死 system） | `INJECTION_ROLE` `tavern/st/prompt.py:121`、`VALID_ROLES` `:124` |
-| 命令面 | `/tavern worldbook list\|on\|off` `tavern/main.py:506-544` |
-| 对照测试装置（非生产路径） | `tools/st-oracle/`（`run.mjs` / `run_python.py` / 10 个 fixtures） |
-| 现有测试 | `tests/test_worldbook.py` |
+| 条目 schema / 默认值 | `tavern/st/worldbook.py:110-160`、`entry_from_dict` `:228` |
+| 书容器解析 | `book_from_dict` `tavern/st/worldbook.py:318`、`load_world_book` `:355`、`scan_world_books` `:369` |
+| key 匹配 | `is_regex_key` `:393`、`compile_key` `:399`、`_whole_word_match` `:425`、`key_matches` `:437` |
+| 激活主流程（≈ `checkWorldInfo`） | `activate` `tavern/st/worldbook.py:652-898` |
+| sticky/cooldown/delay | `ActivationState` `tavern/st/worldbook.py:484` |
+| 组过滤 / 组打分（≈ `filterByInclusionGroups` + `filterGroupsByScoring`） | `_filter_by_inclusion_groups` `tavern/st/worldbook.py:933-1045` |
+| token 计数 | `greedy_token_count` `tavern/st/worldbook.py:1048`、`_tiktoken_counter` `:1069`；`prompt.count_tokens` `tavern/st/prompt.py:665` |
+| 上下文预算（`trim_history`，生产路径目前没接） | `tavern/st/prompt.py:619`；`ChatCompletion.set_token_budget` `tavern/st/chat_completion.py:449` |
+| 配置 | `WorldBookConfig` `tavern/config.py:134` + `TavernConfig.from_raw` `config.py:193` |
+| 会话级书目绑定 | `SessionBinding` `tavern/core.py:66`；`toggle_book` `:492`、`set_books` `:508` |
+| 装配入口（≈ `getWorldInfoPrompt`） | `PluginCore.build_turn` `tavern/core.py:542-652`；`_targets_from_entries` `:746` |
+| 位置 → prompt 落点 | `InChatTargets` `tavern/st/prompt.py:272`、`build_messages` `:809` |
+| 注入角色（写死 system） | `INJECTION_ROLE` `tavern/st/prompt.py:33`、`VALID_ROLES` `:125` |
+| 命令面 | `@filter.command_group("tavern")` `tavern/main.py:463`、`_register_commands` `:453` |
+| 对照测试装置（非生产路径） | `tools/st-oracle/`（`run.mjs` / `run_python.py` / S1 10 个 fixtures + S2 装配 8 个） |
+| 现有测试 | `tests/test_worldbook.py`、`tests/test_prompt_build.py` |

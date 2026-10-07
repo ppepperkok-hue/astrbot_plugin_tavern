@@ -1,0 +1,17 @@
+{
+  "name": "21-convert-claude-prompt-postfix-syshuman",
+  "function": "convertClaudePrompt",
+  "description": "convertClaudePrompt with the two paths 20 leaves alone: `addAssistantPostfix` appends an assistant turn carrying `addAssistantPrefill || ''` (:137-143), and `withSysPromptSupport && useSystemPrompt` keeps the first turn as 'system' and, because the first assistant turn sits at index 2 with no user turn before it, splices `addSysHumanMsg` in as a user turn at that index (:154-161). The splice lands *before* the assistant turn, so it does not become the assistant the `hasUser` scan matches. The prefill string keeps its trailing space -- the postfix is the one Claude path that does not trim (:141).",
+  "args": [
+    [
+      { "role": "system", "content": "You are Iris." },
+      { "role": "assistant", "content": "Good evening." }
+    ],
+    true,
+    "Sure, here is ",
+    true,
+    true,
+    "Hello.",
+    false
+  ]
+}

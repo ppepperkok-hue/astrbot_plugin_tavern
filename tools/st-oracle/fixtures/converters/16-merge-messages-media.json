@@ -1,0 +1,21 @@
+{
+  "name": "16-merge-messages-media",
+  "function": "mergeMessages",
+  "description": "The media round trip in mergeMessages (prompt-converters.js:838-853 flattening, then :910-934 substitution). The image_url part is the message's whole content, which is what makes the round trip observable in the MUTATED arguments: the flattening pass hides the object behind a base64 token from the pinned byte source (:846), the substitution pass turns that token back into the ORIGINAL object, and the caller's array ends up structurally identical to its input. An image mixed with text is covered by the lead's 99-scaffold-check (strict+placeholders), so this fixture deliberately does not repeat that shape. The assistant turn's content already starts with a group member's name, so the example_assistant prefix at :854-858 must be suppressed by startsWithGroupName -- the predicate reaches both sides through the `$promptNames` sentinel. A port whose predicate is missing or always-false would prepend 'Iris: ' and diverge on that content.",
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": ["Seraphina"]
+  },
+  "args": [
+    [
+      {
+        "role": "user",
+        "content": [{ "type": "image_url", "image_url": { "url": "data:image/png;base64,AAAA" } }]
+      },
+      { "role": "assistant", "content": "Seraphina: I see it" }
+    ],
+    "$promptNames",
+    { "strict": false, "placeholders": false, "single": false, "tools": false }
+  ]
+}

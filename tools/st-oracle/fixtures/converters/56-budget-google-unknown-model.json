@@ -1,0 +1,6 @@
+{
+  "name": "56-budget-google-unknown-model",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Fall-through fixture (:1325): 'gpt-4o' matches none of /gemini-3[.\\d]*-pro/, /gemini-3[.\\d]*-flash/, /flash-lite/, /flash/ or /pro/, so the function returns null even though a reasoning effort and maxTokens were supplied. Note the ordering trap this pins: a bare `/pro/` last is what makes an unknown model null rather than a pro budget. Expected value: null.",
+  "args": [100000, "high", "gpt-4o"]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "14b-merge-messages-single-tools",
+  "function": "mergeMessages",
+  "description": "The `single: true` + `tools: true` corner, which fixtures 14 and 15 leave out. `single` rewrites every role to `user` at :884 -- including a `tool` turn, so the role test at :895 finally allows the squash to fold it in, and the `tools` flag keeps the tool_call_id that the default path would have deleted. The `tool` turn also carries a `name`, so the generic name prefix at :864-868 fires before `single` runs: the name is turned into a content prefix and then `delete`d at :886. The order of the two blocks is what makes the result stable, and a port that applies `single` first then re-runs the name rules would prefix twice.",
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": []
+  },
+  "args": [
+    [
+      { "role": "assistant", "content": "Iris: calling a tool", "tool_calls": [{ "id": "call_1" }] },
+      { "role": "tool", "name": "get_weather", "content": "12C", "tool_call_id": "call_1" },
+      { "role": "user", "content": "thanks" }
+    ],
+    "$promptNames",
+    { "strict": false, "placeholders": false, "single": true, "tools": true }
+  ]
+}

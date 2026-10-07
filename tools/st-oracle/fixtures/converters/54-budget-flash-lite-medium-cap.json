@@ -1,0 +1,6 @@
+{
+  "name": "54-budget-flash-lite-medium-cap",
+  "function": "calculateGoogleBudgetTokens",
+  "description": "Legacy flash-lite family, reasoningEffort 'medium' with maxTokens 100000: floor(100000 * 0.25) = 25000, capped at 24576 by the inner Math.min at :1232 (the outer Math.max cannot lift a value that is already above 512). Expected value: 24576.",
+  "args": [100000, "medium", "gemini-2.5-flash-lite"]
+}

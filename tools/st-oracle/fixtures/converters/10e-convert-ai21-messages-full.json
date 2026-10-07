@@ -1,0 +1,22 @@
+{
+  "name": "10e-convert-ai21-messages",
+  "function": "convertAI21Messages",
+  "description": "convertAI21Messages (prompt-converters.js:631-695) on a full prompt. Three observable rules: (1) the leading run of system turns is drained into ONE system prompt joined with '\\n\\n' and then trimmed (:654, :670) -- the trailing separator is why the trim matters -- and spliced out of the caller's array (:657, so `mutated` shows the drain); (2) the two example names are prefixed at :643-653 and then every remaining `name` is consumed and deleted at :674-682, with the non-system turns receiving the 'name: ' prefix; (3) the alternating-turn merge at :684-692 is UNCONDITIONAL on content -- unlike mergeMessages it has no truthiness test on `message.content`, which is why the empty user turn still merges into the preceding user turn instead of becoming its own message. A user turn, an assistant turn and a user turn are added after the system run so the merge covers both halves.",
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": ["Seraphina"]
+  },
+  "args": [
+    [
+      { "role": "system", "content": "you are Iris" },
+      { "role": "system", "name": "example_assistant", "content": "the fog lifts" },
+      { "role": "system", "name": "example_user", "content": "User: where are we" },
+      { "role": "user", "name": "Corin", "content": "over here" },
+      { "role": "assistant", "content": "as you wish" },
+      { "role": "user", "content": "now?" },
+      { "role": "user", "content": "" }
+    ],
+    "$promptNames"
+  ]
+}

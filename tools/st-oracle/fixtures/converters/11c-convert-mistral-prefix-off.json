@@ -1,0 +1,19 @@
+{
+  "name": "11c-convert-mistral-prefix-off-empty",
+  "function": "convertMistralMessages",
+  "description": "Two things at once. (1) With `mistral.enablePrefix` left off, the last-message prefill at :711-713 must NOT fire -- the same last turn as fixture 11b, but no `prefix` key appears, which is the pair of results that proves the flag is actually read rather than always applied. (2) An empty array is a different fixture (11d) because the runner calls one fixture once; this input instead ends on a plain assistant turn so the `lastMsg?.role` dereference at :711 is reached with a real object. The malformed mid-prompt shape is deliberate: an assistant turn directly followed by a system turn exercises :770-774 with the system turn in the LAST position, where the loop bound `i < messages.length - 1` means it must NOT be converted -- a port that iterates one step too far flips that role to user and diverges.",
+  "config": {},
+  "names": {
+    "charName": "Iris",
+    "userName": "User",
+    "groupNames": []
+  },
+  "args": [
+    [
+      { "role": "user", "content": "hello" },
+      { "role": "assistant", "content": "hi" },
+      { "role": "system", "content": "stay in character" }
+    ],
+    "$promptNames"
+  ]
+}

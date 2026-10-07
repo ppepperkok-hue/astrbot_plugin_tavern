@@ -1,0 +1,15 @@
+{
+  "name": "31-caching-at-depth-claude",
+  "function": "cachingAtDepthForClaude",
+  "description": "cachingAtDepthForClaude (prompt-converters.js:985-1011) at depth 1 with a 1h TTL, on an array that opens with two system turns. `cachingAtDepth` is not 0 here on purpose: the walk starts at the last turn and no trailing assistant turn exists, so the first iteration sets `passedThePrefill` and counts depth 0 -- the assistant is skipped by the *role switch*, not by the prefill guard, and depth 0 is past the two breakpoints. Depth 1 is the first user turn (the second system turn shares the previous role and is skipped for counting), and it receives the `cache_control` object on the *last* part of its content. The count continues to depth 3, which is past `cachingAtDepth + 2`, so nothing else is stamped.",
+  "args": [
+    [
+      { "role": "system", "content": [{ "type": "text", "text": "Rules." }] },
+      { "role": "system", "content": [{ "type": "text", "text": "Style." }] },
+      { "role": "user", "content": [{ "type": "text", "text": "Hi." }] },
+      { "role": "assistant", "content": [{ "type": "text", "text": "Hello." }] }
+    ],
+    1,
+    "1h"
+  ]
+}
