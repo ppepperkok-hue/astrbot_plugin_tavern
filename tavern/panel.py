@@ -294,6 +294,170 @@ async def st_chats(request: Any = None) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# actions -- the page writes through these
+# ---------------------------------------------------------------------------
+#
+# All of them are POST on one route, dispatched on a `action` field, for two reasons:
+# AstrBot's route table is a flat list that is never cleaned up, so every extra route
+# is permanent for the process; and the write surface stays small enough to audit in
+# one screen -- which matters, because the page iframe is sandboxed without
+# `allow-same-origin`, so the bridge's own authentication is the only thing between a
+# caller and these.
+#
+# `scope` is the AstrBot session key (`unified_msg_origin`). Nothing here invents a
+# scope: an unknown one simply has no binding yet.
+
+#: Sub-actions `panel/action` accepts. Anything else is refused by name.
+ACTIONS = (
+    "bind_card",
+    "toggle_book",
+    "new_chat",
+    "use_chat",
+    "delete_chat",
+    "rename_chat",
+    "reload_library",
+)
+
+
+async def action(request: Any = None) -> dict[str, Any]:
+    """One write endpoint, dispatched on the body's ``action`` field."""
+    body = await _body(request)
+    name = str(body.get("action") or "").strip()
+    if not name:
+        return {"ok": False, "error": "缺少 action 字段。"}
+    if name not in ACTIONS:
+        return {"ok": False, "error": f"不认识的 action「{name}」。"}
+    try:
+        instance = _instance()
+        core = _core(instance)
+        scope = str(body.get("scope") or "").strip()
+        if not scope:
+            return {"ok": False, "error": "缺少 scope（会话标识）。"}
+
+        if name == "bind_card":
+            card = str(body.get("card") or "").strip()
+            if not card:
+                return {"ok": False, "error": "缺少 card。"}
+            binding = core.bind_card(scope, card)
+            return {
+                "ok": True,
+                "data": _binding_view(core, binding),
+                "message": f"已切换到「{card}」并开启新分支。",
+            }
+
+        if name == "toggle_book":
+            book = str(body.get("book") or "").strip()
+            if not book:
+                return {"ok": False, "error": "缺少 book。"}
+            enabled = bool(body.get("enabled"))
+            binding, state = core.toggle_book(scope, book, enabled=enabled)
+            return {
+                "ok": True,
+                "data": _binding_view(core, binding),
+                "message": f"世界书「{book}」已{'启用' if state else '关闭'}。",
+            }
+
+        if name == "new_chat":
+            binding = core.binding(scope)
+            if not binding.card_id:
+                return {"ok": False, "error": "还没有绑定角色卡。"}
+            binding = core.reset_chat(scope)
+            return {
+                "ok": True,
+                "data": _sessions_view(core, scope),
+                "message": f"已开启分支「{binding.chat_name}」。",
+            }
+
+        if name in ("use_chat", "delete_chat", "rename_chat"):
+            chat = str(body.get("chat") or "").strip()
+            if not chat:
+                return {"ok": False, "error": "缺少 chat。"}
+            binding = core.binding(scope)
+            if not binding.card_id:
+                return {"ok": False, "error": "还没有绑定角色卡。"}
+            character = core.get_card(binding.card_id).name
+
+            if name == "use_chat":
+                if chat not in core.store.list_chats(character):
+                    return {"ok": False, "error": f"找不到分支「{chat}」。"}
+                core.reset_chat(scope, new_name=chat)
+                return {
+                    "ok": True,
+                    "data": _sessions_view(core, scope),
+                    "message": f"已切换到分支「{chat}」。",
+                }
+
+            if name == "delete_chat":
+                if chat == binding.chat_name:
+                    return {"ok": False, "error": "不能删掉当前正在用的分支，请先切换。"}
+                core.store.delete(character, chat)
+                return {
+                    "ok": True,
+                    "data": _sessions_view(core, scope),
+                    "message": f"已删除分支「{chat}」。",
+                }
+
+            new_name = str(body.get("new_name") or "").strip()
+            if not new_name:
+                return {"ok": False, "error": "缺少 new_name。"}
+            core.store.rename(character, chat, new_name)
+            core.reset_chat(scope, new_name=new_name)
+            return {
+                "ok": True,
+                "data": _sessions_view(core, scope),
+                "message": f"分支已重命名为「{new_name}」。",
+            }
+
+        # reload_library
+        counts = core.reload_library()
+        return {
+            "ok": True,
+            "data": counts,
+            "message": f"已重载：{counts['cards']} 张卡、{counts['worldbooks']} 本世界书。",
+        }
+    except (TavernError, BackendError) as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+async def sessions(request: Any = None) -> dict[str, Any]:
+    """Everything the page needs about one session scope, in one round trip."""
+    scope = _query(request, "scope")
+    if not scope:
+        return {"ok": False, "error": "缺少 scope 参数。"}
+    try:
+        instance = _instance()
+        core = _core(instance)
+        return {"ok": True, "data": _sessions_view(core, scope)}
+    except TavernError as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def _binding_view(core: Any, binding: Any) -> dict[str, Any]:
+    """The binding itself. The branch list lives in :func:`_sessions_view`."""
+    return {
+        "scope": binding.scope,
+        "card": binding.card_id,
+        "worldbooks": list(binding.worldbooks),
+        "chat": binding.chat_name,
+    }
+
+
+def _sessions_view(core: Any, scope: str) -> dict[str, Any]:
+    """A binding plus its branch list -- what the page always wants together."""
+    binding = core.binding(scope)
+    view = _binding_view(core, binding)
+    view["branches"] = []
+    if binding.card_id:
+        try:
+            character = core.get_card(binding.card_id).name
+            view["branches"] = list(core.store.list_chats(character))
+        except (TavernError, OSError):
+            # A card whose chat directory does not exist yet simply has no branches.
+            view["branches"] = []
+    return view
+
+
+# ---------------------------------------------------------------------------
 # registry
 # ---------------------------------------------------------------------------
 
@@ -320,11 +484,30 @@ def _query(request: Any, key: str, default: str = "") -> str:
     query = getattr(request, "query", None) or getattr(request, "query_params", None)
     if query is None:
         return default
-    try:
-        value = query.get(key, default)
-    except TypeError:  # a multivalue dict wants the kwarg form
-        value = query.get(key, default)
+    value = query.get(key, default)
     return str(value or default)
+
+
+async def _body(request: Any) -> dict[str, Any]:
+    """The JSON request body as a dict, or an empty dict.
+
+    AstrBot hands the handler a ``PluginRequest`` whose ``json()`` is async; tests and
+    a direct call pass ``None`` or a plain mapping instead, so both shapes are
+    accepted. Anything unusable becomes ``{}`` and the handler reports the missing
+    field, which produces a better message than a stack trace.
+    """
+    if request is None:
+        return {}
+    reader = getattr(request, "json", None)
+    if reader is None:
+        return dict(request) if isinstance(request, dict) else {}
+    try:
+        payload = reader()
+        if hasattr(payload, "__await__"):
+            payload = await payload
+    except Exception:  # noqa: BLE001 - an unparsable body is a client error, not a crash
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 #: ``(subpath, handler, methods, description)``. The plugin prefixes every route
@@ -341,6 +524,8 @@ ROUTES: list[tuple[str, Any, list[str], str]] = [
     ("panel/library", library, ["GET"], "本地角色卡与世界书列表"),
     ("panel/card/<name>", card_detail, ["GET"], "角色卡详情"),
     ("panel/book/<name>", book_detail, ["GET"], "世界书详情"),
+    ("panel/sessions", sessions, ["GET"], "某个会话的绑定与分支"),
+    ("panel/action", action, ["POST"], "面板写操作（切卡/开关世界书/分支管理/重载）"),
     ("panel/st/characters", st_characters, ["GET"], "外部酒馆角色卡列表"),
     ("panel/st/worldbooks", st_worldbooks, ["GET"], "外部酒馆世界书列表"),
     ("panel/st/chats", st_chats, ["GET"], "外部酒馆聊天列表"),

@@ -89,6 +89,12 @@ def main() -> int:
     # A README pointing at a file that does not exist reads as carelessness and is
     # invisible to anyone who does not click it. Cheap enough to always check.
     results.append(run("readme links", [sys.executable, "tools/check_readme_links.py", "--quiet"]))
+    # The management page is served as files, so a typo in a `src`/`href` or an element
+    # id the script looks up but the markup never defines is a blank page rather than an
+    # error -- and the page iframe is sandboxed, so there is no console the user will
+    # find. Also asserts `PLUGIN_ID` equals `metadata.yaml`'s `name`, since a mismatch
+    # makes every panel request answer "未找到该路由".
+    results.append(run("panel assets", [sys.executable, "tools/check_panel_assets.py", "--quiet"]))
     # A mirror module with tests but no production importer cannot affect a reply, so
     # "it has tests" is not evidence it works. The three currently-unwired modules are
     # declared in KNOWN_UNWIRED with the reasoning; `--fail-on-unwired` turns a *new*
