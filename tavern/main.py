@@ -90,25 +90,6 @@ def _require_astrbot() -> bool:
     return filter is not None and Comp is not None
 
 
-# ``@filter.command_group`` returns a ``CommandGroupFilter`` whose ``.command()``
-# attaches subcommands; the AstrBot loader then discovers every handler through
-# ``inspect.getmembers``. Building the group at module level (and exposing it as
-# a class attribute below) keeps that chain intact instead of faking decorators.
-_TAVERN_GROUP = (
-    filter.command_group("tavern", alias={"酒馆"}) if _require_astrbot() else (lambda fn: fn)
-)
-
-
-def _cmd(name: str, alias: str | None = None):
-    """Attach one subcommand to the tavern group, tolerating a missing AstrBot."""
-    if not _require_astrbot():
-        return lambda fn: fn
-    try:
-        return _TAVERN_GROUP.command(name, alias={alias} if alias else None)
-    except Exception:  # noqa: BLE001 - older AstrBot without alias support
-        return _TAVERN_GROUP.command(name)
-
-
 @register(
     PLUGIN_NAME, "TARGET_AUTHOR", "酒馆风格角色扮演（角色卡 / 世界书 / 聊天记录）", PLUGIN_VERSION
 )
@@ -263,190 +244,24 @@ class TavernPlugin(Star):  # type: ignore[misc]
     # ------------------------------------------------------------------
     # commands
     # ------------------------------------------------------------------
-    @staticmethod
-    @_TAVERN_GROUP
-    def tavern_group() -> None:
-        """酒馆角色扮演指令组"""
-        pass
-
-    @_cmd("help", "菜单")
-    async def cmd_help(self, event: Any):
-        yield self._result(event, HELP_TEXT)
-
-    @_cmd("status", "状态")
-    async def cmd_status(self, event: Any):
-        binding = self.core.binding(event.unified_msg_origin)
-        lines = [
-            "酒馆状态",
-            f"数据目录: {self.config.data_dir}",
-            f"角色卡: {binding.card_id or '(未选择)'}",
-            f"世界书: {', '.join(binding.worldbooks) or '(未启用)'}",
-            f"分支: {binding.chat_name}",
-            f"后端: {self.config.backend.type}",
-            f"冷却: {self.config.trigger.cooldown_seconds}s",
-            f"状态: {'启用' if self.config.enabled else '禁用'}",
-        ]
-        yield self._result(event, "\n".join(lines))
-
-    @_cmd("list", "列表")
-    async def cmd_list_cards(self, event: Any):
-        cards = self.core.card_ids()
-        if not cards:
-            yield self._result(
-                event,
-                f"还没有角色卡。请把 .png/.json 卡片放进：\n{self.config.cards_dir}\n"
-                "然后执行 /tavern reload。",
-            )
-            return
-        binding = self.core.binding(event.unified_msg_origin)
-        lines = ["角色卡列表（* 为当前）"]
-        for name in cards:
-            marker = "*" if name == binding.card_id else " "
-            card = self.core.get_card(name)
-            lines.append(f"{marker} {name} — {card.creator or '未知作者'}")
-        lines.append("切换：/tavern use <名字>")
-        yield self._result(event, "\n".join(lines))
-
-    @_cmd("use", "换卡")
-    async def cmd_use_card(self, event: Any, name: str = "", *args: str):
-        if self.config.permissions.switch_card_requires_admin and not _is_admin(event):
-            yield self._result(event, "只有管理员可以切换角色卡。")
-            return
-        target = " ".join([name, *args]).strip()
-        if not target:
-            yield self._result(event, "用法：/tavern use <角色卡名>")
-            return
-        try:
-            binding = self.core.bind_card(event.unified_msg_origin, target)
-        except TavernError as exc:
-            yield self._result(event, str(exc))
-            return
-        yield self._result(event, f"已切换为「{binding.card_name}」，并开启新分支。")
-        greeting = self.core.greeting(event.unified_msg_origin)
-        if greeting:
-            for chunk in split_message(greeting, self.config.render.max_chars_per_message):
-                yield self._result(event, chunk)
-
-    @_cmd("card")
-    async def cmd_card_detail(self, event: Any):
-        binding = self.core.binding(event.unified_msg_origin)
-        if not binding.card_id:
-            yield self._result(event, "当前会话还没有选择角色卡。")
-            return
-        card = self.core.get_card(binding.card_id)
-        lines = [
-            f"角色卡：{card.name}",
-            f"版本：{card.character_version or '-'}  作者：{card.creator or '-'}",
-            f"标签：{', '.join(card.tags) or '-'}",
-            f"描述：{_clip(card.description, 300)}",
-            f"开场白：{_clip(card.first_mes, 120)}",
-        ]
-        yield self._result(event, "\n".join(lines))
-
-    @_cmd("new", "重开")
-    async def cmd_new_chat(self, event: Any):
-        binding = self.core.reset_chat(event.unified_msg_origin)
-        yield self._result(event, f"已开启新分支「{binding.chat_name}」。")
-        greeting = self.core.greeting(event.unified_msg_origin)
-        if greeting:
-            for chunk in split_message(greeting, self.config.render.max_chars_per_message):
-                yield self._result(event, chunk)
-
-    @_cmd("history", "历史")
-    async def cmd_history(self, event: Any, limit: str = "6"):
-        try:
-            count = max(1, min(30, int(limit)))
-        except ValueError:
-            count = 6
-        lines = self.core.history_preview(event.unified_msg_origin, limit=count)
-        yield self._result(event, "\n".join(lines) if lines else "当前分支还没有记录。")
-
-    @_cmd("worldbook", "世界书")
-    async def cmd_worldbook(self, event: Any, action: str = "list", *args: str):
-        binding = self.core.binding(event.unified_msg_origin)
-        if action in ("list", "列表"):
-            names = self.core.book_ids()
-            if not names:
-                yield self._result(
-                    event,
-                    f"还没有世界书。请把 .json 放进：\n{self.config.worldbooks_dir}\n"
-                    "然后执行 /tavern reload。",
-                )
-                return
-            lines = ["世界书列表（* 为已启用）"]
-            for name in names:
-                marker = "*" if name in binding.worldbooks else " "
-                book = self.core.get_book(name)
-                lines.append(f"{marker} {name} ({len(book.entries)} 条)")
-            lines.append("开关：/tavern worldbook on|off <名字>")
-            yield self._result(event, "\n".join(lines))
-            return
-
-        if action in ("on", "off"):
-            target = " ".join(args).strip()
-            if not target:
-                yield self._result(event, f"用法：/tavern worldbook {action} <名字>")
-                return
-            try:
-                binding, enabled = self.core.toggle_book(
-                    event.unified_msg_origin, target, enabled=(action == "on")
-                )
-            except TavernError as exc:
-                yield self._result(event, str(exc))
-                return
-            state = "开启" if enabled else "关闭"
-            yield self._result(
-                event, f"世界书已{state}，当前启用：{', '.join(binding.worldbooks) or '(无)'}"
-            )
-            return
-
-        yield self._result(event, "用法：/tavern worldbook list | on <名字> | off <名字>")
-
-    @_cmd("reload", "重载")
-    async def cmd_reload(self, event: Any):
-        counts = self.core.reload_library()
-        yield self._result(
-            event,
-            f"已重载：{counts['cards']} 张角色卡，{counts['worldbooks']} 本世界书，"
-            f"{counts['presets']} 个预设。",
-        )
-
-    @_cmd("preview", "预览")
-    async def cmd_preview(self, event: Any, text: str = ""):
-        if not self.config.debug.show_debug_in_chat:
-            yield self._result(event, "调试回显已在配置中关闭。")
-            return
-        try:
-            turn = self.core.build_turn(
-                event.unified_msg_origin, text or "（预览，无输入）", sender_name="预览"
-            )
-        except TavernError as exc:
-            yield self._result(event, str(exc))
-            return
-        yield self._result(event, _clip(request_preview(turn), 1500))
-
-    @_cmd("import", "导入")
-    async def cmd_import(self, event: Any):
-        if self.config.permissions.import_requires_admin and not _is_admin(event):
-            yield self._result(event, "只有管理员可以导入文件。")
-            return
-        yield self._result(
-            event,
-            "请把文件放进对应目录后执行 /tavern reload：\n"
-            f"角色卡: {self.config.cards_dir}\n"
-            f"世界书: {self.config.worldbooks_dir}\n"
-            f"预设: {self.config.presets_dir}",
-        )
+    # The subcommand handlers are plain module level functions registered
+    # through the group (AstrBot's ``RegisteringCommandable.command`` chain);
+    # they are attached to the class right after it is defined, which gives the
+    # loader a single stable module for handler discovery.
 
     # ------------------------------------------------------------------
     # helpers
     # ------------------------------------------------------------------
     def _result(self, event: Any, text: str):
+        """Wrap text into a message result.
+
+        ``chain_result`` expects a *list* of message components; handing it a
+        ``MessageChain`` object breaks ``get_plain_text()`` at send time (the
+        chain has to be iterated).
+        """
         if Comp is None:
             return text
-        chain = MessageChain()
-        chain.chain = [Comp.Plain(text)]
-        return event.chain_result(chain)
+        return event.chain_result([Comp.Plain(text)])
 
 
 def _clip(text: str, limit: int) -> str:
@@ -515,16 +330,239 @@ HELP_TEXT = """酒馆角色扮演 · 指令
 """
 
 
+# ----------------------------------------------------------------------
+# subcommand handlers
+# ----------------------------------------------------------------------
+# AstrBot's command groups work through a "registering commandable" chain: the
+# decorator returned by ``group.command(...)`` registers the function and hands
+# it back. Building that chain at module level (instead of faking decorators
+# inside the class body) keeps handler discovery working, because the loader
+# resolves every handler through ``inspect.getmembers`` on the plugin class and
+# matches it in ``star_handlers_registry`` by its module and function name.
+
+
+def _register_commands(plugin_cls: Any) -> bool:
+    """Attach the ``/tavern`` group and its subcommands to ``plugin_cls``.
+
+    Returns ``False`` when AstrBot is not importable (tests, linting), in which
+    case the command tree simply does not exist; the role play handler and the
+    core logic keep working.
+    """
+    if not _require_astrbot():
+        return False
+
+    @filter.command_group("tavern", alias={"酒馆"})
+    def group() -> None:
+        """酒馆角色扮演指令组"""
+
+    def sub(name: str, alias: str | None = None):
+        if alias is None:
+            return group.command(name)
+        try:
+            return group.command(name, alias={alias})
+        except TypeError:  # pragma: no cover - very old AstrBot without aliases
+            return group.command(name)
+
+    @sub("help", "菜单")
+    async def cmd_help(plugin: TavernPlugin, event: Any):
+        yield plugin._result(event, HELP_TEXT)
+
+    @sub("status", "状态")
+    async def cmd_status(plugin: TavernPlugin, event: Any):
+        binding = plugin.core.binding(event.unified_msg_origin)
+        lines = [
+            "酒馆状态",
+            f"数据目录: {plugin.config.data_dir}",
+            f"角色卡: {binding.card_id or '(未选择)'}",
+            f"世界书: {', '.join(binding.worldbooks) or '(未启用)'}",
+            f"分支: {binding.chat_name}",
+            f"后端: {plugin.config.backend.type}",
+            f"冷却: {plugin.config.trigger.cooldown_seconds}s",
+            f"状态: {'启用' if plugin.config.enabled else '禁用'}",
+        ]
+        yield plugin._result(event, "\n".join(lines))
+
+    @sub("list", "列表")
+    async def cmd_list_cards(plugin: TavernPlugin, event: Any):
+        cards = plugin.core.card_ids()
+        if not cards:
+            yield plugin._result(
+                event,
+                f"还没有角色卡。请把 .png/.json 卡片放进：\n{plugin.config.cards_dir}\n"
+                "然后执行 /tavern reload。",
+            )
+            return
+        binding = plugin.core.binding(event.unified_msg_origin)
+        lines = ["角色卡列表（* 为当前）"]
+        for name in cards:
+            marker = "*" if name == binding.card_id else " "
+            card = plugin.core.get_card(name)
+            lines.append(f"{marker} {name} - {card.creator or '未知作者'}")
+        lines.append("切换：/tavern use <名字>")
+        yield plugin._result(event, "\n".join(lines))
+
+    @sub("use", "换卡")
+    async def cmd_use_card(plugin: TavernPlugin, event: Any, name: str = "", *args: str):
+        if plugin.config.permissions.switch_card_requires_admin and not _is_admin(event):
+            yield plugin._result(event, "只有管理员可以切换角色卡。")
+            return
+        target = " ".join([name, *args]).strip()
+        if not target:
+            yield plugin._result(event, "用法：/tavern use <角色卡名>")
+            return
+        try:
+            binding = plugin.core.bind_card(event.unified_msg_origin, target)
+        except TavernError as exc:
+            yield plugin._result(event, str(exc))
+            return
+        yield plugin._result(event, f"已切换为「{binding.card_name}」，并开启新分支。")
+        greeting = plugin.core.greeting(event.unified_msg_origin)
+        if greeting:
+            for chunk in split_message(greeting, plugin.config.render.max_chars_per_message):
+                yield plugin._result(event, chunk)
+
+    @sub("card")
+    async def cmd_card_detail(plugin: TavernPlugin, event: Any):
+        binding = plugin.core.binding(event.unified_msg_origin)
+        if not binding.card_id:
+            yield plugin._result(event, "当前会话还没有选择角色卡。")
+            return
+        card = plugin.core.get_card(binding.card_id)
+        lines = [
+            f"角色卡：{card.name}",
+            f"版本：{card.character_version or '-'}  作者：{card.creator or '-'}",
+            f"标签：{', '.join(card.tags) or '-'}",
+            f"描述：{_clip(card.description, 300)}",
+            f"开场白：{_clip(card.first_mes, 120)}",
+        ]
+        yield plugin._result(event, "\n".join(lines))
+
+    @sub("new", "重开")
+    async def cmd_new_chat(plugin: TavernPlugin, event: Any):
+        binding = plugin.core.reset_chat(event.unified_msg_origin)
+        yield plugin._result(event, f"已开启新分支「{binding.chat_name}」。")
+        greeting = plugin.core.greeting(event.unified_msg_origin)
+        if greeting:
+            for chunk in split_message(greeting, plugin.config.render.max_chars_per_message):
+                yield plugin._result(event, chunk)
+
+    @sub("history", "历史")
+    async def cmd_history(plugin: TavernPlugin, event: Any, limit: str = "6"):
+        try:
+            count = max(1, min(30, int(limit)))
+        except ValueError:
+            count = 6
+        lines = plugin.core.history_preview(event.unified_msg_origin, limit=count)
+        yield plugin._result(event, "\n".join(lines) if lines else "当前分支还没有记录。")
+
+    @sub("worldbook", "世界书")
+    async def cmd_worldbook(plugin: TavernPlugin, event: Any, action: str = "list", *args: str):
+        binding = plugin.core.binding(event.unified_msg_origin)
+        if action in ("list", "列表"):
+            names = plugin.core.book_ids()
+            if not names:
+                yield plugin._result(
+                    event,
+                    f"还没有世界书。请把 .json 放进：\n{plugin.config.worldbooks_dir}\n"
+                    "然后执行 /tavern reload。",
+                )
+                return
+            lines = ["世界书列表（* 为已启用）"]
+            for name in names:
+                marker = "*" if name in binding.worldbooks else " "
+                book = plugin.core.get_book(name)
+                lines.append(f"{marker} {name} ({len(book.entries)} 条)")
+            lines.append("开关：/tavern worldbook on|off <名字>")
+            yield plugin._result(event, "\n".join(lines))
+            return
+
+        if action in ("on", "off"):
+            target = " ".join(args).strip()
+            if not target:
+                yield plugin._result(event, f"用法：/tavern worldbook {action} <名字>")
+                return
+            try:
+                binding, enabled = plugin.core.toggle_book(
+                    event.unified_msg_origin, target, enabled=(action == "on")
+                )
+            except TavernError as exc:
+                yield plugin._result(event, str(exc))
+                return
+            state = "开启" if enabled else "关闭"
+            yield plugin._result(
+                event, f"世界书已{state}，当前启用：{', '.join(binding.worldbooks) or '(无)'}"
+            )
+            return
+
+        yield plugin._result(event, "用法：/tavern worldbook list | on <名字> | off <名字>")
+
+    @sub("reload", "重载")
+    async def cmd_reload(plugin: TavernPlugin, event: Any):
+        counts = plugin.core.reload_library()
+        yield plugin._result(
+            event,
+            f"已重载：{counts['cards']} 张角色卡，{counts['worldbooks']} 本世界书，"
+            f"{counts['presets']} 个预设。",
+        )
+
+    @sub("preview", "预览")
+    async def cmd_preview(plugin: TavernPlugin, event: Any, text: str = ""):
+        if not plugin.config.debug.show_debug_in_chat:
+            yield plugin._result(event, "调试回显已在配置中关闭。")
+            return
+        try:
+            turn = plugin.core.build_turn(
+                event.unified_msg_origin, text or "（预览，无输入）", sender_name="预览"
+            )
+        except TavernError as exc:
+            yield plugin._result(event, str(exc))
+            return
+        yield plugin._result(event, _clip(request_preview(turn), 1500))
+
+    @sub("import", "导入")
+    async def cmd_import(plugin: TavernPlugin, event: Any):
+        if plugin.config.permissions.import_requires_admin and not _is_admin(event):
+            yield plugin._result(event, "只有管理员可以导入文件。")
+            return
+        yield plugin._result(
+            event,
+            "请把文件放进对应目录后执行 /tavern reload：\n"
+            f"角色卡: {plugin.config.cards_dir}\n"
+            f"世界书: {plugin.config.worldbooks_dir}\n"
+            f"预设: {plugin.config.presets_dir}",
+        )
+
+    # ``staticmethod`` keeps ``inspect.getmembers`` unwrapping to the function
+    # while the loader instantiates the plugin and calls ``handler(plugin, event)``.
+    for name, func in (
+        ("cmd_help", cmd_help),
+        ("cmd_status", cmd_status),
+        ("cmd_list_cards", cmd_list_cards),
+        ("cmd_use_card", cmd_use_card),
+        ("cmd_card_detail", cmd_card_detail),
+        ("cmd_new_chat", cmd_new_chat),
+        ("cmd_history", cmd_history),
+        ("cmd_worldbook", cmd_worldbook),
+        ("cmd_reload", cmd_reload),
+        ("cmd_preview", cmd_preview),
+        ("cmd_import", cmd_import),
+    ):
+        setattr(plugin_cls, name, staticmethod(func))
+    return True
+
+
 def main() -> None:
     """Fail loudly when the module is executed without AstrBot."""
     if not _require_astrbot():
         print(
-            "astrbot_plugin_tavern.main 必须在 AstrBot 内运行；"
-            "直接执行时只有 st/ 与 core 层的单元测试可用。",
+            "tavern.main 必须在 AstrBot 内运行；直接执行时只有 st/ 与 core 层的单元测试可用。",
             file=sys.stderr,
         )
         raise SystemExit(2)
     print(f"{PLUGIN_NAME} {PLUGIN_VERSION} loaded")
+
+
+_REGISTERED_SUBCOMMANDS = _register_commands(TavernPlugin)
 
 
 if __name__ == "__main__":  # pragma: no cover

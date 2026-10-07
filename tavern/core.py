@@ -487,10 +487,15 @@ class PluginCore:
             for message in build.messages
             if message.content
         ]
-        system_prompt = ""
-        if messages and messages[0].role == "system":
-            system_prompt = messages[0].content
-            messages = messages[1:]
+        # Leading system blocks (main prompt, world info before char, character
+        # definition, scenario, ...) are stable for the whole chat, so they are
+        # handed over as ``system_prompt`` and dropped from the message list.
+        # Later system blocks (post history instructions, in-chat injections)
+        # keep their position inside the message list.
+        system_parts: list[str] = []
+        while messages and messages[0].role == "system":
+            system_parts.append(messages.pop(0).content)
+        system_prompt = "\n\n".join(part for part in system_parts if part)
 
         request = GenerationRequest(
             messages=messages,

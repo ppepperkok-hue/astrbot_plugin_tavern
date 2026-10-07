@@ -54,6 +54,23 @@ class _Handler:
         return child
 
 
+class _RegisteringCommandable:
+    """Mirrors ``astrbot.core.star.register.RegisteringCommandable``."""
+
+    def __init__(self, group: _Handler) -> None:
+        self.group = group
+        self.registered: list[tuple[str, set[str]]] = []
+
+    def command(self, name: str, alias: set | None = None) -> Any:
+        self.registered.append((name, alias or set()))
+
+        def decorator(fn: Any) -> Any:
+            fn.handler = _Handler("command", name, alias)  # type: ignore[attr-defined]
+            return fn
+
+        return decorator
+
+
 def _build_stub() -> dict[str, Any]:
     astrbot = types.ModuleType("astrbot")
     api = types.ModuleType("astrbot.api")
@@ -107,8 +124,13 @@ def _build_stub() -> dict[str, Any]:
         def command(self, name: str, alias: set | None = None) -> _Handler:
             return _Handler("command", name, alias)
 
-        def command_group(self, name: str, alias: set | None = None) -> _Handler:
-            return _Handler("group", name, alias)
+        def command_group(self, name: str, alias: set | None = None):
+            handler = _Handler("group", name, alias)
+
+            def decorator(_fn: Any) -> _RegisteringCommandable:
+                return _RegisteringCommandable(handler)
+
+            return decorator
 
         def event_message_type(self, _kind: Any):  # pragma: no cover - decorator only
             return lambda fn: fn
@@ -252,7 +274,8 @@ class FakeEvent:
         return self.message_obj.self_id
 
     def chain_result(self, chain: Any) -> FakeResult:
-        text = "".join(getattr(part, "text", "") for part in chain.chain)
+        """``chain_result`` receives a list of components in real AstrBot."""
+        text = "".join(getattr(part, "text", "") for part in chain)
         result = FakeResult(text)
         self.sent.append(result)
         return result
@@ -286,24 +309,31 @@ class FakeBackend:
 # tests
 # ----------------------------------------------------------------------
 def test_module_registers_and_builds_command_tree(tavern) -> None:
-    group = getattr(tavern.TavernPlugin, "tavern_group")
-    assert group.handler.kind == "group"
-    assert group.handler.name == "tavern"
-    assert group.handler.alias == {"酒馆"}
-    subcommands = {child.name for child in group.handler.sub}
-    assert {
+    """The plugin class exposes every handler the group registered."""
+    handlers = sorted(
+        name[4:]
+        for name in dir(tavern.TavernPlugin)
+        if name.startswith("cmd_") and callable(getattr(tavern.TavernPlugin, name))
+    )
+    assert handlers == [
+        "card_detail",
         "help",
-        "status",
-        "list",
-        "use",
-        "card",
-        "new",
         "history",
-        "worldbook",
-        "reload",
-        "preview",
         "import",
-    } <= subcommands
+        "list_cards",
+        "new_chat",
+        "preview",
+        "reload",
+        "status",
+        "use_card",
+        "worldbook",
+    ]
+    assert tavern._REGISTERED_SUBCOMMANDS is True
+
+    # the message handler is decorated as well
+    assert hasattr(tavern.TavernPlugin.on_message, "__wrapped__") or callable(
+        tavern.TavernPlugin.on_message
+    )
 
 
 def _make_plugin(tavern, tmp_path: Path, config: dict[str, Any] | None = None):

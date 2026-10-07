@@ -116,8 +116,11 @@ def test_build_turn_injects_world_info(tmp_path: Path) -> None:
     # constant entry 0 always fires, the disabled/zero-probability ones never do
     assert {entry.uid for entry in turn.activated} == {0}
     joined = "\n".join(message.content for message in turn.request.messages)
-    assert "44 metres tall" in joined
-    assert "Iris is a lighthouse keeper" in joined
+    # stable blocks (card + world info before char) land in the system prompt,
+    # the rest of the conversation is handed over as messages
+    assert "44 metres tall" in turn.request.system_prompt
+    assert "Iris is a lighthouse keeper" in turn.request.system_prompt
+    assert joined
 
 
 def test_build_turn_uses_conversation_history_when_given(tmp_path: Path) -> None:
