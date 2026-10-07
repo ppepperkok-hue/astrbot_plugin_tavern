@@ -396,7 +396,7 @@ def test_message_flow_sends_greeting_then_answer(tavern, tmp_path: Path) -> None
     event = FakeEvent("你好", at=True)
     results = plugin.core  # keep the linter honest about unused imports
     assert results is not None
-    sent = _run(_collect(plugin.on_message(event)))
+    sent = _run(_collect(plugin.handle_message(event)))
 
     texts = [item.text for item in sent]
     assert any("The lamp sweeps" in text for text in texts)  # greeting
@@ -415,7 +415,7 @@ def test_message_flow_skips_when_cooldown_active(tavern, tmp_path: Path) -> None
     plugin._backend = FakeBackend()
     plugin._last_reply["aiocqhttp:GroupMessage:123"] = __import__("time").monotonic()
 
-    sent = _run(_collect(plugin.on_message(FakeEvent("你好", at=True))))
+    sent = _run(_collect(plugin.handle_message(FakeEvent("你好", at=True))))
     assert sent == []
 
 
@@ -435,7 +435,7 @@ def test_backend_error_is_reported(tavern, tmp_path: Path) -> None:
     _seed(plugin)
     plugin._backend = Boom()
 
-    sent = _run(_collect(plugin.on_message(FakeEvent("你好", at=True))))
+    sent = _run(_collect(plugin.handle_message(FakeEvent("你好", at=True))))
     assert any("生成失败" in item.text for item in sent)
 
 
@@ -447,7 +447,7 @@ def test_render_splits_long_answer(tavern, tmp_path: Path) -> None:
     # the card greeting would be split as well; assert on the model answer only
     plugin.core.binding("aiocqhttp:GroupMessage:123").greeting_sent = True
 
-    sent = _run(_collect(plugin.on_message(FakeEvent("你好", at=True))))
+    sent = _run(_collect(plugin.handle_message(FakeEvent("你好", at=True))))
     answers = [item.text.replace("\u200b", "") for item in sent]
     assert len(answers) >= 3
     assert all(len(answer) <= 10 for answer in answers)

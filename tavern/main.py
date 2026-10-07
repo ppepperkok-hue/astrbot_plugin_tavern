@@ -106,6 +106,8 @@ class TavernPlugin(Star):  # type: ignore[misc]
         self._backend: GenerationBackend | None = None
         self._last_reply: dict[str, float] = {}
         self._inflight: dict[str, int] = {}
+        # Staticmethod handlers need a way back to this instance.
+        PLUGIN_INSTANCES.append(self)
 
     # ------------------------------------------------------------------
     # lifecycle
@@ -193,53 +195,24 @@ class TavernPlugin(Star):  # type: ignore[misc]
     # ------------------------------------------------------------------
     # main message handler
     # ------------------------------------------------------------------
-    @(
-        filter.event_message_type(filter.EventMessageType.ALL)
-        if _require_astrbot()
-        else (lambda fn: fn)
-    )
-    async def on_message(self, event: Any):
-        """Role play handler; also acts as the command fallback."""
-        if not self.is_triggered(event):
+    # AstrBot calls handlers as ``handler(event)``: it does *not* pass the plugin
+    # instance. Handlers are therefore staticmethods that receive the plugin
+    # through :data:`PLUGIN_INSTANCES` (the loaded instance, or a lazily built
+    # one when AstrBot did not instantiate the class itself).
+    @staticmethod
+    async def on_message(event: Any):
+        """Role play handler: takes over the conversation for enrolled chats."""
+        plugin = _current_plugin()
+        if plugin is None:
             return
-        scope = event.unified_msg_origin
-        if self._cooldown_active(scope) or self._too_many_inflight(scope):
-            return
-        if _is_at_bot(event) and not self.strip_wake_prefix(event.message_str):
-            return
-
-        self._inflight[scope] = self._inflight.get(scope, 0) + 1
-        try:
-            user_text = self.strip_wake_prefix(event.message_str)
-            sender = _safe_call(event, "get_sender_name") or "用户"
-            greeting = self.core.greeting(scope)
-            if greeting:
-                yield self._result(event, greeting)
-                if not user_text:
-                    event.stop_event()
-                    return
-
-            if user_text:
-                self.core.record_user(scope, user_text, sender_name=sender)
-                turn = self.core.build_turn(scope, user_text, sender_name=sender)
-                if self.config.debug.log_prompt:
-                    _log("info", "prompt preview:\n" + request_preview(turn))
-                try:
-                    answer = await self.generate(turn.request)
-                except BackendError as exc:
-                    yield self._result(event, f"生成失败：{exc}")
-                    event.stop_event()
-                    return
-
-                for chunk in render_answer(answer, config=self.config):
-                    yield self._result(event, chunk)
-                    if self.config.render.segment_delay_ms > 0:
-                        await asyncio.sleep(self.config.render.segment_delay_ms / 1000)
-                self.core.record_assistant(scope, answer)
-                self._last_reply[scope] = time.monotonic()
-        finally:
-            self._inflight[scope] = max(0, self._inflight.get(scope, 1) - 1)
+        async for result in _handle_message(plugin, event):
+            yield result
         event.stop_event()
+
+    async def handle_message(self, event: Any):
+        """Instance level entry point (also used directly by tests)."""
+        async for result in _handle_message(self, event):
+            yield result
 
     # ------------------------------------------------------------------
     # commands
@@ -262,6 +235,67 @@ class TavernPlugin(Star):  # type: ignore[misc]
         if Comp is None:
             return text
         return event.chain_result([Comp.Plain(text)])
+
+
+#: Plugins instantiated by AstrBot. The runtime handlers are staticmethods, so
+#: they need a way back to the instance that owns the library and bindings.
+PLUGIN_INSTANCES: list[TavernPlugin] = []
+
+
+def _current_plugin() -> TavernPlugin | None:
+    """Return the live plugin instance, building one if AstrBot did not."""
+    if PLUGIN_INSTANCES:
+        return PLUGIN_INSTANCES[0]
+    try:
+        plugin = TavernPlugin(None)
+    except Exception as exc:  # noqa: BLE001 - never let the handler explode
+        _log("error", f"could not initialise the plugin automatically: {exc}")
+        return None
+    return plugin
+
+
+async def _handle_message(plugin: TavernPlugin, event: Any):
+    """The actual message pipeline, independent of how it was invoked."""
+    if not plugin.is_triggered(event):
+        return
+    scope = event.unified_msg_origin
+    if plugin._cooldown_active(scope) or plugin._too_many_inflight(scope):
+        return
+    if _is_at_bot(event) and not plugin.strip_wake_prefix(event.message_str):
+        return
+
+    plugin._inflight[scope] = plugin._inflight.get(scope, 0) + 1
+    try:
+        user_text = plugin.strip_wake_prefix(event.message_str)
+        sender = _safe_call(event, "get_sender_name") or "用户"
+        greeting = plugin.core.greeting(scope)
+        if greeting:
+            yield plugin._result(event, greeting)
+            if not user_text:
+                event.stop_event()
+                return
+
+        if user_text:
+            plugin.core.record_user(scope, user_text, sender_name=sender)
+            turn = plugin.core.build_turn(scope, user_text, sender_name=sender)
+            if plugin.config.debug.log_prompt:
+                _log("info", "prompt preview:\n" + request_preview(turn))
+            try:
+                answer = await plugin.generate(turn.request)
+            except BackendError as exc:
+                yield plugin._result(event, f"生成失败：{exc}")
+                event.stop_event()
+                return
+
+            for chunk in render_answer(answer, config=plugin.config):
+                yield plugin._result(event, chunk)
+                if plugin.config.render.segment_delay_ms > 0:
+                    await asyncio.sleep(plugin.config.render.segment_delay_ms / 1000)
+            plugin.core.record_assistant(scope, answer)
+            plugin._last_reply[scope] = time.monotonic()
+    finally:
+        plugin._inflight[scope] = max(0, plugin._inflight.get(scope, 1) - 1)
+    event.stop_event()
 
 
 def _clip(text: str, limit: int) -> str:
@@ -356,12 +390,25 @@ def _register_commands(plugin_cls: Any) -> bool:
         """酒馆角色扮演指令组"""
 
     def sub(name: str, alias: str | None = None):
-        if alias is None:
-            return group.command(name)
-        try:
-            return group.command(name, alias={alias})
-        except TypeError:  # pragma: no cover - very old AstrBot without aliases
-            return group.command(name)
+        def decorator(fn: Any) -> Any:
+            # AstrBot calls ``fn(event)``; the plugin instance comes from the
+            # registry, so ``fn`` keeps taking the plugin explicitly.
+            async def shim(self_unused: Any, event: Any, *args: Any):
+                plugin = _current_plugin()
+                if plugin is None:
+                    return
+                async for result in fn(plugin, event, *args):
+                    yield result
+
+            shim.__name__ = fn.__name__
+            shim.__doc__ = fn.__doc__
+            shim.__module__ = fn.__module__
+            shim.__qualname__ = fn.__qualname__
+            # Register the shim (wrapper) and hand it back for class attachment.
+            decorated = group.command(name, alias={alias}) if alias else group.command(name)
+            return decorated(shim)
+
+        return decorator
 
     @sub("help", "菜单")
     async def cmd_help(plugin: TavernPlugin, event: Any):
@@ -563,6 +610,13 @@ def main() -> None:
 
 
 _REGISTERED_SUBCOMMANDS = _register_commands(TavernPlugin)
+if _require_astrbot():
+    # ``on_message`` is a staticmethod carrying a filter created *before* the
+    # class existed; register it through AstrBot's own decorator so the handler
+    # metadata matches what ``call_handler`` looks up at runtime.
+    TavernPlugin.on_message = staticmethod(
+        filter.event_message_type(filter.EventMessageType.ALL)(TavernPlugin.on_message)
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover

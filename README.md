@@ -115,10 +115,16 @@ python tools/make_fixtures.py      # 重新生成酒馆格式夹具
 ```bash
 astrbot_python tools/astrbot_smoke.py   # 指令组、插件类、initialize/terminate
 astrbot_python tools/astrbot_e2e.py     # 一轮群聊：世界书注入 + 分段回复 + 落库
+astrbot_python tools/qq_e2e.py          # 起真 AstrBot + 假 OneBot v11 客户端走整条 QQ 链路
 ```
 
-AstrBot 侧的兼容性已在 **4.28.2** 实测通过（指令组注册链、`chain_result` 组件列表、
-`llm_generate(contexts=…)`、`data.plugin_data` 数据目录）。
+`tools/qq_e2e.py` 是最接近线上的一层：它在 `.tools/e2e-root` 造一个隔离的 AstrBot 根目录，
+启动**真实的 AstrBot 进程**（aiocqhttp 反向 WS + 插件），再用一个假 QQ 客户端连上去发群消息，
+断言「世界书注入 → 假酒馆后端生成 → `send_group_msg` 分段回发」整条链路。
+NapCat 本体可用 `python tools/setup_napcat.py` 下载到 `.tools/napcat`，填好 QQ 账号后即可换成真实协议端。
+
+AstrBot 侧的兼容性已在 **4.28.2** 实测通过（指令组注册链、handler 调用约定、`chain_result`
+组件列表、`llm_generate(contexts=…)`、`data.plugin_data` 数据目录、aiocqhttp 反向 WS 握手头）。
 
 ## 已知边界
 

@@ -334,8 +334,23 @@ class PluginCore:
         binding = self._bindings.get(key)
         if binding is None:
             binding = SessionBinding(scope=key)
+            # A brand new chat (new group, new private chat, or a platform
+            # adapter re-created with a different instance id) inherits the
+            # most recently used card and world books, so users do not have to
+            # re-select the character in every chat.
+            template = self._recent_binding()
+            if template is not None:
+                binding.card_id = template.card_id
+                binding.card_name = template.card_name
+                binding.worldbooks = list(template.worldbooks)
             self._bindings[key] = binding
         return binding
+
+    def _recent_binding(self) -> SessionBinding | None:
+        candidates = [item for item in self._bindings.values() if item.card_id]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda item: item.updated_at)
 
     def bind_card(self, unified_msg_origin: str, card_id: str) -> SessionBinding:
         card = self.get_card(card_id)
