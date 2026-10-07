@@ -15,13 +15,23 @@
 
 | 步 | 内容 | 产物 | 状态 |
 |---|---|---|---|
-| S0 | 判定机（oracle） | `tools/st-oracle/`（Node 跑酒馆原版 + Python 跑我们的实现 + diff） | 进行中 |
-| S0b | 源码快照与移植映射 | `research/_raw/st-src/`、`research/07-port-map.md` | 进行中 |
-| S1 | 世界书引擎（逐行移植） | `tavern/st/wi_*.py`（buffer / 关键词解析 / decorators / timed effects / 主流程） | 待开始 |
+| S0 | 判定机（oracle） | `tools/st-oracle/`（Node 跑酒馆原版 + Python 跑我们的实现 + diff），12 个 fixture | ✅ 已立（当前 3 match / 8 diverged / 1 不可比） |
+| S0b | 源码快照与移植映射 | `research/_raw/st-src/`（13 份，sha 校验）、`research/07-port-map.md`（81 条） | ✅ 已立（26 ported / 24 pending / 31 exempt） |
+| S1 | 世界书引擎（逐行移植） | `tavern/st/wi_buffer.py`、`wi_keywords.py`、`wi_decorators.py`，主流程待接 | 🚧 进行中 |
 | S2 | Prompt 组装与消息模型 | 按 `openai.js` 的 `ChatCompletion` / `Message` / `TokenHandler` 与组装序移植 | 待开始 |
 | S3 | 导入导出 | 角色卡（PNG/JSON/YAML）、`character_book`、`lorebook_v3`、预设、聊天 `.jsonl`（含 swipes） | 待开始 |
 | S4 | Provider 格式适配 | 移植 `src/prompt-converters.js`（服务端纯逻辑，1451 行 / 20 个导出） | 待开始 |
 | S5 | 外部酒馆后端 | 保留并完善 `tavern/backends/sillytavern.py`（cookie/CSRF、失败回退） | 待开始 |
+
+### S1 已完成的对齐（本轮，按判定机实测）
+
+| 行为 | 之前的实现 | 现在的实现（对齐 world-info.js） |
+|---|---|---|
+| 激活顺序 | 升序 sort（碰巧对了） | 显式注释来源：`:88` 降序 sort + `:5214` `unshift` ⇒ 最终**升序** |
+| token 预算 | "尽量多塞"，从低优先级开始丢 | `:5061-5073` 的顺序累加：一旦放不下就**丢弃其后全部**条目（硬截断） |
+| `ignoreBudget` | 未实现 | 预算溢出后仍可继续注入 |
+| 概率判定 | `randint(1,100) > p` | `random()*100 < p`（流本身与浏览器不同，判定机已标不可比） |
+| `scan_depth = 0` | 扫全部历史 | 不扫历史（只有递归与 A/N） |
 
 ---
 

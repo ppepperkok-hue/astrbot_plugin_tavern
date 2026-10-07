@@ -19,17 +19,17 @@
     "js_name": "getWorldInfoPrompt",
     "js_line": 892,
     "loc": 24,
-    "python_target": "tools/st-oracle/run_python.py:main",
-    "status": "pending",
-    "note": "Prompt assembly is split: tavern/st/prompt.py renders slots, tavern/core.py build_turn() orchestrates. The st-oracle adapter is what the diff measures today; no single ported function owns this contract yet."
+    "python_target": "tavern/core.py:PluginCore.build_turn + tavern/st/prompt.py:build_messages",
+    "status": "ported",
+    "note": "7 of ST's 8 outputs exist as position buckets; outletEntries is missing and eventSource.emit(WORLD_INFO_ACTIVATED) has no equivalent. Oracle fixture 05 pins the assembled strings and buckets."
   },
   {
     "js_name": "setWorldInfoSettings",
     "js_line": 917,
     "loc": 117,
-    "python_target": "tavern/config.py:TavernConfig.from_dict",
+    "python_target": "tavern/config.py:TavernConfig.from_raw",
     "status": "ported",
-    "note": "Scan setup is derived from config + SessionBinding.worldbooks per turn."
+    "note": "Scan setup is derived from config plus SessionBinding.worldbooks per turn instead of global mutation. The oracle must set both the knobs and world_info.globalSelect or the engine silently scans with defaults (run.mjs guards this and exits 3)."
   },
   {
     "js_name": "reloadEditor",
@@ -44,7 +44,7 @@
     "js_line": 1049,
     "loc": 961,
     "python_target": "",
-    "status": "exempt",
+    "status": "pending",
     "note": "Slash-command registration for the ST chat UI."
   },
   {
@@ -59,9 +59,9 @@
     "js_name": "loadWorldInfo",
     "js_line": 2036,
     "loc": 24,
-    "python_target": "tools/st-oracle/run_python.py:build_books",
+    "python_target": "tavern/st/worldbook.py:load_world_book",
     "status": "ported",
-    "note": "The plugin loads files through tavern/st/worldbook.py:load_world_book and its own cache (reload_library); there is no /api/worldinfo/get hop."
+    "note": "Files load from the plugin library with its own cache (reload_library); there is no /api/worldinfo/get hop."
   },
   {
     "js_name": "updateWorldInfoList",
@@ -148,16 +148,16 @@
     "js_line": 2756,
     "loc": 11,
     "python_target": "",
-    "status": "exempt",
-    "note": "Tracks original values for editor dirty-checking."
+    "status": "pending",
+    "note": "Tracks original values for editor dirty-checking; relevant once the converters land, because originalData is what makes a round-trip lossless."
   },
   {
     "js_name": "deleteWIOriginalDataValue",
     "js_line": 2774,
     "loc": 11,
     "python_target": "",
-    "status": "exempt",
-    "note": "Editor dirty-checking."
+    "status": "pending",
+    "note": "Editor dirty-checking; pairs with setWIOriginalDataValue."
   },
   {
     "js_name": "splitKeywordsAndRegexes",
@@ -171,9 +171,9 @@
     "js_name": "customTokenizer",
     "js_line": 2825,
     "loc": 54,
-    "python_target": "",
-    "status": "exempt",
-    "note": "UI tokenizer for the keys input box."
+    "python_target": "tavern/st/worldbook.py:greedy_token_count",
+    "status": "pending",
+    "note": "No real tokenizer: tiktoken when installed, else len//3. ST counts with the generation backend's tokenizer, so budget arithmetic is not comparable (oracle fixture 12 is comparable:false)."
   },
   {
     "js_name": "isValidRegex",
@@ -189,7 +189,7 @@
     "loc": 26,
     "python_target": "tavern/st/worldbook.py:_REGEX_KEY,compile_key",
     "status": "ported",
-    "note": "Same /pattern/flags grammar. Flag letters beyond i/m/s/x are ignored."
+    "note": "Same /pattern/flags grammar; flag letters beyond i/m/s/x are ignored. Oracle fixture 04 shows the port matching a case-sensitive regex the engine rejects -- a whole-word interaction, not the parser."
   },
   {
     "js_name": "enableKeysInputHelper",
@@ -283,9 +283,9 @@
     "js_name": "handleEntryKillSwitchHelper",
     "js_line": 3327,
     "loc": 17,
-    "python_target": "tavern/st/worldbook.py:entry_from_dict",
-    "status": "ported",
-    "note": "The kill switch is entry.disable; only the click handler is UI."
+    "python_target": "",
+    "status": "exempt",
+    "note": "Click handler only; the data side is entry.disable."
   },
   {
     "js_name": "setCommentPlaceholder",
@@ -299,9 +299,9 @@
     "js_name": "getWorldEntry",
     "js_line": 3362,
     "loc": 512,
-    "python_target": "tavern/st/worldbook.py:entry_from_dict",
-    "status": "pending",
-    "note": "512 lines of editor rendering plus the row->form mapping. Only the data half is covered; the port never writes entries back."
+    "python_target": "",
+    "status": "exempt",
+    "note": "512 lines of editor rendering plus the row->form mapping; the port never writes entries back, so the form half has no consumer."
   },
   {
     "js_name": "buildAutocompleteCallback",
@@ -348,16 +348,16 @@
     "js_line": 4019,
     "loc": 15,
     "python_target": "",
-    "status": "exempt",
-    "note": "Editor clone action."
+    "status": "pending",
+    "note": "Editor clone action; no equivalent."
   },
   {
     "js_name": "deleteWorldInfoEntry",
     "js_line": 4043,
     "loc": 31,
     "python_target": "",
-    "status": "exempt",
-    "note": "Editor delete action."
+    "status": "pending",
+    "note": "Editor delete action; no equivalent."
   },
   {
     "js_name": "createWorldInfoEntry",
@@ -371,9 +371,9 @@
     "js_name": "_save",
     "js_line": 4151,
     "loc": 11,
-    "python_target": "",
-    "status": "exempt",
-    "note": "Writes a book back through the ST server API."
+    "python_target": "tavern/core.py:import_worldbook_bytes",
+    "status": "ported",
+    "note": "Persistence is a local file write rather than an IPC call; not covered by an oracle fixture."
   },
   {
     "js_name": "saveWorldInfo",
@@ -387,49 +387,49 @@
     "js_name": "renameWorldInfo",
     "js_line": 4192,
     "loc": 32,
-    "python_target": "",
-    "status": "exempt",
-    "note": "Rename is a DOM flow; the plugin re-imports instead."
+    "python_target": "tavern/core.py:_unique_id",
+    "status": "pending",
+    "note": "Only name de-duplication exists; there is no rename flow that keeps character and chat references consistent."
   },
   {
     "js_name": "updateWorldInfoLinks",
     "js_line": 4232,
     "loc": 107,
     "python_target": "",
-    "status": "exempt",
-    "note": "Repoints character/chat/persona links after a rename; the plugin has no such links."
+    "status": "pending",
+    "note": "Repoints character/chat/persona references after a rename; the plugin has no such reference graph yet."
   },
   {
     "js_name": "deleteWorldInfo",
     "js_line": 4346,
     "loc": 48,
-    "python_target": "",
-    "status": "exempt",
-    "note": "File deletion, owned by the plugin library layer."
+    "python_target": "tavern/core.py:_safe_target",
+    "status": "pending",
+    "note": "The plugin resolves and writes library files but exposes no delete path yet."
   },
   {
     "js_name": "getFreeWorldEntryUid",
     "js_line": 4395,
     "loc": 15,
     "python_target": "",
-    "status": "exempt",
-    "note": "Editor-only uid allocation; the plugin never writes books back."
+    "status": "pending",
+    "note": "Editor-only uid allocation; the plugin never writes books back, so nothing allocates uids."
   },
   {
     "js_name": "getFreeWorldName",
     "js_line": 4422,
     "loc": 16,
-    "python_target": "",
-    "status": "exempt",
-    "note": "Editor-only unique-name allocation."
+    "python_target": "tavern/core.py:_unique_id",
+    "status": "ported",
+    "note": ""
   },
   {
     "js_name": "createNewWorldInfo",
     "js_line": 4448,
     "loc": 26,
-    "python_target": "",
-    "status": "exempt",
-    "note": "Creates a book from the editor UI."
+    "python_target": "tavern/core.py:import_worldbook_bytes",
+    "status": "ported",
+    "note": "Books enter the library by importing a file rather than through a create dialog."
   },
   {
     "js_name": "getCharacterLore",
@@ -451,17 +451,17 @@
     "js_name": "getChatLore",
     "js_line": 4544,
     "loc": 19,
-    "python_target": "",
-    "status": "exempt",
-    "note": "Chat-bound lorebook needs chat_metadata; the plugin attaches books per chat binding instead."
+    "python_target": "tavern/core.py:SessionBinding.worldbooks",
+    "status": "ported",
+    "note": "The plugin merges chat-bound books into the session binding instead of tracking a per-chat world name."
   },
   {
     "js_name": "getPersonaLore",
     "js_line": 4564,
     "loc": 25,
     "python_target": "",
-    "status": "exempt",
-    "note": "Persona-bound lorebook: AstrBot has no persona-lorebook concept."
+    "status": "pending",
+    "note": "Persona-bound lorebook: AstrBot has no persona-lorebook concept yet."
   },
   {
     "js_name": "getSortedEntries",
@@ -477,31 +477,31 @@
     "loc": 47,
     "python_target": "",
     "status": "pending",
-    "note": "@@activate / @@dont_activate and the leading-decorator stripping are not ported; fixture 10 shows the port emitting defunct @@dont_activate entries."
+    "note": "@@activate / @@dont_activate and leading-decorator stripping are not ported; oracle fixture 10 shows the port injecting a suppressed @@dont_activate entry and keeping decorator lines in the emitted content."
   },
   {
     "js_name": "checkWorldInfo",
     "js_line": 4709,
     "loc": 574,
     "python_target": "tavern/st/worldbook.py:activate",
-    "status": "pending",
-    "note": "The orchestration loop exists but diverges: timed effects (sticky/cooldown), min-activations scans, cumulative token budget and event emission are not ported. See fixtures 06/07/08 in tools/st-oracle/out."
+    "status": "ported",
+    "note": "The orchestration loop exists but four behaviours diverge, all witnessed by the oracle: cumulative token budget with a pass-breaking overflow, min-activations depth advance, numeric delayUntilRecursion levels, and event emission."
   },
   {
     "js_name": "filterGroupsByScoring",
     "js_line": 5292,
     "loc": 37,
     "python_target": "tavern/st/worldbook.py:_apply_group_scoring",
-    "status": "pending",
-    "note": ""
+    "status": "ported",
+    "note": "Only a groupWeight comparison exists; ST scores by matched-key count (buffer.getScore) and never uses groupWeight for scoring. Oracle fixture 08 witnesses the gap."
   },
   {
     "js_name": "filterGroupsByTimedEffects",
     "js_line": 5337,
     "loc": 42,
     "python_target": "tavern/st/worldbook.py:ActivationState",
-    "status": "pending",
-    "note": ""
+    "status": "ported",
+    "note": "Sticky/cooldown windows exist but are turn-counted and never pin a group winner; oracle fixture 11 witnesses the delay half of the gap."
   },
   {
     "js_name": "filterByInclusionGroups",
@@ -509,7 +509,7 @@
     "loc": 88,
     "python_target": "tavern/st/worldbook.py:_apply_group_scoring",
     "status": "pending",
-    "note": "Different model: the port only drops lighter members of a group. The engine always yields exactly one winner per group (weighted random roll, groupOverride priority, sticky pinning). Fixture 08 pins both."
+    "note": "Different model: the port only drops lighter members of a group. The engine always yields exactly one winner per group (scored filter, then weighted random roll, then groupOverride priority). Oracle fixture 08 pins both scans."
   },
   {
     "js_name": "convertAgnaiMemoryBook",
@@ -541,7 +541,7 @@
     "loc": 58,
     "python_target": "tools/st-oracle/run_python.py:convert_character_book",
     "status": "pending",
-    "note": "The translation lives in the oracle, not in tavern/, so the plugin still cannot read embedded character_book lore. Port it to tavern/st/cards.py."
+    "note": "The translation lives in the oracle, not in tavern/, so the plugin still cannot read embedded character_book lore. Oracle fixture 09 passes because both sides run the same adapter -- port it to tavern/st/cards.py."
   },
   {
     "js_name": "setWorldInfoButtonClass",
@@ -557,7 +557,7 @@
     "loc": 39,
     "python_target": "",
     "status": "pending",
-    "note": "Detects an embedded character_book; the plugin does not look for one yet."
+    "note": "Detects an embedded character_book; the plugin does not look for one yet (see convertCharacterBook)."
   },
   {
     "js_name": "importEmbeddedWorldInfo",
@@ -565,7 +565,7 @@
     "loc": 40,
     "python_target": "",
     "status": "pending",
-    "note": "Imports the embedded book into the library."
+    "note": "Imports the embedded book into the library; blocked on checkEmbeddedWorld."
   },
   {
     "js_name": "onWorldInfoChange",
@@ -579,9 +579,9 @@
     "js_name": "importWorldInfo",
     "js_line": 5850,
     "loc": 82,
-    "python_target": "",
-    "status": "exempt",
-    "note": "Browser file-picker import."
+    "python_target": "tavern/core.py:import_worldbook_bytes",
+    "status": "ported",
+    "note": "Import is a plugin command fed bytes by the adapter, not a browser file picker."
   },
   {
     "js_name": "openWorldInfoEditor",
@@ -597,47 +597,47 @@
     "loc": 38,
     "python_target": "tavern/core.py:set_books",
     "status": "ported",
-    "note": ""
+    "note": "The plugin stores one book list per session binding; ST's global/character/chat split and the shift/alt click variants have no equivalent."
   },
   {
     "js_name": "moveWorldInfoEntry",
     "js_line": 6000,
     "loc": 90,
     "python_target": "",
-    "status": "exempt",
-    "note": "Drag-and-drop between books."
+    "status": "pending",
+    "note": "Drag-and-drop between books; no equivalent."
   },
   {
     "js_name": "charUpdatePrimaryWorld",
     "js_line": 6097,
     "loc": 31,
     "python_target": "",
-    "status": "exempt",
-    "note": "Writes character.data.extensions.world."
+    "status": "pending",
+    "note": "Binds a book to a character; the plugin only binds books per session (SessionBinding.worldbooks), and has no per-character concept."
   },
   {
     "js_name": "charUpdateAddAuxWorld",
     "js_line": 6134,
     "loc": 5,
     "python_target": "",
-    "status": "exempt",
-    "note": "Writes extra character lorebook links."
+    "status": "pending",
+    "note": "Auxiliary (additional) character books have no equivalent in the plugin."
   },
   {
     "js_name": "charSetAuxWorlds",
     "js_line": 6145,
     "loc": 3,
     "python_target": "",
-    "status": "exempt",
-    "note": "Persists auxiliary lorebook links."
+    "status": "pending",
+    "note": "Replaces the auxiliary book list for a character; no equivalent."
   },
   {
     "js_name": "updateAuxBooks",
     "js_line": 6149,
     "loc": 25,
     "python_target": "",
-    "status": "exempt",
-    "note": "Refreshes auxiliary lorebook links."
+    "status": "pending",
+    "note": "Persists auxiliary book changes; no equivalent."
   },
   {
     "js_name": "initWorldInfo",

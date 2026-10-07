@@ -11,9 +11,16 @@ the map stale.
 
 Status vocabulary
 -----------------
-ported  a Python implementation exists and is called by the plugin
-pending not ported yet (the interesting list; the oracle diffs these)
-exempt  out of scope for a headless port, with the reason in ``note``
+ported  an implementation of this behaviour exists somewhere in the plugin
+        (``tavern/`` or the oracle adapter) and is reachable; gaps are in ``note``.
+        Read the note: ``ported`` means "exists", not "proven equivalent".
+pending nothing exists, or only a partial stub. These are the rows the oracle
+        diff punishes.
+exempt  deliberately out of scope for a headless bot port (DOM / editor wiring /
+        ST-server persistence); the reason is in ``note``
+
+``research/07-port-map.md`` is the narrative twin of this file; the two agree on
+the verdict for all 81 rows.
 """
 
 from __future__ import annotations
@@ -42,23 +49,25 @@ TABLE: dict[str, tuple[str, str, str]] = {
         "Runtime knobs travel as a WorldBookSettings value object; no global mutation.",
     ),
     "getWorldInfoPrompt": (
-        "tools/st-oracle/run_python.py:main",
-        "pending",
-        "Prompt assembly is split: tavern/st/prompt.py renders slots, tavern/core.py "
-        "build_turn() orchestrates. The st-oracle adapter is what the diff measures today; "
-        "no single ported function owns this contract yet.",
+        "tavern/core.py:PluginCore.build_turn + tavern/st/prompt.py:build_messages",
+        "ported",
+        "7 of ST's 8 outputs exist as position buckets; outletEntries is missing and "
+        "eventSource.emit(WORLD_INFO_ACTIVATED) has no equivalent. Oracle fixture 05 pins the "
+        "assembled strings and buckets.",
     ),
     "setWorldInfoSettings": (
-        "tavern/config.py:TavernConfig.from_dict",
+        "tavern/config.py:TavernConfig.from_raw",
         "ported",
-        "Scan setup is derived from config + SessionBinding.worldbooks per turn.",
+        "Scan setup is derived from config plus SessionBinding.worldbooks per turn instead of "
+        "global mutation. The oracle must set both the knobs and world_info.globalSelect or "
+        "the engine silently scans with defaults (run.mjs guards this and exits 3).",
     ),
     "checkWorldInfo": (
         "tavern/st/worldbook.py:activate",
-        "pending",
-        "The orchestration loop exists but diverges: timed effects (sticky/cooldown), "
-        "min-activations scans, cumulative token budget and event emission are not ported. "
-        "See fixtures 06/07/08 in tools/st-oracle/out.",
+        "ported",
+        "The orchestration loop exists but four behaviours diverge, all witnessed by the "
+        "oracle: cumulative token budget with a pass-breaking overflow, min-activations depth "
+        "advance, numeric delayUntilRecursion levels, and event emission.",
     ),
     "getSortedEntries": (
         "tavern/st/worldbook.py:activate + tavern/core.py:build_turn",
@@ -78,89 +87,135 @@ TABLE: dict[str, tuple[str, str, str]] = {
     "parseRegexFromString": (
         "tavern/st/worldbook.py:_REGEX_KEY,compile_key",
         "ported",
-        "Same /pattern/flags grammar. Flag letters beyond i/m/s/x are ignored.",
+        "Same /pattern/flags grammar; flag letters beyond i/m/s/x are ignored. Oracle fixture "
+        "04 shows the port matching a case-sensitive regex the engine rejects -- a whole-word "
+        "interaction, not the parser.",
     ),
-    "customTokenizer": ("", "exempt", "UI tokenizer for the keys input box."),
+    "customTokenizer": (
+        "tavern/st/worldbook.py:greedy_token_count",
+        "pending",
+        "No real tokenizer: tiktoken when installed, else len//3. ST counts with the "
+        "generation backend's tokenizer, so budget arithmetic is not comparable (oracle "
+        "fixture 12 is comparable:false).",
+    ),
     # --- decorators --------------------------------------------------------
     "parseDecorators": (
         "",
         "pending",
-        "@@activate / @@dont_activate and the leading-decorator stripping are not ported; "
-        "fixture 10 shows the port emitting defunct @@dont_activate entries.",
+        "@@activate / @@dont_activate and leading-decorator stripping are not ported; oracle "
+        "fixture 10 shows the port injecting a suppressed @@dont_activate entry and keeping "
+        "decorator lines in the emitted content.",
     ),
     # --- inclusion groups --------------------------------------------------
     "filterByInclusionGroups": (
         "tavern/st/worldbook.py:_apply_group_scoring",
         "pending",
         "Different model: the port only drops lighter members of a group. The engine always "
-        "yields exactly one winner per group (weighted random roll, groupOverride priority, "
-        "sticky pinning). Fixture 08 pins both.",
+        "yields exactly one winner per group (scored filter, then weighted random roll, then "
+        "groupOverride priority). Oracle fixture 08 pins both scans.",
     ),
-    "filterGroupsByScoring": ("tavern/st/worldbook.py:_apply_group_scoring", "pending"),
-    "filterGroupsByTimedEffects": ("tavern/st/worldbook.py:ActivationState", "pending"),
+    "filterGroupsByScoring": (
+        "tavern/st/worldbook.py:_apply_group_scoring",
+        "ported",
+        "Only a groupWeight comparison exists; ST scores by matched-key count "
+        "(buffer.getScore) and never uses groupWeight for scoring. Oracle fixture 08 witnesses "
+        "the gap.",
+    ),
+    "filterGroupsByTimedEffects": (
+        "tavern/st/worldbook.py:ActivationState",
+        "ported",
+        "Sticky/cooldown windows exist but are turn-counted and never pin a group winner; "
+        "oracle fixture 11 witnesses the delay half of the gap.",
+    ),
     # --- converters --------------------------------------------------------
     "convertCharacterBook": (
         "tools/st-oracle/run_python.py:convert_character_book",
         "pending",
         "The translation lives in the oracle, not in tavern/, so the plugin still cannot read "
-        "embedded character_book lore. Port it to tavern/st/cards.py.",
+        "embedded character_book lore. Oracle fixture 09 passes because both sides run the "
+        "same adapter -- port it to tavern/st/cards.py.",
     ),
     "convertAgnaiMemoryBook": ("", "pending", "Agnai Memory Book import path."),
     "convertRisuLorebook": ("", "pending", "RisuAI lorebook import path."),
     "convertNovelLorebook": ("", "pending", "NovelAI lorebook import path."),
     # --- lore sources / persistence ---------------------------------------
     "loadWorldInfo": (
-        "tools/st-oracle/run_python.py:build_books",
+        "tavern/st/worldbook.py:load_world_book",
         "ported",
-        "The plugin loads files through tavern/st/worldbook.py:load_world_book and its own "
-        "cache (reload_library); there is no /api/worldinfo/get hop.",
+        "Files load from the plugin library with its own cache (reload_library); there is no "
+        "/api/worldinfo/get hop.",
     ),
     "getGlobalLore": ("tavern/core.py:build_turn", "ported"),
     "getCharacterLore": ("tavern/core.py:build_turn", "ported"),
     "getChatLore": (
-        "",
-        "exempt",
-        "Chat-bound lorebook needs chat_metadata; the plugin attaches books per chat binding instead.",
+        "tavern/core.py:SessionBinding.worldbooks",
+        "ported",
+        "The plugin merges chat-bound books into the session binding instead of tracking a "
+        "per-chat world name.",
     ),
     "getPersonaLore": (
         "",
-        "exempt",
-        "Persona-bound lorebook: AstrBot has no persona-lorebook concept.",
+        "pending",
+        "Persona-bound lorebook: AstrBot has no persona-lorebook concept yet.",
     ),
     "addMissingWorldInfoFields": ("tavern/st/worldbook.py:entry_from_dict", "ported"),
     "nullWorldInfo": ("", "exempt", "Creates an empty book through the settings API."),
     "updateWorldInfoList": ("tavern/core.py:reload_library", "ported"),
-    "_save": ("", "exempt", "Writes a book back through the ST server API."),
+    "_save": (
+        "tavern/core.py:import_worldbook_bytes",
+        "ported",
+        "Persistence is a local file write rather than an IPC call; not covered by an oracle "
+        "fixture.",
+    ),
     "saveWorldInfo": ("tavern/core.py:import_worldbook_bytes", "ported"),
-    "renameWorldInfo": ("", "exempt", "Rename is a DOM flow; the plugin re-imports instead."),
-    "deleteWorldInfo": ("", "exempt", "File deletion, owned by the plugin library layer."),
-    "createNewWorldInfo": ("", "exempt", "Creates a book from the editor UI."),
-    "importWorldInfo": ("", "exempt", "Browser file-picker import."),
+    "renameWorldInfo": (
+        "tavern/core.py:_unique_id",
+        "pending",
+        "Only name de-duplication exists; there is no rename flow that keeps character and "
+        "chat references consistent.",
+    ),
+    "deleteWorldInfo": (
+        "tavern/core.py:_safe_target",
+        "pending",
+        "The plugin resolves and writes library files but exposes no delete path yet.",
+    ),
+    "createNewWorldInfo": (
+        "tavern/core.py:import_worldbook_bytes",
+        "ported",
+        "Books enter the library by importing a file rather than through a create dialog.",
+    ),
+    "importWorldInfo": (
+        "tavern/core.py:import_worldbook_bytes",
+        "ported",
+        "Import is a plugin command fed bytes by the adapter, not a browser file picker.",
+    ),
     "updateWorldInfoLinks": (
         "",
-        "exempt",
-        "Repoints character/chat/persona links after a rename; the plugin has no such links.",
+        "pending",
+        "Repoints character/chat/persona references after a rename; the plugin has no such "
+        "reference graph yet.",
     ),
     "getFreeWorldEntryUid": (
         "",
-        "exempt",
-        "Editor-only uid allocation; the plugin never writes books back.",
+        "pending",
+        "Editor-only uid allocation; the plugin never writes books back, so nothing allocates "
+        "uids.",
     ),
-    "getFreeWorldName": ("", "exempt", "Editor-only unique-name allocation."),
-    "moveWorldInfoEntry": ("", "exempt", "Drag-and-drop between books."),
-    "duplicateWorldInfoEntry": ("", "exempt", "Editor clone action."),
+    "getFreeWorldName": ("tavern/core.py:_unique_id", "ported"),
+    "moveWorldInfoEntry": ("", "pending", "Drag-and-drop between books; no equivalent."),
+    "duplicateWorldInfoEntry": ("", "pending", "Editor clone action; no equivalent."),
     "createWorldInfoEntry": (
         "tavern/st/worldbook.py:entry_from_dict",
         "ported",
         "Row defaults (order 100, depth 4, selective true in ST's editor definition) are "
         "modelled by the parser instead of a template object.",
     ),
-    "deleteWorldInfoEntry": ("", "exempt", "Editor delete action."),
+    "deleteWorldInfoEntry": ("", "pending", "Editor delete action; no equivalent."),
     "getWorldEntry": (
-        "tavern/st/worldbook.py:entry_from_dict",
-        "pending",
-        "512 lines of editor rendering plus the row->form mapping. Only the data half is "
-        "covered; the port never writes entries back.",
+        "",
+        "exempt",
+        "512 lines of editor rendering plus the row->form mapping; the port never writes "
+        "entries back, so the form half has no consumer.",
     ),
     "sortWorldInfoEntries": (
         "tavern/st/worldbook.py:activate",
@@ -171,21 +226,44 @@ TABLE: dict[str, tuple[str, str, str]] = {
     "checkEmbeddedWorld": (
         "",
         "pending",
-        "Detects an embedded character_book; the plugin does not look for one yet.",
+        "Detects an embedded character_book; the plugin does not look for one yet (see "
+        "convertCharacterBook).",
     ),
-    "importEmbeddedWorldInfo": ("", "pending", "Imports the embedded book into the library."),
+    "importEmbeddedWorldInfo": (
+        "",
+        "pending",
+        "Imports the embedded book into the library; blocked on checkEmbeddedWorld.",
+    ),
     "setWorldInfoButtonClass": ("", "exempt", "jQuery button state."),
-    "charUpdatePrimaryWorld": ("", "exempt", "Writes character.data.extensions.world."),
-    "charUpdateAddAuxWorld": ("", "exempt", "Writes extra character lorebook links."),
-    "charSetAuxWorlds": ("", "exempt", "Persists auxiliary lorebook links."),
-    "updateAuxBooks": ("", "exempt", "Refreshes auxiliary lorebook links."),
+    "charUpdatePrimaryWorld": (
+        "",
+        "pending",
+        "Binds a book to a character; the plugin only binds books per session "
+        "(SessionBinding.worldbooks), and has no per-character concept.",
+    ),
+    "charUpdateAddAuxWorld": (
+        "",
+        "pending",
+        "Auxiliary (additional) character books have no equivalent in the plugin.",
+    ),
+    "charSetAuxWorlds": (
+        "",
+        "pending",
+        "Replaces the auxiliary book list for a character; no equivalent.",
+    ),
+    "updateAuxBooks": ("", "pending", "Persists auxiliary book changes; no equivalent."),
     "onWorldInfoChange": ("tavern/core.py:toggle_book,set_books", "ported"),
-    "assignLorebookToChat": ("tavern/core.py:set_books", "ported"),
+    "assignLorebookToChat": (
+        "tavern/core.py:set_books",
+        "ported",
+        "The plugin stores one book list per session binding; ST's global/character/chat split "
+        "and the shift/alt click variants have no equivalent.",
+    ),
     # --- editor / DOM ------------------------------------------------------
     "reloadEditor": ("", "exempt", "DOM reload helper."),
     "registerWorldInfoSlashCommands": (
         "",
-        "exempt",
+        "pending",
         "Slash-command registration for the ST chat UI.",
     ),
     "showWorldEditor": ("", "exempt", "Editor modal."),
@@ -195,8 +273,17 @@ TABLE: dict[str, tuple[str, str, str]] = {
     "clearEntryList": ("", "exempt", "DOM list reset."),
     "displayWorldEntries": ("", "exempt", "376 lines of editor rendering."),
     "verifyWorldInfoSearchSortRule": ("", "exempt", "Editor search/sort state."),
-    "setWIOriginalDataValue": ("", "exempt", "Tracks original values for editor dirty-checking."),
-    "deleteWIOriginalDataValue": ("", "exempt", "Editor dirty-checking."),
+    "setWIOriginalDataValue": (
+        "",
+        "pending",
+        "Tracks original values for editor dirty-checking; relevant once the converters land, "
+        "because originalData is what makes a round-trip lossless.",
+    ),
+    "deleteWIOriginalDataValue": (
+        "",
+        "pending",
+        "Editor dirty-checking; pairs with setWIOriginalDataValue.",
+    ),
     "enableKeysInputHelper": ("", "exempt", "Editor input widget wiring."),
     "handleMatchCheckboxHelper": ("", "exempt", "Editor checkbox wiring."),
     "updatePosOrdDisplayHelper": ("", "exempt", "Editor display counter."),
@@ -213,9 +300,9 @@ TABLE: dict[str, tuple[str, str, str]] = {
         "Editor state selector (constant/normal) wiring.",
     ),
     "handleEntryKillSwitchHelper": (
-        "tavern/st/worldbook.py:entry_from_dict",
-        "ported",
-        "The kill switch is entry.disable; only the click handler is UI.",
+        "",
+        "exempt",
+        "Click handler only; the data side is entry.disable.",
     ),
     "setCommentPlaceholder": ("", "exempt", "i18n placeholder text."),
     "buildAutocompleteCallback": ("", "exempt", "Editor autocomplete."),

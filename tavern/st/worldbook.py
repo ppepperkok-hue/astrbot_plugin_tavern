@@ -34,10 +34,19 @@ import json
 import logging
 import random
 import re
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+# The scan itself (``\x01``-joined haystack, global scan fields, recursion
+# buffer) lives in the mirror port of ``WorldInfoBuffer``; this module keeps the
+# book/entry model and the activation pipeline on top of it.
+from tavern.st.wi_buffer import (
+    SCAN_STATE_INITIAL,
+    WorldInfoBuffer,
+    WorldInfoBufferConfig,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +91,8 @@ class WorldBookSettings:
     #: config keeps it false because word boundaries behave badly for Chinese
     #: and Japanese, where substring matching is what users expect).
     match_whole_words: bool = False
+    #: Global ``Case Sensitive`` default (``world_info_case_sensitive``).
+    case_sensitive: bool = False
     #: Recursion is off by default: SillyTavern enables it per book/globally.
     allow_recursion: bool = False
     max_recursion_steps: int = 3
@@ -113,6 +124,9 @@ class WorldInfoEntry:
     disable: bool = False
     probability: int = 100
     use_probability: bool = True
+    #: SillyTavern's ``ignoreBudget``: such entries keep activating even after the
+    #: world info token budget was exceeded (world-info.js:5061).
+    ignore_budget: bool = False
     case_sensitive: bool | None = None
     match_whole_words: bool | None = None
     scan_depth: int | None = None
@@ -224,6 +238,7 @@ def entry_from_dict(uid: int, payload: dict[str, Any]) -> WorldInfoEntry:
         disable=_as_bool(payload.get("disable")),
         probability=_as_int(payload.get("probability"), 100),
         use_probability=_as_bool(payload.get("useProbability", True), True),
+        ignore_budget=_as_bool(payload.get("ignoreBudget")),
         case_sensitive=parse_bool_or_none(payload.get("caseSensitive")),
         match_whole_words=parse_bool_or_none(payload.get("matchWholeWords")),
         scan_depth=_as_optional_int(payload.get("scanDepth")),
@@ -501,6 +516,39 @@ def _entry_scan_text(entry: WorldInfoEntry) -> str:
     return "\n".join(part for part in (entry.comment, entry.content) if part)
 
 
+#: Entry keys read by ``WorldInfoBuffer`` (``WIScanEntry`` in world-info.js).
+_BUFFER_VIEW_FIELDS = (
+    "scanDepth",
+    "caseSensitive",
+    "matchWholeWords",
+    "matchPersonaDescription",
+    "matchCharacterDescription",
+    "matchCharacterPersonality",
+    "matchCharacterDepthPrompt",
+    "matchScenario",
+    "matchCreatorNotes",
+)
+
+
+def _buffer_view(entry: WorldInfoEntry, scan_depth: int | None = None) -> dict[str, Any]:
+    """Adapt a :class:`WorldInfoEntry` to the mapping ``WorldInfoBuffer`` reads.
+
+    The buffer is a faithful port and deliberately reads plain mappings (JS
+    objects), so this is the single conversion point. ``scan_depth`` overrides
+    the entry value, which is how the book level ``scan_depth`` reaches the
+    buffer.
+    """
+    view: dict[str, Any] = {name: None for name in _BUFFER_VIEW_FIELDS}
+    view["scanDepth"] = scan_depth if scan_depth is not None else entry.scan_depth
+    view["caseSensitive"] = entry.case_sensitive
+    view["matchWholeWords"] = entry.match_whole_words
+    for name in _BUFFER_VIEW_FIELDS[3:]:
+        # ``match*`` flags are stored in ``extensions`` by SillyTavern exports.
+        value = entry.extensions.get(name)
+        view[name] = bool(value) if value is not None else False
+    return view
+
+
 def activate(
     books: Sequence[WorldBook],
     messages: Sequence[str],
@@ -511,11 +559,15 @@ def activate(
     token_budget: int | None = None,
     max_recursion_steps: int | None = None,
     active_group: str | None = None,
+    global_scan_data: Mapping[str, Any] | None = None,
 ) -> ActivationResult:
     """Run the World Info activation pipeline for one turn.
 
-    ``messages`` is the chat history **oldest first**; only the last
-    ``scan_depth`` entries are scanned, matching SillyTavern.
+    ``messages`` is the chat history **oldest first** (the plugin's natural
+    order); it is reversed into the buffer because SillyTavern indexes depth 0 as
+    the newest message. ``global_scan_data`` carries the chat independent fields
+    the buffer may also scan (persona / character description / scenario / ...),
+    mirroring ``WIGlobalScanData``.
     """
     settings = settings or WorldBookSettings()
     state = state or ActivationState()
@@ -535,6 +587,20 @@ def activate(
     fresh_texts: list[str] = []
     excluded_from_recursion: set[tuple[str, int]] = set()
 
+    # The scan itself runs through the ported WorldInfoBuffer, which owns the
+    # ``\x01``-joined haystack, the global scan fields and the recursion buffer
+    # (world-info.js:199-478).
+    buffer = WorldInfoBuffer(
+        messages=list(reversed(list(messages))),
+        global_scan_data=global_scan_data,
+        config=WorldInfoBufferConfig(
+            default_scan_depth=settings.default_scan_depth,
+            case_sensitive=settings.case_sensitive,
+            match_whole_words=settings.match_whole_words,
+        ),
+    )
+    scan_state_value = SCAN_STATE_INITIAL
+
     def scan_depth_for(book: WorldBook, entry_scan_depth: int | None) -> int:
         # ``0`` is meaningful ("do not scan the chat"), so compare with None
         # explicitly instead of relying on truthiness.
@@ -544,12 +610,9 @@ def activate(
             return book.scan_depth
         return settings.default_scan_depth
 
-    def scan_text(depth: int) -> str:
-        # SillyTavern: "If set to 0, then only recursed entries and Author's
-        # Note are evaluated", i.e. the chat history is not scanned at all.
-        if depth <= 0:
-            return ""
-        return "\n".join(messages[-depth:])
+    def scan_text(book: WorldBook, entry: WorldInfoEntry) -> str:
+        view = _buffer_view(entry, scan_depth_for(book, entry.scan_depth))
+        return buffer.get(view, scan_state_value)
 
     def try_activate(book: WorldBook, entry: WorldInfoEntry, *, via_recursion: bool) -> bool:
         ident = (book.name or book.source_path, entry.uid)
@@ -566,10 +629,11 @@ def activate(
         if not already_sticky and state.is_blocked(book, entry):
             return False
 
-        haystack = scan_text(scan_depth_for(book, entry.scan_depth))
+        haystack = scan_text(book, entry)
         if via_recursion:
             haystack = "\n".join([haystack, *fresh_texts])
 
+        view = _buffer_view(entry)
         case_sensitive = bool(entry.case_sensitive)
         # ``None`` means "not set on the entry": fall back to the global default
         # (SillyTavern defaults it to true, this plugin's config to false).
@@ -591,27 +655,17 @@ def activate(
                 if triggered and settings.vector_match is not None:
                     triggered = settings.vector_match(entry.key_vector, [haystack])
         else:
-            triggered = key_matches(haystack, entry.keys, case_sensitive, whole_words)
+            # ``WorldInfoBuffer.matchKeys`` implements the whole-word rule: a
+            # multi-word key always falls back to a plain ``includes`` check, and
+            # regex keys ignore both case and whole-word settings.
+            triggered = any(buffer.match_keys(haystack, key, view) for key in entry.keys if key)
             if triggered and entry.selective and entry.secondary_keys:
                 min_activations = _as_int(entry.extensions.get("min_activations"), 1)
                 max_activations = _as_int(entry.extensions.get("max_activations"), 0)
                 secondary_hits = [
                     key
                     for key in entry.secondary_keys
-                    if key
-                    and (
-                        compile_key(key, case_sensitive).search(haystack)
-                        if is_regex_key(key)
-                        else (
-                            _whole_word_match(haystack, key, case_sensitive)
-                            if whole_words
-                            else (
-                                key in haystack
-                                if case_sensitive
-                                else key.lower() in haystack.lower()
-                            )
-                        )
-                    )
+                    if key and buffer.match_keys(haystack, key, view)
                 ]
                 hits = len(secondary_hits)
                 required = len([k for k in entry.secondary_keys if k])
@@ -637,7 +691,11 @@ def activate(
             return False
 
         if entry.use_probability and entry.probability < 100:
-            if settings.rng.randint(1, 100) > max(entry.probability, 0):
+            # SillyTavern: ``Math.random() * 100 < entry.probability``
+            # (world-info.js). The stream itself differs from the browser, so the
+            # oracle marks probability fixtures as not comparable; the formula is
+            # what matters for parity of behaviour.
+            if settings.rng.random() * 100 >= max(entry.probability, 0):
                 return False
 
         if ident not in activated_ids:
@@ -664,13 +722,23 @@ def activate(
             if len(activated) == before:
                 break
 
-    # Ordering: insertion order, then display index.
-    activated.sort(key=lambda item: (item[1].insertion_order, item[1].display_index))
+    # Ordering mirrors SillyTavern: entries are sorted by descending ``order``
+    # (world-info.js:88 ``sortFn = (a, b) => b.order - a.order``) and then pushed
+    # to the front of the target list with ``unshift`` (:5214), which turns the
+    # result back into **ascending** order. ``sort`` is stable in JS, so entries
+    # sharing an ``order`` stay in their original sequence -- and because that
+    # sequence came from a Map, the later entry ends up first, i.e. the greater
+    # uid wins the tie. The oracle fixture 03 pins this down.
+    activated.sort(key=lambda item: (item[1].insertion_order, -item[1].uid))
 
     if settings.group_scoring:
         activated = _apply_group_scoring(activated, settings)
 
-    # Token budget, dropped from the lowest priority (first inserted) end.
+    # Sequential budget pass, matching world-info.js:5061-5073: walk the
+    # activation order and stop accepting further entries once the running total
+    # reaches the budget. Entries flagged ``ignore_budget`` keep passing (unless
+    # the budget was never exceeded), and the remaining entries are *dropped* --
+    # this is a hard cutoff, not a best-effort repacking.
     budget = token_budget
     if budget is None:
         budget = next((book.token_budget for book in books if book.token_budget), None)
@@ -679,14 +747,19 @@ def activate(
     if budget:
         used = 0
         kept: list[tuple[WorldBook, WorldInfoEntry]] = []
-        for item in reversed(activated):  # highest insertion order first
-            cost = counter(item[1].content) if item[1].content else 0
-            if used + cost > budget and kept:
+        ignore_budget_left = sum(1 for _book, entry in activated if entry.ignore_budget)
+        for item in activated:
+            entry = item[1]
+            cost = counter(entry.content) if entry.content else 0
+            if not entry.ignore_budget and (used + cost) > budget:
+                # Hard cutoff (world-info.js:5072 ``continue``): entries past the
+                # budget are dropped, and only ``ignore_budget`` ones may follow.
                 truncated = True
                 continue
+            if entry.ignore_budget and ignore_budget_left > 0:
+                ignore_budget_left -= 1
             used += cost
             kept.append(item)
-        kept.reverse()
         activated = kept
 
     result = ActivationResult(activated=[entry for _book, entry in activated], truncated=truncated)

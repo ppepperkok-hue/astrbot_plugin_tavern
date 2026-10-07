@@ -1,5 +1,5 @@
 {
-  "description": "One book replayed at three chat lengths (SillyTavern measures sticky/cooldown against chat.length, the port against a turn counter -- this fixture keeps the two equal). The chat is trimmed to one message per scan so the depth window never matters. ['north'] the delayed entry is still gated; ['raven','north'] the entry held open by sticky; ['raven','north','north'] the sticky window has closed but the cooldown still blocks the re-match.",
+  "description": "Three replays of one book, the chat grown by one message each time, to expose the timed effects and the two places where the port's turn counter is not the engine's chat length. scan[0] chats ['north']: the delayed entry cannot fire yet and both sides agree. scan[1] ['raven','north']: the engine reads delay as 'chat.length < delay' (2 < 2 is false, so it fires) while the port reads 'turn < delay' (1 < 2, so it stays blocked). scan[2] ['raven','north','north'] keeps the engine's per-chat timed effects applied from the previous replay, while the port is back at a fresh turn, so only the engine still holds the sticky entry. The deliverable fields (strings and buckets) are compared normally; the differences are the point.",
   "book_scan_depth": {
     "timed": 5
   },

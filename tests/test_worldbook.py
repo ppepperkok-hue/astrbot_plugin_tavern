@@ -246,13 +246,23 @@ def test_insertion_order_and_positions(book) -> None:
         settings=WorldBookSettings(default_scan_depth=8),
     )
     order = [entry.uid for entry in result.activated]
-    # order field descending priority: 3 (order=70), 1 (90), 0 (100)
+    # The activation order in the rendered prompt is ascending ``order``
+    # because SillyTavern sorts descending and then unshifts
+    # (world-info.js:88 + :5214); oracle fixture 06 confirms it. Here the orders
+    # are uid3=70, uid1=90, uid0=100, so the prompt reads 3, 1, 0.
     assert order == [3, 1, 0]
+    assert [entry.insertion_order for entry in result.activated] == [70, 90, 100]
     assert result.by_position[POSITION_AT_DEPTH][0].uid == 3
     assert "Keeper is a title" in result.content_for(POSITION_AT_DEPTH)
 
 
-def test_token_budget_truncates_lowest_priority() -> None:
+def test_token_budget_is_a_hard_cutoff() -> None:
+    """SillyTavern keeps activating until the budget is reached, then drops the rest.
+
+    This is a walk over the activation order with a running total
+    (world-info.js:5061-5073), not a best-effort packing: once an entry does not
+    fit, every later entry is dropped as well.
+    """
     book = WorldBook(
         name="budget",
         entries=[
@@ -260,14 +270,16 @@ def test_token_budget_truncates_lowest_priority() -> None:
             entry_from_dict(1, {"key": ["bbb"], "content": "y" * 400, "order": 99}),
         ],
     )
-    budget = greedy_token_count("y" * 400) + 5
+    one_entry = greedy_token_count("x" * 400)
+    budget = one_entry + 5
     result = activate(
         [book],
         ["aaa bbb"],
         settings=WorldBookSettings(default_scan_depth=2),
         token_budget=budget,
     )
-    assert ids(result) == {1}
+    # ascending ``order``: entry 0 fits, entry 1 no longer does
+    assert ids(result) == {0}
     assert result.truncated is True
 
     roomy = activate(
@@ -278,6 +290,28 @@ def test_token_budget_truncates_lowest_priority() -> None:
     )
     assert ids(roomy) == {0, 1}
     assert roomy.truncated is False
+
+
+def test_ignore_budget_entries_survive_the_cutoff() -> None:
+    """``ignoreBudget`` entries keep activating after the budget was exceeded."""
+    book = WorldBook(
+        name="budget",
+        entries=[
+            entry_from_dict(0, {"key": ["aaa"], "content": "x" * 400, "order": 10}),
+            entry_from_dict(1, {"key": ["bbb"], "content": "y" * 400, "order": 50}),
+            entry_from_dict(
+                2, {"key": ["ccc"], "content": "z" * 400, "order": 90, "ignoreBudget": True}
+            ),
+        ],
+    )
+    result = activate(
+        [book],
+        ["aaa bbb ccc"],
+        settings=WorldBookSettings(default_scan_depth=2),
+        token_budget=greedy_token_count("x" * 400),
+    )
+    # entry 0 fills the budget, entry 1 is dropped, entry 2 ignores the budget
+    assert ids(result) == {0, 2}
 
 
 def test_group_scoring_keeps_heaviest() -> None:

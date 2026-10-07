@@ -17,20 +17,24 @@ installs, no network.
 
 ```bash
 python tools/st-oracle/gen_adapter.py     # 1. build the Node shim tree in .build/ (from the vendored snapshot)
-python tools/st-oracle/run_all.py         # 2. run both engines over every fixture, then diff  (exit 0 = all match)
+python tools/st-oracle/diff.py --all      # 2. run BOTH engines over every fixture, then diff it
 ```
 
-To do it by hand instead of all at once:
+`diff.py --all` runs the runners itself, so it can never compare stale output.
+Exit code 0 means every comparable fixture matched. `run_all.py` does the same
+thing but also prints per-fixture timings.
+
+To drive one side only:
 
 ```bash
 node   tools/st-oracle/run.mjs       tools/st-oracle/fixtures/03-selective-logic.json --out tools/st-oracle/out/03-selective-logic.json
 python tools/st-oracle/run_python.py tools/st-oracle/fixtures/03-selective-logic.json --out tools/st-oracle/out/03-selective-logic.python.json
-python tools/st-oracle/diff.py --all --require js,port
+python tools/st-oracle/diff.py --all --only port --require js,port
 ```
 
 `diff.py` exits 0 when every comparable fixture matches, non-zero otherwise.
-Currently it exits 1 on purpose: seven fixtures still diverge, and those
-divergences are the porting backlog. See `STATUS.md`.
+Currently it exits 1 on purpose: eight of the twelve fixtures still diverge, and
+those divergences are the porting backlog. See `STATUS.md`.
 
 ## Layout
 
