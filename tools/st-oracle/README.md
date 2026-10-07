@@ -63,9 +63,30 @@ quoting any number, because this file deliberately does not repeat them.
 | `run_all.py` | runs S1 end to end, reports timings, then calls `diff.py` |
 | `gen_port_map.py` | regenerates `port-map.json` from the dependency probe |
 | `port-map.json` | **the single source of truth for porting progress** (the 81 probe entries) |
-| `STATUS.md` / `STATUS-S2.md` | current counts, how to use it, known non-comparable points |
+| `STATUS.md` / `STATUS-S2.md` / `STATUS-S4.md` | current counts, how to use it, known non-comparable points |
+| `check_converter_coverage.py` | parses the reference's export list and fails unless every export resolves on the port |
+| `check_module_wiring.py` | reports which `tavern/st/wi_*.py` mirror modules nothing in production imports |
+| `run_error_message.mjs` | probes `getChatCompletionErrorMessage` (module-private) for the test table |
 | `.build/` | generated, git-ignored |
 | `out/` | generated results, git-ignored |
+
+## Two checks that are not diffs
+
+`check_converter_coverage.py` and `check_module_wiring.py` exist because a diff can
+only judge behaviour that actually runs:
+
+* the coverage check closes the gap where "no fixture calls that export" is
+  indistinguishable from "that export is missing";
+* the wiring check closes the gap where a mirror module with green tests looks
+  finished while nothing imports it, so it cannot affect a single reply. Three of
+  them are in that state today (`wi_keywords`, `wi_scan_state`, `wi_timed`); the
+  check reports rather than fails, because keeping one as a reference
+  implementation is a legitimate choice -- inventing `KNOWN_UNWIRED` entries
+  silently is not.
+
+When a fixture and the real engine disagree, the fixture is the suspect. That
+lesson cost this repository six rounds on the S2 assembly harness (see
+`STATUS-S2.md`), and half a round again on the converter runner.
 
 ## Provenance of the engine under test
 
