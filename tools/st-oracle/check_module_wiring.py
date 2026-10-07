@@ -36,7 +36,31 @@ TESTS = REPO / "tests"
 #: Modules a caller may legitimately keep unwired as reference implementations.
 #: Listing one here is a *claim* that the native path is the intended engine; the
 #: report prints the claim so it can be argued with.
-KNOWN_UNWIRED: dict[str, str] = {}
+#:
+#: Decided by the project owner. The reasoning recorded here is what the decision
+#: rests on, so a future reader can tell whether it still holds.
+KNOWN_UNWIRED: dict[str, str] = {
+    "wi_keywords": (
+        "kept as reference. A second, literal port of WorldInfoBuffer.matchKeys. "
+        "The live matcher is wi_buffer.WorldInfoBuffer.match_keys, which carries the "
+        "same multi-word-vs-single-token rule and re.ASCII -- and had the re.ASCII "
+        "fix that wi_keywords already had (oracle fixture 15-word-boundaries pins "
+        "it). Two matchers is one too many, but deleting a correct implementation "
+        "that documents the reference semantics loses more than it gains."
+    ),
+    "wi_scan_state": (
+        "kept as reference. The scan state machine is inlined in worldbook's scan "
+        "loop; production values come from wi_buffer.SCAN_STATE_INITIAL. Wiring this "
+        "in would restructure the S1 path, which the oracle currently passes 12/12 "
+        "comparable fixtures against -- a large risk for no observable behaviour."
+    ),
+    "wi_timed": (
+        "kept as reference. Superseded by worldbook.ActivationState, which is "
+        "turn-counted rather than message-counted (a documented, accepted "
+        "difference). The two were diffed directly: sticky, cooldown and delay all "
+        "agree apart from that unit -- see STATUS-S4.md appendix."
+    ),
+}
 
 
 def import_targets(path: pathlib.Path) -> set[str]:
@@ -62,6 +86,7 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="exit 1 when an unlisted mirror module has no production importer",
     )
+    parser.add_argument("--quiet", action="store_true", help="only print problems")
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
 
     mirror_modules = sorted(path.stem for path in (PACKAGE / "st").glob("wi_*.py"))
@@ -77,8 +102,10 @@ def main(argv: list[str] | None = None) -> int:
             if target in test_importer_count:
                 test_importer_count[target] += 1
 
-    print(f"mirror modules under tavern/st: {len(mirror_modules)}\n")
+    if not args.quiet:
+        print(f"mirror modules under tavern/st: {len(mirror_modules)}\n")
     unwired: list[str] = []
+    declared: list[str] = []
     for name in mirror_modules:
         importers = prod_importers[name]
         tests = test_importer_count[name]
@@ -88,19 +115,28 @@ def main(argv: list[str] | None = None) -> int:
             status = "UNWIRED (has tests)" if name not in KNOWN_UNWIRED else "unwired (declared)"
             if name not in KNOWN_UNWIRED:
                 unwired.append(name)
+            else:
+                declared.append(name)
         else:
             status = "unwired (no tests either)"
         joined = ", ".join(importers) or "-"
-        note = f"  # {KNOWN_UNWIRED[name]}" if name in KNOWN_UNWIRED else ""
-        print(f"{name:<16} {status:<22} prod={joined:<38} tests={tests}{note}")
+        if not args.quiet:
+            note = f"  # {KNOWN_UNWIRED[name]}" if name in KNOWN_UNWIRED else ""
+            print(f"{name:<16} {status:<22} prod={joined:<38} tests={tests}{note}")
 
-    print(f"\nunwired with tests and no declared reason: {len(unwired)}")
-    for name in unwired:
-        print(f"  {name}")
     if unwired:
+        print(f"unwired with tests and no declared reason: {len(unwired)}", file=sys.stderr)
+        for name in unwired:
+            print(f"  {name}", file=sys.stderr)
         print(
-            "\nThese modules cannot affect a reply. Either wire them in, delete them, or"
-            "\nadd them to KNOWN_UNWIRED with the reason the native path is intended."
+            "These modules cannot affect a reply. Either wire them in, delete them, or\n"
+            "add them to KNOWN_UNWIRED with the reason the native path is intended.",
+            file=sys.stderr,
+        )
+    elif not args.quiet:
+        print(
+            f"PASS -- {len(declared)} mirror module(s) declared unwired with a reason, "
+            "no undeclared ones"
         )
     return 1 if (unwired and args.fail_on_unwired) else 0
 

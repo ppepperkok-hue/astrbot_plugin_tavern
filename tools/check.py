@@ -89,6 +89,21 @@ def main() -> int:
     # A README pointing at a file that does not exist reads as carelessness and is
     # invisible to anyone who does not click it. Cheap enough to always check.
     results.append(run("readme links", [sys.executable, "tools/check_readme_links.py", "--quiet"]))
+    # A mirror module with tests but no production importer cannot affect a reply, so
+    # "it has tests" is not evidence it works. The three currently-unwired modules are
+    # declared in KNOWN_UNWIRED with the reasoning; `--fail-on-unwired` turns a *new*
+    # undeclared one into a failure, which is the point of declaring them.
+    results.append(
+        run(
+            "module wiring",
+            [
+                sys.executable,
+                "tools/st-oracle/check_module_wiring.py",
+                "--fail-on-unwired",
+                "--quiet",
+            ],
+        )
+    )
     results.append(run("ruff check", [sys.executable, "-m", "ruff", "check", "."]))
     results.append(
         run(
