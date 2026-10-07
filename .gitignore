@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Windows sandbox ACL repair artifacts produced while setting up this workspace
+.acl-recovery/
+
+# AstrBot runtime data must never live in the plugin directory
+data/
+
+# Raw research dumps (large GitHub API responses); the distilled reports are committed
+research/_raw/
+research/repos/
+research/docs/
+
+# Local scratch
+*.log
+.DS_Store
+Thumbs.db

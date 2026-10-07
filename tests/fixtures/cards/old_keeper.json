@@ -1,0 +1,10 @@
+{
+  "name": "Old Keeper",
+  "description": "A flat V1 card.",
+  "personality": "Gruff",
+  "scenario": "A dusty archive",
+  "first_mes": "Mind the dust.",
+  "mes_example": "",
+  "creatorcomment": "legacy field that the parser ignores",
+  "talkativeness": "0.5"
+}

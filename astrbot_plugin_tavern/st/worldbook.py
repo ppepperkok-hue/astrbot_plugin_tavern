@@ -1,0 +1,727 @@
+"""SillyTavern compatible World Info (lorebook) engine.
+
+The module implements the *data* and *activation* halves of SillyTavern's
+World Info system so that AstrBot can reuse existing lorebooks unchanged:
+
+* parsing of the V2 world book container (``entries`` as dict or list) and of
+  the legacy flat "folder of books" exports,
+* keyword scanning with case sensitivity, whole word matching and regular
+  expressions,
+* secondary ("selective") keys with the four ``selectiveLogic`` modes,
+* scan depth, constant ("blue") entries, per entry ``order`` and
+  ``displayIndex`` sorting,
+* probability gating (``useProbability`` / ``probability``),
+* recursive scanning with ``preventRecursion`` / ``excludeRecursion`` /
+  ``delayUntilRecursion``.
+
+Deliberate simplifications (documented so the plugin layer can decide):
+
+* ``sticky`` / ``cooldown`` / ``delay`` are tracked per activation *turn*
+  (the caller increments the turn counter), not per wall clock second.
+* Group scoring (``group`` / ``groupWeight`` / ``useGroupScoring``) only
+  de-duplicates entries inside the same group; the "weighted pick one"
+  behaviour is opt-in through :attr:`WorldBookSettings.group_scoring`.
+* Vectorised entries (``vectorized``) are treated as inactive unless a
+  semantic matcher is supplied through :attr:`WorldBookSettings.vector_match`.
+
+String values are stored in ``WorldInfoEntry`` untouched; the compatibility
+layer lives in the parser so that unknown exporter variants keep working.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import random
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Callable, Iterable, Sequence
+
+logger = logging.getLogger(__name__)
+
+# --- Insertion positions (SillyTavern ``position`` field) --------------------
+POSITION_BEFORE_CHAR = 0
+POSITION_AFTER_CHAR = 1
+POSITION_ANT_TOP = 2
+POSITION_ANT_BOTTOM = 3
+POSITION_AT_DEPTH = 4
+POSITION_EM_TOP = 5
+POSITION_EM_BOTTOM = 6
+
+POSITION_NAMES: dict[int, str] = {
+    POSITION_BEFORE_CHAR: "before_char",
+    POSITION_AFTER_CHAR: "after_char",
+    POSITION_ANT_TOP: "ant_top",
+    POSITION_ANT_BOTTOM: "ant_bottom",
+    POSITION_AT_DEPTH: "at_depth",
+    POSITION_EM_TOP: "em_top",
+    POSITION_EM_BOTTOM: "em_bottom",
+}
+
+# --- Selective logic --------------------------------------------------------
+LOGIC_AND_ANY = 0
+LOGIC_NOT_ALL = 1
+LOGIC_NOT_ANY = 2
+LOGIC_AND_ALL = 3
+
+
+@dataclass
+class WorldBookSettings:
+    """Runtime knobs that are *not* stored inside the world book file."""
+
+    #: Fallback scan depth when neither the book nor the entry defines one.
+    default_scan_depth: int = 4
+    #: Recursion is off by default: SillyTavern enables it per book/globally.
+    allow_recursion: bool = False
+    max_recursion_steps: int = 3
+    #: Optional semantic matcher used for ``vectorized`` entries:
+    #: ``matcher(entry_key_vector, texts) -> bool``.
+    vector_match: Callable[[Sequence[float], Sequence[str]], bool] | None = None
+    #: When True, only the heaviest entry of each ``group`` activates.
+    group_scoring: bool = False
+    #: Injectable RNG so tests can make ``probability`` deterministic.
+    rng: random.Random = field(default_factory=random.Random)
+
+
+@dataclass
+class WorldInfoEntry:
+    """One World Info entry (lorebook row)."""
+
+    uid: int = 0
+    keys: list[str] = field(default_factory=list)
+    secondary_keys: list[str] = field(default_factory=list)
+    content: str = ""
+    comment: str = ""
+    constant: bool = False
+    selective: bool = False
+    selective_logic: int = LOGIC_AND_ANY
+    insertion_order: int = 100
+    position: int = POSITION_BEFORE_CHAR
+    depth: int = 4
+    role: str | None = None
+    disable: bool = False
+    probability: int = 100
+    use_probability: bool = True
+    case_sensitive: bool | None = None
+    match_whole_words: bool | None = None
+    scan_depth: int | None = None
+    group: str = ""
+    group_weight: int = 100
+    group_override: bool = False
+    use_group_scoring: bool | None = None
+    automation_id: str = ""
+    vectorized: bool = False
+    # Turn based lifecycle, see the module docstring.
+    sticky: int = 0
+    cooldown: int = 0
+    delay: int = 0
+    exclude_recursion: bool = False
+    prevent_recursion: bool = False
+    delay_until_recursion: bool = False
+    display_index: int = 0
+    extensions: dict[str, Any] = field(default_factory=dict)
+    #: Raw vector, only present in vectorised books.
+    key_vector: list[float] = field(default_factory=list)
+    #: Book this entry came from (filled by the activation engine).
+    book: str = ""
+
+
+@dataclass
+class WorldBook:
+    """A parsed world book."""
+
+    name: str = ""
+    description: str = ""
+    entries: list[WorldInfoEntry] = field(default_factory=list)
+    scan_depth: int | None = None
+    token_budget: int | None = None
+    recursive_scanning: bool = False
+    extensions: dict[str, Any] = field(default_factory=dict)
+    source_path: str = ""
+
+    def __len__(self) -> int:
+        return len(self.entries)
+
+
+def _as_int(value: Any, default: int) -> int:
+    try:
+        if value is None or value == "":
+            return default
+        return int(float(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_optional_int(value: Any) -> int | None:
+    """Parse a value that may be absent, ``None`` or ``0`` meaning "unset"."""
+    if value is None or value == "":
+        return None
+    try:
+        parsed = int(float(value))
+    except (TypeError, ValueError):
+        return None
+    return parsed or None
+
+
+def _as_bool(value: Any, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "on")
+    return default
+
+
+def _as_str_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value] if value else []
+    if isinstance(value, list):
+        return [str(item) for item in value if str(item)]
+    return [str(value)]
+
+
+def parse_bool_or_none(value: Any) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, str) and value.strip() == "":
+        return None
+    return _as_bool(value)
+
+
+def entry_from_dict(uid: int, payload: dict[str, Any]) -> WorldInfoEntry:
+    """Build a :class:`WorldInfoEntry` from a raw lorebook row."""
+    return WorldInfoEntry(
+        uid=_as_int(payload.get("uid"), uid),
+        keys=_as_str_list(payload.get("key", payload.get("keys"))),
+        secondary_keys=_as_str_list(payload.get("keysecondary", payload.get("secondary_keys"))),
+        content=str(payload.get("content", "") or ""),
+        comment=str(payload.get("comment", "") or ""),
+        constant=_as_bool(payload.get("constant")),
+        selective=_as_bool(payload.get("selective")),
+        selective_logic=_as_int(payload.get("selectiveLogic"), LOGIC_AND_ANY),
+        insertion_order=_as_int(payload.get("order", payload.get("insertion_order")), 100),
+        position=_as_int(payload.get("position"), POSITION_BEFORE_CHAR),
+        depth=_as_int(payload.get("depth"), 4),
+        role=payload.get("role"),
+        disable=_as_bool(payload.get("disable")),
+        probability=_as_int(payload.get("probability"), 100),
+        use_probability=_as_bool(payload.get("useProbability", True), True),
+        case_sensitive=parse_bool_or_none(payload.get("caseSensitive")),
+        match_whole_words=parse_bool_or_none(payload.get("matchWholeWords")),
+        scan_depth=_as_optional_int(payload.get("scanDepth")),
+        group=str(payload.get("group", "") or ""),
+        group_weight=_as_int(payload.get("groupWeight"), 100),
+        group_override=_as_bool(payload.get("groupOverride")),
+        use_group_scoring=parse_bool_or_none(payload.get("useGroupScoring")),
+        automation_id=str(payload.get("automationId", "") or ""),
+        vectorized=_as_bool(payload.get("vectorized")),
+        sticky=_as_int(payload.get("sticky"), 0),
+        cooldown=_as_int(payload.get("cooldown"), 0),
+        delay=_as_int(payload.get("delay"), 0),
+        exclude_recursion=_as_bool(payload.get("excludeRecursion")),
+        prevent_recursion=_as_bool(payload.get("preventRecursion")),
+        delay_until_recursion=_as_bool(payload.get("delayUntilRecursion")),
+        display_index=_as_int(payload.get("displayIndex"), uid),
+        extensions=payload.get("extensions") if isinstance(payload.get("extensions"), dict) else {},
+        key_vector=_as_float_list(payload.get("keyvector", payload.get("key_vector"))),
+    )
+
+
+def _as_float_list(value: Any) -> list[float]:
+    if not isinstance(value, list):
+        return []
+    out: list[float] = []
+    for item in value:
+        try:
+            out.append(float(item))
+        except (TypeError, ValueError):
+            return []
+    return out
+
+
+def book_from_dict(payload: dict[str, Any], source_path: str = "") -> WorldBook:
+    """Parse a world book container.
+
+    Handles ``{"entries": {"0": {...}}}`` (SillyTavern V2 export),
+    ``{"entries": [{...}]}`` and ``{"0": {...}}`` (raw ``world_info`` map).
+    """
+    if not isinstance(payload, dict):
+        raise ValueError("world book root must be a JSON object")
+
+    raw_entries = payload.get("entries")
+    if raw_entries is None:
+        raw_entries = {k: v for k, v in payload.items() if isinstance(v, dict) and "content" in v}
+
+    entries: list[WorldInfoEntry] = []
+    if isinstance(raw_entries, dict):
+        for key, value in raw_entries.items():
+            if not isinstance(value, dict):
+                continue
+            entries.append(entry_from_dict(_as_int(key, len(entries)), value))
+    elif isinstance(raw_entries, list):
+        for index, value in enumerate(raw_entries):
+            if not isinstance(value, dict):
+                continue
+            entries.append(entry_from_dict(index, value))
+
+    return WorldBook(
+        name=str(payload.get("name", "") or ""),
+        description=str(payload.get("description", "") or ""),
+        entries=entries,
+        scan_depth=_as_optional_int(payload.get("scan_depth")),
+        token_budget=_as_optional_int(payload.get("token_budget")),
+        recursive_scanning=_as_bool(payload.get("recursive_scanning")),
+        extensions=payload.get("extensions") if isinstance(payload.get("extensions"), dict) else {},
+        source_path=source_path,
+    )
+
+
+def load_world_book(path: str | Path) -> WorldBook:
+    """Load a single world book file (``.json``, or ``.yaml`` with PyYAML)."""
+    path = Path(path)
+    if path.suffix.lower() in (".yaml", ".yml"):
+        try:
+            import yaml  # type: ignore[import-not-found]
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            raise ValueError("YAML world books need PyYAML installed") from exc
+        payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    else:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    return book_from_dict(payload, source_path=str(path))
+
+
+def scan_world_books(directory: str | Path) -> list[WorldBook]:
+    """Load every world book in ``directory``; broken files are skipped."""
+    directory = Path(directory)
+    if not directory.is_dir():
+        return []
+    books: list[WorldBook] = []
+    for path in sorted(directory.iterdir()):
+        if path.suffix.lower() not in (".json", ".yaml", ".yml"):
+            continue
+        try:
+            books.append(load_world_book(path))
+        except Exception as exc:  # noqa: BLE001 - one bad book must not break the rest
+            logger.warning("skip world book %s: %s", path.name, exc)
+    return books
+
+
+# ---------------------------------------------------------------------------
+# Matching helpers
+# ---------------------------------------------------------------------------
+
+_REGEX_KEY = re.compile(r"^/(.*?)/([a-z]*)$", re.DOTALL)
+_WORD_CHARS = re.compile(r"[\w\u4e00-\u9fff\u3040-\u30ff]+", re.UNICODE)
+
+
+def is_regex_key(key: str) -> bool:
+    """True when a key uses SillyTavern's ``/pattern/flags`` syntax."""
+    match = _REGEX_KEY.match(key.strip())
+    return bool(match) and "/" in key.strip()[1:]
+
+
+def compile_key(key: str, case_sensitive: bool) -> re.Pattern[str] | None:
+    """Compile one key into a regex; regex keys keep their own flags."""
+    flags = 0 if case_sensitive else re.IGNORECASE
+    stripped = key.strip()
+    match = _REGEX_KEY.match(stripped)
+    if match and is_regex_key(stripped):
+        pattern, flag_letters = match.group(1), match.group(2).lower()
+        for letter, flag in (
+            ("i", re.IGNORECASE),
+            ("m", re.MULTILINE),
+            ("s", re.DOTALL),
+            ("x", re.VERBOSE),
+        ):
+            if letter in flag_letters:
+                flags |= flag
+        try:
+            return re.compile(pattern, flags)
+        except re.error as exc:
+            logger.warning("invalid world info regex %r: %s", key, exc)
+            return None
+    try:
+        return re.compile(re.escape(stripped), flags)
+    except re.error:
+        return None
+
+
+def _whole_word_match(haystack: str, needle: str, case_sensitive: bool) -> bool:
+    """Whole word search that also works for CJK keys without word boundaries."""
+    if not needle:
+        return False
+    if _WORD_CHARS.fullmatch(needle):
+        pattern = re.compile(
+            rf"(?<!\w){re.escape(needle)}(?!\w)", 0 if case_sensitive else re.IGNORECASE
+        )
+        return pattern.search(haystack) is not None
+    return (needle in haystack) if case_sensitive else (needle.lower() in haystack.lower())
+
+
+def key_matches(
+    haystack: str,
+    keys: Iterable[str],
+    case_sensitive: bool,
+    whole_words: bool,
+) -> bool:
+    """True when any key matches ``haystack``."""
+    for key in keys:
+        if not key:
+            continue
+        if is_regex_key(key):
+            pattern = compile_key(key, case_sensitive)
+            if pattern is not None and pattern.search(haystack):
+                return True
+        elif whole_words:
+            if _whole_word_match(haystack, key, case_sensitive):
+                return True
+        else:
+            needle = key if case_sensitive else key.lower()
+            hay = haystack if case_sensitive else haystack.lower()
+            if needle in hay:
+                return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Activation engine
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ActivationResult:
+    """Entries that should be injected for this turn."""
+
+    #: ``position`` value -> entries in insertion order.
+    by_position: dict[int, list[WorldInfoEntry]] = field(default_factory=dict)
+    #: Every activated entry, deduplicated, in insertion order.
+    activated: list[WorldInfoEntry] = field(default_factory=list)
+    #: True when the token budget dropped at least one entry.
+    truncated: bool = False
+
+    def content_for(self, position: int) -> str:
+        return "\n".join(
+            entry.content for entry in self.by_position.get(position, []) if entry.content
+        )
+
+
+class ActivationState:
+    """Per-chat activation bookkeeping for ``sticky`` / ``cooldown`` / ``delay``.
+
+    SillyTavern keeps this in the chat metadata. The plugin stores one instance
+    per chat and calls :meth:`next_turn` after every assistant reply.
+
+    The model, stated precisely:
+
+    * ``delay`` — the entry cannot fire before ``turn >= delay``.
+    * ``sticky`` — after a *fresh* activation the entry keeps being injected
+      for ``sticky`` more turns, without rescanning its keywords.
+    * ``cooldown`` — after a *fresh* activation the entry cannot fire again
+      (by keyword) until ``turn >= activation_turn + cooldown``.
+
+    A held (sticky) entry never refreshes either window, which is what makes
+    the pair terminate instead of extending itself forever.
+    """
+
+    def __init__(self) -> None:
+        self.turn: int = 0
+        self._sticky_until: dict[tuple[str, int], int] = {}
+        self._cooldown_until: dict[tuple[str, int], int] = {}
+        self._first_seen: dict[tuple[str, int], int] = {}
+        self._ever_fired: set[tuple[str, int]] = set()
+
+    def next_turn(self) -> None:
+        self.turn += 1
+
+    def _identity(self, book: WorldBook, entry: WorldInfoEntry) -> tuple[str, int]:
+        # ``source_path`` first: two books may legitimately share a display
+        # name (or have none at all), and colliding uids would then shadow
+        # each other's windows.
+        key = book.source_path or book.name or f"book-{id(book):x}"
+        return (key, entry.uid)
+
+    def is_blocked(self, book: WorldBook, entry: WorldInfoEntry) -> bool:
+        ident = self._identity(book, entry)
+        if self.turn < self._cooldown_until.get(ident, -1):
+            return True
+        if ident in self._ever_fired:
+            return False
+        # ``delay`` only gates the first ever activation.
+        return self.turn < entry.delay
+
+    def is_sticky(self, book: WorldBook, entry: WorldInfoEntry) -> bool:
+        return self.turn < self._sticky_until.get(self._identity(book, entry), -1)
+
+    def on_activate(
+        self,
+        book: WorldBook,
+        entry: WorldInfoEntry,
+        *,
+        fresh: bool = True,
+    ) -> None:
+        """Record an activation.
+
+        ``fresh=False`` means the entry is only being *held* by its sticky
+        window; the sticky and cooldown windows are then left untouched.
+        """
+        ident = self._identity(book, entry)
+        self._first_seen.setdefault(ident, self.turn)
+        self._ever_fired.add(ident)
+        if not fresh:
+            return
+        if entry.cooldown > 0:
+            self._cooldown_until[ident] = self.turn + entry.cooldown
+        if entry.sticky > 0:
+            self._sticky_until[ident] = max(
+                self._sticky_until.get(ident, -1),
+                self.turn + entry.sticky,
+            )
+
+
+def _entry_scan_text(entry: WorldInfoEntry) -> str:
+    """Text that a recursive pass may match against (comment + content)."""
+    return "\n".join(part for part in (entry.comment, entry.content) if part)
+
+
+def activate(
+    books: Sequence[WorldBook],
+    messages: Sequence[str],
+    settings: WorldBookSettings | None = None,
+    state: ActivationState | None = None,
+    *,
+    token_counter: Callable[[str], int] | None = None,
+    token_budget: int | None = None,
+    max_recursion_steps: int | None = None,
+    active_group: str | None = None,
+) -> ActivationResult:
+    """Run the World Info activation pipeline for one turn.
+
+    ``messages`` is the chat history **oldest first**; only the last
+    ``scan_depth`` entries are scanned, matching SillyTavern.
+    """
+    settings = settings or WorldBookSettings()
+    state = state or ActivationState()
+    counter = token_counter or greedy_token_count
+    steps_limit = (
+        max_recursion_steps if max_recursion_steps is not None else settings.max_recursion_steps
+    )
+
+    # uid -> (book, entry), insertion_order, display_index
+    candidates: list[tuple[WorldBook, WorldInfoEntry]] = [
+        (book, entry) for book in books for entry in book.entries if not entry.disable
+    ]
+
+    activated: list[tuple[WorldBook, WorldInfoEntry]] = []
+    activated_ids: set[tuple[str, int]] = set()
+    #: text generated by newly activated entries, used by recursion passes
+    fresh_texts: list[str] = []
+    excluded_from_recursion: set[tuple[str, int]] = set()
+
+    def scan_depth_for(book: WorldBook, entry_scan_depth: int | None) -> int:
+        if entry_scan_depth:
+            return entry_scan_depth
+        if book.scan_depth:
+            return book.scan_depth
+        return settings.default_scan_depth
+
+    def scan_text(depth: int) -> str:
+        if depth <= 0:
+            return "\n".join(messages)
+        return "\n".join(messages[-depth:])
+
+    def try_activate(book: WorldBook, entry: WorldInfoEntry, *, via_recursion: bool) -> bool:
+        ident = (book.name or book.source_path, entry.uid)
+        already_sticky = state.is_sticky(book, entry)
+
+        if entry.delay_until_recursion and not via_recursion:
+            return False
+        if via_recursion and (entry.prevent_recursion or ident in excluded_from_recursion):
+            return False
+        if via_recursion and entry.exclude_recursion:
+            excluded_from_recursion.add(ident)
+        if not already_sticky and ident in activated_ids and not state.is_sticky(book, entry):
+            return False
+        if not already_sticky and state.is_blocked(book, entry):
+            return False
+
+        haystack = scan_text(scan_depth_for(book, entry.scan_depth))
+        if via_recursion:
+            haystack = "\n".join([haystack, *fresh_texts])
+
+        case_sensitive = bool(entry.case_sensitive)
+        whole_words = bool(entry.match_whole_words)
+
+        if already_sticky:
+            # An entry inside its sticky window is simply held: its own content
+            # is not rescanned, and holding it neither extends the sticky window
+            # nor re-opens the cooldown window.
+            triggered = True
+        elif entry.constant or entry.vectorized:
+            triggered = True
+            if entry.vectorized:  # vectorised entries only fire with a matcher
+                triggered = bool(entry.key_vector) and settings.vector_match is not None
+                if triggered and settings.vector_match is not None:
+                    triggered = settings.vector_match(entry.key_vector, [haystack])
+        else:
+            triggered = key_matches(haystack, entry.keys, case_sensitive, whole_words)
+            if triggered and entry.selective and entry.secondary_keys:
+                min_activations = _as_int(entry.extensions.get("min_activations"), 1)
+                max_activations = _as_int(entry.extensions.get("max_activations"), 0)
+                secondary_hits = [
+                    key
+                    for key in entry.secondary_keys
+                    if key
+                    and (
+                        compile_key(key, case_sensitive).search(haystack)
+                        if is_regex_key(key)
+                        else (
+                            _whole_word_match(haystack, key, case_sensitive)
+                            if whole_words
+                            else (
+                                key in haystack
+                                if case_sensitive
+                                else key.lower() in haystack.lower()
+                            )
+                        )
+                    )
+                ]
+                hits = len(secondary_hits)
+                required = len([k for k in entry.secondary_keys if k])
+                if entry.selective_logic == LOGIC_AND_ALL:
+                    # Every secondary key must match.
+                    triggered = hits == required and hits >= max(1, min_activations)
+                elif entry.selective_logic == LOGIC_NOT_ANY:
+                    # No secondary key may match.
+                    triggered = hits < max(1, min_activations)
+                elif entry.selective_logic == LOGIC_NOT_ALL:
+                    # Not every secondary key may match.
+                    triggered = hits < required
+                else:  # LOGIC_AND_ANY
+                    # At least ``min_activations`` secondary keys must match.
+                    triggered = hits >= max(1, min_activations)
+                if triggered and max_activations:
+                    triggered = hits <= max_activations
+
+        if active_group and entry.group and entry.group != active_group:
+            triggered = False
+
+        if not triggered and not state.is_sticky(book, entry):
+            return False
+
+        if entry.use_probability and entry.probability < 100:
+            if settings.rng.randint(1, 100) > max(entry.probability, 0):
+                return False
+
+        if ident not in activated_ids:
+            activated_ids.add(ident)
+            activated.append((book, entry))
+            if entry.content:
+                fresh_texts.append(_entry_scan_text(entry))
+            # A fresh fire opens new sticky/cooldown windows; a held fire
+            # (the entry was already inside its sticky window) must not, or the
+            # entry would keep extending its own lifetime forever.
+            state.on_activate(book, entry, fresh=not already_sticky)
+        return True
+
+    # Pass 1: direct scan.
+    for book, entry in candidates:
+        try_activate(book, entry, via_recursion=False)
+
+    # Passes 2..N: recursive scanning over the freshly activated content.
+    if settings.allow_recursion and steps_limit > 1:
+        for _ in range(steps_limit - 1):
+            before = len(activated)
+            for book, entry in candidates:
+                try_activate(book, entry, via_recursion=True)
+            if len(activated) == before:
+                break
+
+    # Ordering: insertion order, then display index.
+    activated.sort(key=lambda item: (item[1].insertion_order, item[1].display_index))
+
+    if settings.group_scoring:
+        activated = _apply_group_scoring(activated, settings)
+
+    # Token budget, dropped from the lowest priority (first inserted) end.
+    budget = token_budget
+    if budget is None:
+        budget = next((book.token_budget for book in books if book.token_budget), None)
+
+    truncated = False
+    if budget:
+        used = 0
+        kept: list[tuple[WorldBook, WorldInfoEntry]] = []
+        for item in reversed(activated):  # highest insertion order first
+            cost = counter(item[1].content) if item[1].content else 0
+            if used + cost > budget and kept:
+                truncated = True
+                continue
+            used += cost
+            kept.append(item)
+        kept.reverse()
+        activated = kept
+
+    result = ActivationResult(activated=[entry for _book, entry in activated], truncated=truncated)
+    for book, entry in activated:
+        result.by_position.setdefault(entry.position, []).append(entry)
+    return result
+
+
+def _apply_group_scoring(
+    activated: list[tuple[WorldBook, WorldInfoEntry]],
+    settings: WorldBookSettings,
+) -> list[tuple[WorldBook, WorldInfoEntry]]:
+    """Keep only the heaviest entry per ``group`` when group scoring is on."""
+    best: dict[str, tuple[WorldBook, WorldInfoEntry]] = {}
+    out: list[tuple[WorldBook, WorldInfoEntry]] = []
+    for book, entry in activated:
+        if not entry.group:
+            out.append((book, entry))
+            continue
+        current = best.get(entry.group)
+        if current is None or entry.group_weight > current[1].group_weight:
+            best[entry.group] = (book, entry)
+    out.extend(best.values())
+    out.sort(key=lambda item: (item[1].insertion_order, item[1].display_index))
+    return out
+
+
+def greedy_token_count(text: str) -> int:
+    """Cheap token estimate used when no exact counter is supplied.
+
+    Falls back to tiktoken when it is installed, because the plugin ships
+    ``tiktoken`` as an optional dependency.
+    """
+    if not text:
+        return 0
+    counter = _tiktoken_counter()
+    if counter is not None:
+        try:
+            return len(counter(text))
+        except Exception:  # noqa: BLE001 - never let counting break a turn
+            pass
+    return max(1, len(text) // 3)
+
+
+_TIKTOKEN: Any = None
+_TIKTOKEN_TRIED = False
+
+
+def _tiktoken_counter() -> Any:
+    global _TIKTOKEN, _TIKTOKEN_TRIED
+    if _TIKTOKEN_TRIED:
+        return _TIKTOKEN
+    _TIKTOKEN_TRIED = True
+    try:
+        import tiktoken  # type: ignore[import-not-found]
+
+        _TIKTOKEN = tiktoken.get_encoding("cl100k_base").encode
+    except Exception:  # noqa: BLE001 - optional dependency
+        _TIKTOKEN = None
+    return _TIKTOKEN

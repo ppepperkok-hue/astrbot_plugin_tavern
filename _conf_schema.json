@@ -1,0 +1,206 @@
+{
+  "enabled": {
+    "type": "bool",
+    "description": "启用酒馆角色扮演",
+    "hint": "关闭后本插件不再接管聊天，世界书也不再注入。",
+    "default": true
+  },
+  "trigger": {
+    "description": "触发方式",
+    "type": "object",
+    "items": {
+      "private_always": {
+        "type": "bool",
+        "description": "私聊直接回复",
+        "hint": "私聊里所有消息都交给角色卡处理（仍可通过 /酒馆 退出）。",
+        "default": true
+      },
+      "group_at_only": {
+        "type": "bool",
+        "description": "群聊仅 @机器人 时触发",
+        "hint": "关闭后群聊里所有消息都会触发，容易刷屏，请配合冷却使用。",
+        "default": true
+      },
+      "wake_prefixes": {
+        "type": "list",
+        "description": "群聊唤醒前缀",
+        "hint": "群聊里以这些词开头的消息也会触发，例如 酒馆、陪聊。",
+        "default": ["酒馆"]
+      },
+      "cooldown_seconds": {
+        "type": "int",
+        "description": "同一会话冷却（秒）",
+        "hint": "冷却期内的消息不触发角色回复，避免刷屏与风控。",
+        "default": 3,
+        "slider": { "min": 0, "max": 60, "step": 1 }
+      },
+      "max_concurrent": {
+        "type": "int",
+        "description": "同会话最大并发请求",
+        "hint": "超出的消息会礼貌拒绝，保护上游模型与账号。",
+        "default": 1,
+        "slider": { "min": 1, "max": 4, "step": 1 }
+      }
+    }
+  },
+  "worldbook": {
+    "description": "世界书",
+    "type": "object",
+    "items": {
+      "enabled": {
+        "type": "bool",
+        "description": "启用世界书注入",
+        "default": true
+      },
+      "scan_depth": {
+        "type": "int",
+        "description": "扫描深度（最近 N 条消息）",
+        "hint": "酒馆默认 4。太小会导致关键词刚说过就失效。",
+        "default": 4,
+        "slider": { "min": 1, "max": 30, "step": 1 }
+      },
+      "token_budget": {
+        "type": "int",
+        "description": "世界书 token 预算",
+        "hint": "0 表示不限制。超出预算时按插入顺序从低优先级开始丢弃。",
+        "default": 1024,
+        "slider": { "min": 0, "max": 8192, "step": 64 }
+      },
+      "allow_recursion": {
+        "type": "bool",
+        "description": "允许递归扫描",
+        "hint": "世界书条目内容命中的关键词可以再触发其他条目。",
+        "default": true
+      },
+      "max_recursion_steps": {
+        "type": "int",
+        "description": "最大递归层数",
+        "default": 3,
+        "slider": { "min": 1, "max": 8, "step": 1 }
+      },
+      "match_whole_words": {
+        "type": "bool",
+        "description": "默认整词匹配",
+        "hint": "中文等无空格语言建议关闭（\\b 边界不可靠）。条目自身设置优先。",
+        "default": false
+      },
+      "injection_cap": {
+        "type": "int",
+        "description": "单轮注入条目上限",
+        "hint": "防止世界书爆炸，0 表示不限制。",
+        "default": 20,
+        "slider": { "min": 0, "max": 100, "step": 1 }
+      }
+    }
+  },
+  "render": {
+    "description": "输出渲染",
+    "type": "object",
+    "items": {
+      "max_chars_per_message": {
+        "type": "int",
+        "description": "单条消息最大字符数",
+        "hint": "超出会按段落切分多条发送，避免被平台截断。",
+        "default": 500,
+        "slider": { "min": 100, "max": 3000, "step": 50 }
+      },
+      "segment_delay_ms": {
+        "type": "int",
+        "description": "分段发送间隔（毫秒）",
+        "hint": "模拟真人打字，降低风控风险。",
+        "default": 400,
+        "slider": { "min": 0, "max": 3000, "step": 50 }
+      },
+      "keep_leading_space": {
+        "type": "bool",
+        "description": "保护首尾空行",
+        "hint": "OneBot 发送纯文本会被 strip()，开启后自动补零宽空格保护酒馆式排版。",
+        "default": true
+      },
+      "strip_status_bar": {
+        "type": "bool",
+        "description": "剥离状态栏",
+        "hint": "移除形如 <Status>…</Status>、```status…``` 的模型自留状态块。",
+        "default": true
+      },
+      "regex_rules": {
+        "type": "list",
+        "description": "输出正则规则",
+        "hint": "每项格式为 正则=>替换，例如 ^「(.*)」$=>$1 。按顺序执行。",
+        "default": []
+      }
+    }
+  },
+  "backend": {
+    "description": "生成后端",
+    "type": "object",
+    "items": {
+      "type": {
+        "type": "string",
+        "description": "后端类型",
+        "hint": "astrbot = 用 AstrBot 已配置的模型；sillytavern = 调用已部署的酒馆。",
+        "options": ["astrbot", "sillytavern"],
+        "default": "astrbot"
+      },
+      "provider_id": {
+        "type": "string",
+        "description": "AstrBot 模型提供商",
+        "hint": "留空则跟随当前会话的模型。",
+        "_special": "select_provider",
+        "default": ""
+      },
+      "st_base_url": {
+        "type": "string",
+        "description": "酒馆地址",
+        "hint": "例如 http://127.0.0.1:8000 ，仅在后端类型为 sillytavern 时使用。",
+        "default": ""
+      },
+      "st_cookie": {
+        "type": "string",
+        "description": "酒馆 Cookie",
+        "hint": "登录酒馆后从浏览器复制，用于通过 requireLoginMiddleware。",
+        "secret": true,
+        "default": ""
+      },
+      "st_verify_ssl": {
+        "type": "bool",
+        "description": "校验酒馆 TLS 证书",
+        "default": true
+      }
+    }
+  },
+  "permissions": {
+    "description": "指令权限",
+    "type": "object",
+    "items": {
+      "switch_card_requires_admin": {
+        "type": "bool",
+        "description": "仅管理员可切换角色卡",
+        "hint": "关闭后群成员可自行 /酒馆 换卡，适合私人小群。",
+        "default": false
+      },
+      "import_requires_admin": {
+        "type": "bool",
+        "description": "仅管理员可导入卡片/世界书",
+        "default": true
+      }
+    }
+  },
+  "debug": {
+    "description": "调试",
+    "type": "object",
+    "items": {
+      "log_prompt": {
+        "type": "bool",
+        "description": "日志输出每轮组装结果",
+        "hint": "包含注入的世界书条目与 token 估算，仅排查时开启。",
+        "default": false
+      },
+      "show_debug_in_chat": {
+        "type": "bool",
+        "description": "允许 /酒馆 预览 在聊天里回显",
+        "default": true
+      }
+    }
+  }
+}
