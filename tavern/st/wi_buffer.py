@@ -350,10 +350,17 @@ class WorldInfoBuffer:
                 return transformed_string in haystack
 
             # Use custom boundaries to include punctuation and other
-            # non-alphanumeric characters
-            regex = re.compile(
-                f"(?:^|\\W)({escape_regex(transformed_string)})(?:$|\\W)", re.UNICODE
-            )
+            # non-alphanumeric characters.
+            #
+            # ``re.ASCII`` is *required*, and was missing here while the
+            # unreachable twin in ``wi_keywords.py`` had it right. JS ``\w`` /
+            # ``\W`` are ASCII-only in every mode (``u`` included -- it only adds
+            # ``\p{...}``), whereas Python's ``\w`` is Unicode-aware for ``str``
+            # patterns. With ``re.UNICODE`` the neighbours of a CJK key are word
+            # characters, so `关键词` inside `中文关键词测试` stops matching, while
+            # the reference matches it. Oracle fixture ``15-word-boundaries`` pins
+            # exactly that pair (and the ASCII cases that already agreed).
+            regex = re.compile(f"(?:^|\\W)({escape_regex(transformed_string)})(?:$|\\W)", re.ASCII)
             if regex.search(haystack):
                 return True
         else:

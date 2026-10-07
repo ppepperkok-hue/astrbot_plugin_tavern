@@ -7,7 +7,7 @@
 
 ## 0. 一句话现状
 
-**全部完成，三个判定机全绿**：世界书引擎（S1，14 fixtures 11 match/0 diverged/3 不可比）、
+**全部完成，三个判定机全绿**：世界书引擎（S1，15 fixtures 12 match/0 diverged/3 不可比）、
 角色卡与世界书导入（S3，发文件即导入）、提示词组装层（S2，消息模型 1 条一致、装配 8 个 fixture
 **全一致**），458 项离线测试 + `tools/check.py` 全过。
 
@@ -52,7 +52,7 @@ python tools/st-oracle/gen_adapter.py --check  # 判定机生成树是否漂移
 | `python tools/check.py` | **ALL CHECKS PASSED** |
 | `python -m pytest tests` | **458 passed, 1 skipped**（唯一 skip 是 `tests/test_prompt.py:151`，缺时区库） |
 | `python -m ruff check .` | All checks passed |
-| `diff.py --all`（S1） | 14 fixtures，**11 match / 0 diverged / 3 not-comparable** → PASS |
+| `diff.py --all`（S1） | 15 fixtures，**12 match / 0 diverged / 3 not-comparable** → PASS |
 | `diff_prompt.py --all`（S2 消息模型） | 1 fixture，**match** → PASS |
 | `diff_assembly.py --all`（S2 装配） | 8 fixtures，**8 match / 0 diverged / 0 not-comparable** → **PASS** |
 
@@ -65,7 +65,7 @@ JS 的 RNG 流），一个是 token 预算（酒馆用真 tokenizer，我们只�
 
 ### S1 世界书引擎 —— 完成
 `tavern/st/worldbook.py` + `wi_buffer.py` + `wi_keywords.py` + `wi_decorators.py` + `wi_timed.py` +
-`wi_scan_state.py`，按 `world-info.js` 逐个函数镜像移植。14 个 fixture、11 个可比场景**逐字一致**。
+`wi_scan_state.py`，按 `world-info.js` 逐个函数镜像移植。15 个 fixture、12 个可比场景**逐字一致**。
 
 判定机抓到过的、只有实跑才能发现的坑（都已照抄并测试固定）：
 - 激活顺序是**升序**（`:88` 降序 sort + `:5214` unshift 抵消）；同 order 时 **uid 大的在前**。

@@ -7,7 +7,7 @@
 > reports the message model.
 >
 > **Current S1 verdict** (`python tools/st-oracle/diff.py --all`):
-> **14 fixtures, 11 match, 0 diverged, 0 skipped, 3 not-comparable.**
+> **15 fixtures, 12 match, 0 diverged, 0 skipped, 3 not-comparable.**
 >
 > The 12-fixture comparison table, the "still diverge" list and its root causes in
 > the next two sections **describe the port as it was before S1 was finished.**
@@ -30,7 +30,7 @@ both engines itself). Run it after every porting change; `run_all.py` adds timin
 | Python | `3.11.9` |
 | SillyTavern snapshot | `research/_raw/st-src/world-info.js` — `sillytavern 1.19.0`, AGPL-3.0 |
 | snapshot identity | byte-identical to `public/scripts/world-info.js` at commit (tag `1.19.0`) `06bde939fb1e9c4c8d8641d810f0a916b5bce127`, `sha256 111c7f47…cd9a5`, 265081 bytes |
-| a full `diff.py --all` run | ~3.5 s wall clock (14 fixtures × 2 engines, one process each) |
+| a full `diff.py --all` run | ~3.5 s wall clock (15 fixtures × 2 engines, one process each) |
 | one Node scan | ~110 ms/fixture including process start + engine import (~20 ms import, ~5 ms scan) |
 
 ## Porting progress
@@ -57,7 +57,7 @@ names the fixture that witnesses a remaining gap.
 `12 fixtures | match 3 | diverged 8 | not-comparable 1 | 24 diverging fields`
 
 **This is a historical snapshot, not the current verdict.** The live run is
-`14 fixtures | match 11 | diverged 0 | not-comparable 3 | 0 diverging fields`
+`15 fixtures | match 12 | diverged 0 | not-comparable 3 | 0 diverging fields`
 (PASS). The table below is the task list that was open at the time; all of it
 is closed now.
 
@@ -175,10 +175,29 @@ reading it.
    `{{outlet::name}}` macro at prompt-build time; the port has the position
    constant but no outlet rendering, and the oracle reports `outletEntries` as an
    empty object. No fixture pins it yet — add one when outlets are ported.
-6. **`\\x01` separator.** `WorldInfoBuffer.get()` joins messages with `\\x01` to
-   stop a key from matching across two messages. The port joins with `\\n`, so a
-   key that spans a message boundary can match in the port and not in the engine.
-   No fixture covers this yet; it is a one-line port fix.
+6. ~~**`\\x01` separator.**~~ **Fixed, and this entry was stale.** The referenced
+   concern was real — a key must not match across two messages — and the port now
+   does what the engine does: `wi_buffer.MATCHER` is `'\\x01'` and `JOINER` is
+   `'\\n' + MATCHER`, so the haystack opens with `\\x01` and messages are separated
+   by it. Two consequences are documented there: a key cannot span a message
+   boundary, and a `^`-anchored regex key never matches because of the leading
+   marker. No fixture pins it yet; the behaviour is exercised by every
+   multi-message fixture implicitly.
+
+7. **Whole-word matching is ASCII-class based, and that was a real bug.**
+   `WorldInfoBuffer.matchKeys` compiles the boundary as
+   `(?:^|\\W)(key)(?:$|\\W)` and JS `\\w` / `\\W` are ASCII-only in every mode
+   (`u` included — it only adds `\\p{...}`). Python's `\\w` is Unicode-aware for
+   `str` patterns, so the port's `re.UNICODE` made the neighbours of a CJK key
+   count as word characters and `关键词` inside `中文关键词测试` stopped matching
+   while the reference matched it. `tavern/st/wi_buffer.py` now compiles with
+   `re.ASCII`, and fixture `15-word-boundaries` pins the pair: two entries per case,
+   same key and message, `matchWholeWords` true and false, over `C++`, `New York`,
+   `关键词`, `A-1`, `flat-earth` and `fog`. The counter-intuitive rows that fixture
+   records, all confirmed against the engine rather than reasoned about: `C++`
+   matches inside `abcC++def` (both neighbours are `\\W`), a multi-word key degrades
+   to a plain substring search, and a CJK key matches between ideographs. Reverting
+   the flag to `re.UNICODE` turns the fixture red on three fields, so it bites.
 
 ## How to use this in the porting loop
 

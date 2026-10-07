@@ -43,7 +43,7 @@ python tools/st-oracle/run_python.py tools/st-oracle/fixtures/03-selective-logic
 python tools/st-oracle/diff.py --all --only port --require js,port
 ```
 
-**Current verdict: all three families PASS.** S1 is 14 fixtures / 11 match /
+**Current verdict: all three families PASS.** S1 is 15 fixtures / 12 match /
 0 diverged / 3 not-comparable (the three genuinely incomparable points are listed in
 `STATUS.md`); S2 message model is 1/1; S2 assembly is 8/8. Counts and the repair
 history live in `STATUS.md` (S1) and `STATUS-S2.md` (S2) — check those before
