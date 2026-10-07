@@ -86,6 +86,9 @@ def main() -> int:
     # gate. It is measured from HEAD, so it also proves the export-ignore rules are
     # committed rather than only present locally.
     results.append(run("plugin size", [sys.executable, "tools/check_plugin_size.py", "--quiet"]))
+    # A README pointing at a file that does not exist reads as carelessness and is
+    # invisible to anyone who does not click it. Cheap enough to always check.
+    results.append(run("readme links", [sys.executable, "tools/check_readme_links.py", "--quiet"]))
     results.append(run("ruff check", [sys.executable, "-m", "ruff", "check", "."]))
     results.append(
         run(
