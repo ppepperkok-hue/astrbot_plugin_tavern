@@ -147,12 +147,16 @@ def depth_groups(
 ) -> list[dict[str, Any]]:
     """Group ``position == at_depth`` entries the way world-info.js does.
 
-    world-info.js keys ``WIDepthEntries`` on ``(depth, role)``, not on depth
-    alone: two entries at the same depth but different roles must stay in
-    separate buckets.
+    world-info.js falls through the activated entries in **descending** ``order``
+    (``sortFn`` at :88) and ``unshift``s each at-depth entry into its
+    ``(depth, role)`` bucket (:5236), so both the bucket order and the entries
+    inside a bucket end up reversed relative to that walk. ``entries`` arrives in
+    the port's final (ascending) emission order, so the walk is re-derived from
+    ``insertion_order`` and each hit is inserted at the front.
     """
     groups: list[dict[str, Any]] = []
-    for entry in entries:
+    walk = sorted(entries, key=lambda entry: entry.insertion_order, reverse=True)
+    for entry in walk:
         if entry.position != worldbook.POSITION_AT_DEPTH:
             continue
         depth = int(by_uid.get(f"{entry.book}.{entry.uid}", entry).depth)
@@ -161,8 +165,6 @@ def depth_groups(
         if found is None:
             found = {"depth": depth, "role": role, "entries": []}
             groups.append(found)
-        # world-info.js walks entries in *ascending* order and unshifts, so the
-        # emitted list reads as descending order; mirror that here.
         found["entries"].insert(0, entry.content)
     return groups
 

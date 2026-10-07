@@ -47,6 +47,7 @@ from tavern.st.wi_buffer import (
     WorldInfoBuffer,
     WorldInfoBufferConfig,
 )
+from tavern.st.wi_decorators import apply_decorators
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +128,10 @@ class WorldInfoEntry:
     #: SillyTavern's ``ignoreBudget``: such entries keep activating even after the
     #: world info token budget was exceeded (world-info.js:5061).
     ignore_budget: bool = False
+    #: ``@@`` decorators parsed out of ``content`` (world-info.js:4652). The two
+    #: SillyTavern ones are ``@@activate`` / ``@@dont_activate``; this plugin also
+    #: understands parameterised ones (``@@depth=``, ``@@role=``, ...).
+    decorators: list[str] = field(default_factory=list)
     case_sensitive: bool | None = None
     match_whole_words: bool | None = None
     scan_depth: int | None = None
@@ -220,7 +225,7 @@ def parse_bool_or_none(value: Any) -> bool | None:
 
 def entry_from_dict(uid: int, payload: dict[str, Any]) -> WorldInfoEntry:
     """Build a :class:`WorldInfoEntry` from a raw lorebook row."""
-    return WorldInfoEntry(
+    entry = WorldInfoEntry(
         uid=_as_int(payload.get("uid"), uid),
         keys=_as_str_list(payload.get("key", payload.get("keys"))),
         secondary_keys=_as_str_list(payload.get("keysecondary", payload.get("secondary_keys"))),
@@ -258,6 +263,44 @@ def entry_from_dict(uid: int, payload: dict[str, Any]) -> WorldInfoEntry:
         extensions=payload.get("extensions") if isinstance(payload.get("extensions"), dict) else {},
         key_vector=_as_float_list(payload.get("keyvector", payload.get("key_vector"))),
     )
+    return _apply_entry_decorators(entry)
+
+
+def _apply_entry_decorators(entry: WorldInfoEntry) -> WorldInfoEntry:
+    """Run the entry's ``content`` through the decorator parser.
+
+    SillyTavern removes decorator lines from the content and stores the parsed
+    list on the entry (world-info.js:4627-4634, 4652); the engine then honours
+    ``@@activate`` / ``@@dont_activate`` (:4875-4883). The plugin additionally
+    understands parameterised decorators, which overwrite ``depth`` / ``position``
+    / ``role`` / ``scan_depth`` / ``delay_until_recursion``.
+    """
+    if "@@" not in entry.content:
+        return entry
+    mapping = {
+        "uid": entry.uid,
+        "content": entry.content,
+        "constant": entry.constant,
+        "disable": entry.disable,
+        "depth": entry.depth,
+        "position": entry.position,
+        "role": entry.role,
+        "scan_depth": entry.scan_depth,
+        "delay_until_recursion": entry.delay_until_recursion,
+    }
+    updated, content = apply_decorators(mapping, entry.content)
+    entry.content = content
+    entry.decorators = list(updated.get("decorators") or [])
+    entry.constant = bool(updated.get("constant", entry.constant))
+    entry.disable = bool(updated.get("disable", entry.disable))
+    entry.depth = _as_int(updated.get("depth"), entry.depth)
+    entry.position = _as_int(updated.get("position"), entry.position)
+    entry.role = updated.get("role", entry.role)
+    entry.scan_depth = _as_optional_int(updated.get("scan_depth"))
+    entry.delay_until_recursion = _as_bool(
+        updated.get("delay_until_recursion"), entry.delay_until_recursion
+    )
+    return entry
 
 
 def _as_float_list(value: Any) -> list[float]:
@@ -778,10 +821,9 @@ def activate(
     # Ordering mirrors SillyTavern: entries are sorted by descending ``order``
     # (world-info.js:88 ``sortFn = (a, b) => b.order - a.order``) and then pushed
     # to the front of the target list with ``unshift`` (:5214), which turns the
-    # result back into **ascending** order. ``sort`` is stable in JS, so entries
-    # sharing an ``order`` stay in their original sequence -- and because that
-    # sequence came from a Map, the later entry ends up first, i.e. the greater
-    # uid wins the tie. The oracle fixture 03 pins this down.
+    # result back into **ascending** order. ``sort`` is stable in JS and the
+    # source list came from a Map, so entries sharing an ``order`` end up with
+    # the greater uid first. The oracle pins this down (fixtures 03/06).
     activated.sort(key=lambda item: (item[1].insertion_order, -item[1].uid))
 
     # Sequential budget pass, matching world-info.js:5061-5073: walk the
@@ -813,8 +855,14 @@ def activate(
         activated = kept
 
     result = ActivationResult(activated=[entry for _book, entry in activated], truncated=truncated)
+    # at-depth entries are grouped by ``(depth, role)`` and the reference
+    # discovers those groups while walking its descending order (:5236
+    # ``findIndex``), so the *bucket* order follows that walk even though the
+    # entries inside each bucket keep the final order.
+    for _book, entry in sorted(activated, key=lambda item: item[1].insertion_order, reverse=True):
+        result.by_position.setdefault(entry.position, [])
     for _book, entry in activated:
-        result.by_position.setdefault(entry.position, []).append(entry)
+        result.by_position[entry.position].append(entry)
     return result
 
 
