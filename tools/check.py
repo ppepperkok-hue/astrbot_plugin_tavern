@@ -152,6 +152,12 @@ def main() -> int:
         # arguments -- so the end-to-end script, which calls `on_message` directly,
         # cannot see it. This drives the real `CommandFilter`.
         results.append(run("command params", [str(interpreter), "tools/verify_cmd_params.py"]))
+        # The release gate: unpack the *published archive* into a clean AstrBot root and
+        # run the plugin from there. Every other check runs against the working tree,
+        # where `tests/`, `tools/` and a `data/plugins/` junction are all importable;
+        # the archive has none of them, so this is the only check that proves what
+        # actually ships starts on someone else's machine.
+        results.append(run("release archive", [str(interpreter), "tools/release_check.py"]))
     else:
         print("\n=== astrbot integration: SKIPPED (no interpreter) ===")
 
