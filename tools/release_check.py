@@ -47,25 +47,42 @@ DASHBOARD_PORT = 6300
 COMMAND = "/tavern help"
 EXPECTED = "酒馆角色扮演 · 指令"
 
+#: Where the archive is cut from. Overridable with ``--source``, which is how the
+#: check is pointed at a **fresh clone of GitHub** rather than the local checkout --
+#: the market pulls from GitHub, so verifying only the local git state leaves one
+#: assumption in the loop, and that is exactly the kind of assumption this project has
+#: been burned by.
+GIT_SOURCE = REPO_ROOT
 
-def build_archive() -> Path:
+
+def build_archive(source: Path | None = None) -> Path:
     """Write the published archive into the workspace.
 
     Not the system temp directory: this runs under a file sandbox that permits writes
     inside the workspace and asks otherwise, and a release check that needs an
     approval prompt to run is a release check nobody runs.
     """
+    source = source or GIT_SOURCE
     out = REPO_ROOT / ".scratch" / "release-check.zip"
     out.parent.mkdir(parents=True, exist_ok=True)
+    out.unlink(missing_ok=True)
     proc = subprocess.run(
         ["git", "archive", "--format=zip", "-o", str(out), "HEAD"],
-        cwd=REPO_ROOT,
+        cwd=source,
         capture_output=True,
         check=False,
     )
     if proc.returncode != 0:
         raise SystemExit(f"git archive failed: {proc.stderr.decode(errors='replace')}")
-    print(f"archive: {out.stat().st_size:,} bytes")
+    head = subprocess.run(
+        ["git", "log", "-1", "--format=%h %s"],
+        cwd=source,
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout.strip()
+    print(f"archive: {out.stat().st_size:,} bytes, cut from {source}")
+    print(f"         HEAD {head}")
     return out
 
 
@@ -231,7 +248,18 @@ def log_tail(root: Path, lines: int = 40) -> str:
 
 
 def main() -> int:
-    archive = build_archive()
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--source",
+        type=Path,
+        default=None,
+        help="git repository to cut the archive from (default: this checkout)",
+    )
+    args = parser.parse_args()
+
+    archive = build_archive(args.source)
     root = install_into_fresh_root(archive)
     failures: list[str] = []
     process = start_astrbot(root)
