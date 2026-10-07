@@ -39,6 +39,21 @@
 > refusal inside `populateChatHistory`), or it runs and a later slot assignment
 > overwrites the group.
 >
+> **The diagnostic has been run; here is the answer.** Wrapping
+> `ChatCompletion.prototype.add` and logging every call gives exactly 15 calls:
+> thirteen carry one message each (`worldInfoBefore`, `main`, `worldInfoAfter`,
+> `charDescription`, `charPersonality`, `scenario`, `personaDescription`, `nsfw`,
+> `jailbreak`, `myChatPrompt`, `enhanceDefinitions`, `bias`, `controlPrompts`),
+> and **`chatHistory` (index 15) and `dialogueExamples` (index 14) are added with
+> `collection.length === 0`**. So the group is created and then never filled:
+> `populateChatHistory` returns before it pushes anything, which also explains why
+> no `chatHistory-N` and no `continueNudge` collection appear in the log at all.
+> There is no overwrite and no budget refusal to chase -- the remaining question is
+> purely which early return fires inside `populateChatHistory` (openai.js:885-1092)
+> after the `add`, and the two candidates are visible in the source: the message
+> build at :929-933 and the budget guard at :1070. Instrument those two and the
+> fixture should go green without touching the port.
+>
 > **Do not quote the old "8 match" as current.** The result in §1 was produced by
 > the pre-loss harness. It must be re-derived before it counts again.
 >
