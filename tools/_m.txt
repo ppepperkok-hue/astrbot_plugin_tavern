@@ -1,20 +1,25 @@
-﻿fix(oracle): five harness defects fixed; assembly diff is 1 match / 7 diverged
+﻿fix(oracle): assembly diff 3 match / 5 diverged, from node-error on all eight
 
-The rebuilt assembly harness now reaches the reference end to end. Five defects,
-every one of them a false divergence the port was blamed for, were fixed:
+Three more harness defects fixed this round, each one a false divergence:
 
-1. PromptManager.js rendered as a stub, so new Prompt(chatPrompt) produced a proxy
-   and every turn lost its role and content.
-2. PromptCollection.override takes a Prompt, not an identifier.
-3. preparePrompt returning the prompt unchanged left a turn body empty; a chat
-   turn carries it in mes, so that is mapped onto content.
-4. Message.fromPromptAsync dereferences its argument immediately, so an absent
-   optional prompt (impersonate, quietPrompt) aborted the whole assembly; the
-   harness now returns null for a missing prompt.
-5. The fixture spells a turn body mes; the runner read turn.content.
+6. The fixture lists chat turns oldest-first but setOpenAIMessages
+   (openai.js:570-649, driven by script.js:4830) hands them over newest first;
+   the runner now reverses, like the Python side's set_openai_messages. This was
+   the ordering difference flagged last round.
+7. messageExamples are blocks of messages and a block entry carries its text in
+   content; the runner was reading a flat example.content.
+8. isValidName / sanitizeName were approximated; they are now the literal
+   ^[a-zA-Z0-9_]{1,64}$ and [^a-zA-Z0-9_] to _ plus a 64-char cut
+   (PromptManager.js:1343-1351).
 
-diff_assembly.py --all is now 1 match / 7 diverged / 8 divergences, down from
-node-error on all eight. The remaining divergence is one field on seven fixtures:
-the chat turns come out in the opposite order, which points at the order of the
-messages array handed to populateChatCompletion, not at prompt_build.py.
-STATUS-S2.md records that and the full repair state.
+diff_assembly.py --all: 8 fixtures, 3 match, 5 diverged, 6 divergences.
+assembly-02-injection-depths, 05-disabled-prompts and 06-history-names now match.
+
+The six remaining divergences are characterised in STATUS-S2.md: 01/03/07/08 look
+like further reference-side gaps where the port fills more than the harness lets
+the reference fill; 04-continue-prefill looks like a real port difference (the
+prefill is applied without the completion-source gate at openai.js:1318-1331) and
+must be checked against the source, not the harness.
+
+Port files untouched: 458 passed / 1 skipped, ruff clean. S1 oracle PASS,
+message-model oracle PASS.

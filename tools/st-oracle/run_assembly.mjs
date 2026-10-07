@@ -198,8 +198,12 @@ oracleSetPromptManager({
         ...(prompt ?? {}),
         content: prompt?.content ?? prompt?.mes ?? '',
     }),
-    isValidName: (name) => typeof name === 'string' && /^[\w' -]+$/.test(name),
-    sanitizeName: (name) => String(name ?? '').replace(/[^\w' -]+/g, '_'),
+    // PromptManager.js:1343-1347 -- {1,64} and the ASCII class, verbatim.
+    isValidName: (name) => /^[a-zA-Z0-9_]{1,64}$/.test(String(name)),
+    // PromptManager.js:1349-1351 -- strips everything outside the class, then
+    // truncates to 64; a space becomes an underscore, it is not kept.
+    sanitizeName: (name) =>
+        String(name ?? '').replace(/[^a-zA-Z0-9_]/g, '_').substring(0, 64),
     getPromptCollection: () => prompts,
 });
 
@@ -255,16 +259,27 @@ try {
         // The fixture mirrors what `setOpenAIMessages` (openai.js:644) hands
         // over: `{ role, content, name, ... }`. Fixtures spell the body as `mes`
         // (the chat entry field) for readability, so both are accepted here.
-        messages: (fixture.chat ?? []).map((turn) => ({
+        // `setOpenAIMessages` (openai.js:570-649) walks the chat backwards and
+        // writes `messages[i]` with `i` counting down, so the array that reaches
+        // `populateChatCompletion` is NEWEST FIRST (script.js:4830). The fixture
+        // lists the turns oldest-first for readability, and the Python runner
+        // mirrors that reversal with `set_openai_messages` -- without it here the
+        // two sides feed opposite orders and every history comparison diverges.
+        messages: [...(fixture.chat ?? [])].reverse().map((turn) => ({
             role: turn.role ?? (turn.is_user ? 'user' : 'assistant'),
             content: turn.content ?? turn.mes ?? '',
             name: turn.name ?? '',
             extra: {},
         })),
-        messageExamples: (fixture.examples ?? []).map((example) => ({
-            mes: example.content,
-            name: example.name ?? '',
-        })),
+        // `setOpenAIMessageExamples` (openai.js:656-667) produces an array of
+        // *blocks*, each an array of `{ mes, name }`; the fixture mirrors that
+        // shape, and a block's entries carry the text in `content`.
+        messageExamples: (fixture.examples ?? []).map((block) =>
+            (Array.isArray(block) ? block : [block]).map((example) => ({
+                mes: example.content ?? example.mes ?? '',
+                name: example.name ?? '',
+            })),
+        ),
     });
 } catch (error) {
     record.error = `the reference itself failed: ${error?.name ?? error}: ${error?.message ?? ''}`;

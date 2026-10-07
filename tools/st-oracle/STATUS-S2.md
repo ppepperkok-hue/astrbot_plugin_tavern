@@ -6,16 +6,13 @@
 > additions were overwritten by a `git checkout` of mine) and has been rebuilt. The
 > port itself was never affected.
 >
-> **Running again.** `gen_adapter.py` emits the real `Prompt` / `PromptCollection`
-> / `INJECTION_POSITION` (class bodies brace-matched out of the vendored snapshot,
-> plus the `DEFAULT_DEPTH` / `DEFAULT_ORDER` they read) and real
-> `getExtensionPrompt` / `getExtensionPromptMaxDepth` values, all declared through
-> `PROVIDED_BY_SOURCE` / `OVERRIDES`; `run_assembly.mjs` no longer patches the
-> build tree. `diff_assembly.py --all` now reports **1 match, 7 diverged, 8
-> divergences** (it was `node-error` for all eight before).
+> **Current numbers** (`python tools/st-oracle/diff_assembly.py --all`):
+> **8 fixtures, 3 match, 5 diverged, 6 divergences** — down from `node-error` on
+> all eight. The matching fixtures are `02-injection-depths`,
+> `05-disabled-prompts` and `06-history-names`.
 >
-> **Five harness defects were found and fixed on the way**, every one of them a
-> false divergence the port was being blamed for:
+> **Harness defects found and fixed** — every one of them a false divergence the
+> port was being blamed for:
 > 1. `PromptManager.js` rendered as a stub, so `new Prompt(chatPrompt)` produced a
 >    proxy and every turn lost its role and content.
 > 2. `PromptCollection.override(prompt, position)` takes a **Prompt**, not an
@@ -24,25 +21,34 @@
 >    chat turn carries it in `mes`, so that is mapped onto `content`.
 > 4. `Message.fromPromptAsync` (3792-3794) dereferences its argument immediately,
 >    so an absent optional prompt (`impersonate`, `quietPrompt`) threw and aborted
->    the whole assembly. The harness now returns null for a missing prompt, which
->    is what the browser's always-present prompts amount to.
+>    the whole assembly. A missing prompt now yields null, which is what the
+>    browser's always-present prompts amount to.
 > 5. The fixture spells a turn body `mes`; the runner read `turn.content`.
+> 6. The fixture lists chat turns oldest-first, but `setOpenAIMessages`
+>    (openai.js:570-649, driven by `script.js:4830`) hands them over **newest
+>    first**; the runner now reverses, like the Python side's `set_openai_messages`.
+> 7. `messageExamples` are **blocks of messages**, and a block entry carries its
+>    text in `content`; the runner was reading a flat `example.content`.
+> 8. `isValidName` / `sanitizeName` were approximated; they are now the literal
+>    `^[a-zA-Z0-9_]{1,64}$` and `[^a-zA-Z0-9_] -> _` plus a 64-char cut
+>    (`PromptManager.js:1343-1351`).
 >
-> **What is left (1 divergence on 7 of the 8 fixtures).** The chat turns come out
-> **in the opposite order**: the reference gives
-> `[assistant 'I was say…', user 'hello there']`, the port gives
-> `[user 'hello there', assistant 'I was say…']`. `assembly-05-disabled-prompts`
-> already matches, so the loop itself is right; the difference is the order of the
-> `messages` array the port is handed. `populateChatHistory` reverses the list and
-> prepends (`openai.js:945-948` + `:1071`), so the reference's input must be
-> oldest-first while the port's is newest-first (or the reverse) — check how
-> `run_assembly_python.py` and `tests/test_prompt_build.py` build `messages`
-> against `setOpenAIMessages` (openai.js:644) before touching `prompt_build.py`.
-> `assembly-08` additionally still differs on the `continueNudge` entry, which is
-> the same ordering question reached through the `type: "continue"` path.
+> **The six remaining divergences, characterised** (all one field each):
+> * `01-order`, `03-pin-examples`, `07-examples-budget`, `08-continue-nudge`: the
+>   reference emits fewer messages than the port — in `03` and `07` it drops the
+>   `[Example Chat]` block, in `01` it drops part of the history. The port fills
+>   them. On the evidence so far this is still the reference side (a HARNESS gap in
+>   what `populateDialogueExamples` / `populateChatHistory` are handed), not the
+>   port — but that has to be proven per fixture with the same probe method, not
+>   assumed.
+> * `04-continue-prefill`: the port applies `assistant_prefill` unconditionally
+>   while the reference gates it on the completion source (`openai.js:1318-1331`);
+>   this one may be a real port difference and must be checked against the source
+>   rather than the harness.
+> * `08-continue-nudge` carries both of the above.
 >
-> **Do not quote the old "8 match" as current.** The result in §1 was produced by
-> the pre-loss harness; the current numbers are the 1/7 above.
+> **Do not quote the old "8 match" as current.** That figure came from the pre-loss
+> harness; the live numbers are the 3/5/6 above.
 >
 > **Not affected:** `tavern/st/chat_completion.py`, `tavern/st/prompt_build.py`,
 > `tests/test_prompt_build.py` (`458 passed, 1 skipped`, ruff clean); the S1 oracle
