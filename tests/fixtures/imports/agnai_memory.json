@@ -1,0 +1,20 @@
+{
+  "kind": "memory",
+  "name": "Agnai Memory",
+  "entries": [
+    {
+      "name": "First Meeting",
+      "entry": "They met on a rainy Tuesday at the tram stop.",
+      "keywords": ["meeting", "tuesday"],
+      "enabled": true,
+      "weight": 30
+    },
+    {
+      "name": "Broken Promise",
+      "entry": "The promise about the letter was never kept.",
+      "keywords": ["promise", "letter"],
+      "enabled": false,
+      "weight": 90
+    }
+  ]
+}

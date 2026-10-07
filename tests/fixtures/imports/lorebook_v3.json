@@ -1,0 +1,48 @@
+{
+  "spec": "lorebook_v3",
+  "data": {
+    "name": "Harbour Notes",
+    "description": "A V3 standalone lorebook.",
+    "scan_depth": 5,
+    "token_budget": 900,
+    "recursive_scanning": false,
+    "extensions": {
+      "fixture": "lorebook_v3"
+    },
+    "entries": [
+      {
+        "id": 0,
+        "keys": ["harbour", "pier"],
+        "secondary_keys": [],
+        "comment": "The Pier",
+        "content": "The pier is older than the town.",
+        "constant": false,
+        "selective": true,
+        "insertion_order": 50,
+        "enabled": true,
+        "position": "before_char",
+        "use_regex": true,
+        "extensions": {
+          "position": 0,
+          "depth": 4,
+          "display_index": 0,
+          "probability": 100,
+          "useProbability": true
+        }
+      },
+      {
+        "keys": ["gull"],
+        "comment": "Gulls",
+        "content": "The gulls know the ferry schedule.",
+        "insertion_order": 20,
+        "enabled": true,
+        "position": "before_char",
+        "selective": false,
+        "extensions": {
+          "position": 1,
+          "display_index": 1
+        }
+      }
+    ]
+  }
+}

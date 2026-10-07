@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
@@ -281,10 +282,6 @@ def test_delay_zero_or_missing_skips_the_entry():
 
 def test_dry_run_registers_nothing():
     """``setTimedEffects`` returns early on a dry run (:731)."""
-
-
-def test_dry_run_registers_nothing():
-    """``setTimedEffects`` returns early on a dry run (:731)."""
     e = entry(sticky=2, cooldown=2)
     effects = make(1, [e], is_dry_run=True)
     effects.check_timed_effects()
@@ -506,7 +503,7 @@ def test_hash_lookup_accepts_numeric_strings():
 
 
 def test_entry_shapes_and_key_helpers():
-    as_object = EntryObject(uid=5, world="Obj", hash=3, sticky=1, cooldown=1, delay=1)
+    as_object = EntryObject(uid=5, world="Obj", hash=3, sticky=30, cooldown=5, delay=1)
     effects = make(0, [as_object])
     effects.set_timed_effects([as_object])
     assert entry_key(as_object) == "Obj.5"
@@ -515,7 +512,7 @@ def test_entry_shapes_and_key_helpers():
 
     # snake_case mappings are accepted too, and can be read back by the hash the
     # object-shaped entry stored.  They are separate objects but the same hash.
-    snake = {"uid": 5, "world": "Obj", "hash": 3, "sticky": 5}
+    snake = {"uid": 5, "world": "Obj", "hash": 3, "sticky": 30}
     restored = make(6, [snake], metadata=effects.to_metadata())
     restored.check_timed_effects()
     assert restored.buffers["sticky"] == (snake,)

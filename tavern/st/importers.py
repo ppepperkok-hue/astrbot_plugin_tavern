@@ -71,7 +71,6 @@ from __future__ import annotations
 import json
 import logging
 import struct
-import zlib
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -704,14 +703,17 @@ def _book_from_runtime_entries(
 ) -> WorldBook:
     """Build a :class:`WorldBook` from a ``{uid: native-entry}`` map.
 
-    Shared by every converter below: each one only has to produce the native
-    (camelCase) rows, and this function assembles the container.
+    Shared by every converter in this module: each one only has to produce native
+    (camelCase) rows, and this function turns them into runtime entries. Rows are
+    handed to :func:`_native_row_to_runtime`, never to
+    :func:`convert_character_book_entry`, because the native spelling and the V2
+    spelling disagree on several defaults (``selective`` above all).
     """
     book = WorldBook(
         name=name,
         description=description,
         entries=[
-            convert_character_book_entry(entry, fallback_id=_int_or(uid, index), index=index)
+            _native_row_to_runtime(entry, _int_or(entry.get("uid", uid), index))
             for index, (uid, entry) in enumerate(entries.items())
         ],
         scan_depth=scan_depth,
@@ -1661,6 +1663,29 @@ def card_validation_issues(payload: Mapping[str, Any]) -> tuple[int, list[str]]:
     return 0, missing_v1
 
 
+SOURCE_PNG_KEY = "_source_png"
+
+
+def _finish_card(
+    raw_payload: dict[str, Any],
+    filename: str,
+    source_png: bytes | None = None,
+) -> CharacterCard:
+    """Validate, tag and build a card from an already decoded payload.
+
+    A V1 flat card gets an explicit ``spec`` so the model does not have to guess;
+    the original PNG (if any) is stored next to the payload under
+    :data:`SOURCE_PNG_KEY` so ``exporters.export_character_card(as_png=True)`` can
+    keep the artwork instead of emitting a placeholder.
+    """
+    _validate_card_payload(raw_payload, filename)
+    if not raw_payload.get("spec") and not isinstance(raw_payload.get("data"), Mapping):
+        raw_payload["spec"] = "chara_card_v1"
+    if source_png is not None:
+        raw_payload.setdefault(SOURCE_PNG_KEY, source_png)
+    return card_from_dict(raw_payload, source_path=filename)
+
+
 def import_character_card(
     payload: bytes | dict | str,
     filename: str = "",
@@ -1679,9 +1704,9 @@ def import_character_card(
           card's JSON text (JSON syntax beats the file name: content starting
           with ``{`` or ``[`` is always parsed as JSON).
     filename:
-        Used for error messages and, when ``payload`` is ``str``, for picking the
-        parser (``.png`` / ``.yaml`` are recognised; ``.json`` falls back to
-        sniffing the content).
+        Used for error messages and, when ``payload`` is ``bytes`` or ``str``, for
+        picking the parser (``.yaml`` selects YAML; ``.png`` is detected by magic
+        bytes, never by name).
 
     Returns
     -------
@@ -1693,7 +1718,8 @@ def import_character_card(
     Raises
     ------
     CharacterCardImportError
-        The payload is not a recognisable card.
+        The payload is not a recognisable card. The message is Chinese and always
+        names the offending field -- never a bare ``KeyError``.
     OptionalDependencyError
         A YAML card was given and PyYAML is missing.
     """
@@ -1708,9 +1734,12 @@ def import_character_card(
                     f"PNG「{filename or '未命名'}」里没有角色卡数据（需要 ccv3 或 chara 文本块）。"
                 )
             try:
-                return card_from_png(blob, source_path=filename)
+                card = card_from_png(blob, source_path=filename)
             except CharacterCardError as exc:
                 raise CharacterCardImportError(str(exc)) from exc
+            if isinstance(card.raw, dict):
+                card.raw.setdefault(SOURCE_PNG_KEY, blob)
+            return card
         try:
             text = blob.decode("utf-8-sig")
         except UnicodeDecodeError as exc:
@@ -1718,20 +1747,17 @@ def import_character_card(
                 f"「{filename or '未命名'}」既不是 PNG，也不是 UTF-8 文本：{exc}。"
             ) from exc
         if suffix in (".yaml", ".yml"):
-            raw_payload = _parse_payload_text(_force_yaml_marker(text), filename)
-        else:
-            raw_payload = _parse_payload_text(text, filename)
-        _validate_card_payload(raw_payload, filename)
-        if not raw_payload.get("spec") and not isinstance(raw_payload.get("data"), Mapping):
-            raw_payload.setdefault("spec", "chara_card_v1")
-        return card_from_dict(raw_payload, source_path=filename)
+            return _finish_card(_parse_payload_text(_force_yaml_marker(text), filename), filename)
+        return _finish_card(_parse_payload_text(text, filename), filename)
 
     if isinstance(payload, Mapping):
-        card_payload = dict(payload)
-        _validate_card_payload(card_payload, filename)
-        if not card_payload.get("spec") and not isinstance(card_payload.get("data"), Mapping):
-            card_payload.setdefault("spec", "chara_card_v1")
-        return card_from_dict(card_payload, source_path=filename)
+        raw_payload = dict(payload)
+        source_png = raw_payload.get(SOURCE_PNG_KEY)
+        return _finish_card(
+            raw_payload,
+            filename,
+            source_png if isinstance(source_png, (bytes, bytearray)) else None,
+        )
 
     if isinstance(payload, str):
         candidate = Path(payload)
@@ -1745,15 +1771,8 @@ def import_character_card(
             except CharacterCardError as exc:
                 raise CharacterCardImportError(str(exc)) from exc
 
-        if suffix in (".yaml", ".yml"):
-            text = _force_yaml_marker(payload)
-        else:
-            text = payload
-        raw_payload = _parse_payload_text(text, filename)
-        _validate_card_payload(raw_payload, filename)
-        if not raw_payload.get("spec") and not isinstance(raw_payload.get("data"), Mapping):
-            raw_payload.setdefault("spec", "chara_card_v1")
-        return card_from_dict(raw_payload, source_path=filename)
+        text = _force_yaml_marker(payload) if suffix in (".yaml", ".yml") else payload
+        return _finish_card(_parse_payload_text(text, filename), filename)
 
     raise CharacterCardImportError(
         f"不支持的角色卡类型 {type(payload).__name__}，请给 bytes、dict 或 str。"
@@ -2006,6 +2025,7 @@ __all__ = [
     "SPEC_LOREBOOK_V3",
     "SPEC_V2",
     "SPEC_V3",
+    "SOURCE_PNG_KEY",
     "CharacterBookImportError",
     "CharacterCardImportError",
     "FieldMapping",

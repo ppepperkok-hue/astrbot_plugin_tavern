@@ -71,9 +71,9 @@ from tavern.st.worldbook import WorldBook, WorldInfoEntry
 
 logger = logging.getLogger(__name__)
 
-#: V2 ``Lorebook`` book level fields (``SPEC_V2.md``, ``Lorebook`` interface).
-#: ``priority``/``name`` on the *entry* level are not covered because ST never
-#: writes them (``convertWorldInfoToCharacterBook`` has no such columns).
+#: V2 ``Lorebook`` book level fields (``SPEC_V2.md``, ``Lorebook`` interface) that
+#: this exporter can rebuild from the runtime model. ``entries`` is always rebuilt
+#: too, but from :class:`WorldInfoEntry` objects rather than from a field.
 V2_BOOK_FIELDS: tuple[str, ...] = (
     "name",
     "description",
@@ -259,28 +259,39 @@ def export_character_book(book: WorldBook) -> dict[str, Any]:
     original = _original_book_data(book)
     rows = _original_entry_rows(original)
 
-    payload: dict[str, Any] = {"entries": []}
-    for position, entry in enumerate(sorted(book.entries, key=lambda item: item.uid)):
-        payload["entries"].append(export_character_book_entry(entry, rows.get(entry.uid)))
+    # Start from the untouched source object so book level vendor fields survive,
+    # then overwrite every field the runtime model owns. ``entries`` is always
+    # rebuilt below, never copied.
+    payload: dict[str, Any] = {}
+    if isinstance(original, Mapping):
+        payload.update(original)
+    payload.pop("entries", None)
 
-    for field in V2_BOOK_FIELDS:
-        if field == "entries":
-            continue
-        value = book.extensions.get(field)
-        if value is None and isinstance(original, Mapping):
-            value = original.get(field)
-        if value is None:
-            value = getattr(book, field, None)
-        if value in (None, ""):
-            continue
-        payload[field] = value
+    entries: list[dict[str, Any]] = []
+    for entry in sorted(book.entries, key=lambda item: item.uid):
+        entries.append(export_character_book_entry(entry, rows.get(entry.uid)))
+    payload["entries"] = entries
 
-    if "name" not in payload and book.name:
+    if book.name:
         payload["name"] = book.name
-    if "description" not in payload and book.description:
+    if book.description:
         payload["description"] = book.description
-    # ``extensions`` is part of the V2 ``Lorebook`` interface; ST always emits it.
-    payload.setdefault("extensions", {})
+    for field, value in (
+        ("scan_depth", book.scan_depth),
+        ("token_budget", book.token_budget),
+    ):
+        if value is not None:
+            payload[field] = value
+    if book.recursive_scanning or "recursive_scanning" in payload:
+        # Only materialise a ``false`` when the source had the field: ``false`` is
+        # the V2 default, so writing it would add noise to a round trip.
+        payload["recursive_scanning"] = bool(book.recursive_scanning)
+    # ``extensions`` is part of the V2 ``Lorebook`` interface and is **not** the
+    # ``WorldBook.extensions`` dict: that one holds our own bookkeeping (for
+    # example ``original_data``), which must never leak into an export.
+    payload["extensions"] = (
+        dict(original.get("extensions") or {}) if isinstance(original, Mapping) else {}
+    )
     return payload
 
 

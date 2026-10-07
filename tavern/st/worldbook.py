@@ -554,13 +554,15 @@ class ActivationState:
     def is_delayed(self, entry: WorldInfoEntry) -> bool:
         """``WorldInfoTimedEffects.isEffectActive('delay', entry)``.
 
-        The plugin models ``delay`` as "not fired yet while ``turn < delay``".
+        SillyTavern keys the effect on ``entry.delay`` against ``chat.length``
+        (world-info.js:666-677): the delay counts *messages*, so the entry only
+        fires once the chat has grown past it. The plugin advances
+        :class:`ActivationState` once per reply, which is its closest equivalent
+        measure.
         """
         if entry.delay <= 0:
             return False
-        return any(key[1] == entry.uid and self.turn < entry.delay for key in self._first_seen) or (
-            not self._first_seen and self.turn < entry.delay
-        )
+        return self.turn < entry.delay
 
     def on_activate(
         self,

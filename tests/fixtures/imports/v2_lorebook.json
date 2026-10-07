@@ -1,0 +1,43 @@
+{
+  "name": "Worlds Apart",
+  "description": "A V2 lorebook: an entries array plus book level fields.",
+  "scan_depth": 4,
+  "token_budget": 256,
+  "recursive_scanning": true,
+  "extensions": {
+    "fixture": "v2"
+  },
+  "entries": [
+    {
+      "id": 0,
+      "keys": ["tide", "moon"],
+      "secondary_keys": ["night"],
+      "comment": "Tides",
+      "content": "The tide answers the moon, not the clock.",
+      "insertion_order": 100,
+      "enabled": true,
+      "position": "before_char",
+      "selective": true,
+      "constant": false,
+      "extensions": {
+        "position": 0,
+        "display_index": 0,
+        "selectiveLogic": 0,
+        "useProbability": true,
+        "probability": 100
+      }
+    },
+    {
+      "keys": ["bell"],
+      "comment": "The Bell",
+      "content": "The bell rings once for every ship lost.",
+      "insertion_order": 5,
+      "enabled": false,
+      "position": "after_char",
+      "extensions": {
+        "position": 3,
+        "display_index": 1
+      }
+    }
+  ]
+}

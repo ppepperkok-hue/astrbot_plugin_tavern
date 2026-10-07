@@ -1,0 +1,24 @@
+{
+  "type": "risu",
+  "name": "Risu Lorebook",
+  "data": [
+    {
+      "key": "dragon, wyrm , drake",
+      "secondkey": "ancient, old",
+      "comment": "Dragons",
+      "content": "Dragons sleep under the northern mountains.",
+      "alwaysActive": true,
+      "selective": true,
+      "insertorder": 7,
+      "activationPercent": 25
+    },
+    {
+      "key": "village",
+      "comment": "The Village",
+      "content": "Nine houses around a dry well.",
+      "alwaysActive": false,
+      "selective": false,
+      "insertorder": 100
+    }
+  ]
+}

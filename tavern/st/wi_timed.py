@@ -50,6 +50,18 @@ by the fact that this module is a dependency-free leaf):
 * ``check_timed_effects`` does **not** re-read the metadata after a sticky ends;
   the freshly opened cooldown therefore only takes effect on the next pass,
   which is what the engine does too (the callback only writes, :525-528).
+
+Integration contract (the one thing a caller must not get wrong)
+----------------------------------------------------------------
+
+``chat_length`` must be the real message count of the chat **at the moment of the
+pass**, and it must have grown before the next pass runs.  ``:626`` treats
+``chat.length <= start`` as "the chat did not advance", so a harness that replays
+the same chat twice without growth silently loses every effect it just wrote --
+that is up to date with the engine, and it is why a fixture walks the chat
+forward one message at a time.  Both halves of the lifecycle belong to the
+caller: :meth:`check_timed_effects` at the start of a scan (:4747) and
+:meth:`set_timed_effects` at the end (:5274).
 """
 
 from __future__ import annotations
@@ -374,13 +386,18 @@ class WorldInfoTimedEffects:
         """JS ``#getEntryTimedEffect`` (world-info.js:604-611).
 
         ``end = chat.length + Number(entry[type])`` -- a falsy duration is *not*
-        rejected here, it simply produces ``end == start``.
+        rejected here, it simply produces ``end == start``.  ``Number()`` is the
+        engine's own coercion, so a numeric string duration works too, and
+        ``Number(null) === 0``.
         """
-        return TimedEffect(
-            hash=self._get_entry_hash(entry),
-            start=self._chat_length,
-            end=self._chat_length + _number(_field(entry, effect_type), default=0),
-            protected=bool(is_protected),
+        duration = _field(entry, effect_type)
+        return TimedEffect.from_mapping(
+            {
+                "hash": self._get_entry_hash(entry),
+                "start": self._chat_length,
+                "end": self._chat_length + (0 if duration is None else _number(duration)),
+                "protected": bool(is_protected),
+            }
         )
 
     # -- end-of-effect callbacks ---------------------------------------
@@ -499,6 +516,7 @@ class WorldInfoTimedEffects:
             delay = _field(entry, "delay")
             if not _truthy(delay):
                 continue
+            # ``chat.length < delay`` with the engine's ``Number()`` coercion (:672).
             if self._chat_length < _number(delay):
                 buffer.append(entry)
                 logger.debug('[WI] Timed effect "delay" applied to entry')
