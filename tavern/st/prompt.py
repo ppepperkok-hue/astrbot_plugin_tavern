@@ -44,7 +44,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone, tzinfo
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
-from .cards import CharacterCard
+from tavern.st.cards import CharacterCard
 
 logger = logging.getLogger(__name__)
 

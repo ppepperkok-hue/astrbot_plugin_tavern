@@ -5,7 +5,7 @@
 ``sillytavern`` - optional backend that proxies generation to SillyTavern.
 """
 
-from .base import (
+from tavern.backends.base import (
     BackendError,
     GenerationBackend,
     GenerationRequest,

@@ -72,7 +72,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .worldbook import greedy_token_count
+from tavern.st.worldbook import greedy_token_count
 
 logger = logging.getLogger(__name__)
 

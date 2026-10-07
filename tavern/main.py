@@ -1,7 +1,7 @@
 """AstrBot entry point for the tavern plugin (SillyTavern style role play).
 
 The module is deliberately thin: decorators, message components, permissions and
-platform quirks live here, while :mod:`astrbot_plugin_tavern.core` owns every
+platform quirks live here, while :mod:`tavern.core` owns every
 decision. The tavern pipeline takes over the conversation instead of piggybacking
 on AstrBot's own history, which matches SillyTavern semantics (per branch chat
 files, world info bookkeeping, swipes) and avoids fighting over one history:
@@ -22,12 +22,26 @@ from __future__ import annotations
 import asyncio
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
-from .backends.astrbot_provider import AstrBotProviderBackend
-from .backends.base import BackendError, GenerationBackend, GenerationRequest
-from .config import TavernConfig
-from .core import (
+# AstrBot loads plugins as ``data.plugins.<plugin_dir>.main`` through implicit
+# namespace packages, while the tests and the package itself use the canonical
+# ``tavern.*`` names. Anchoring the plugin root on ``sys.path`` makes both views
+# resolve to the *same* module objects, so the class registered here is the same
+# one the tests exercise.
+_PLUGIN_ROOT = str(Path(__file__).resolve().parent.parent)
+if _PLUGIN_ROOT not in sys.path:
+    sys.path.insert(0, _PLUGIN_ROOT)
+
+from tavern.backends.astrbot_provider import AstrBotProviderBackend  # noqa: E402
+from tavern.backends.base import (  # noqa: E402
+    BackendError,
+    GenerationBackend,
+    GenerationRequest,
+)
+from tavern.config import TavernConfig  # noqa: E402
+from tavern.core import (  # noqa: E402
     PluginCore,
     TavernError,
     render_answer,
@@ -141,7 +155,7 @@ class TavernPlugin(Star):  # type: ignore[misc]
             return self._backend
 
         if self.config.backend.uses_sillytavern:
-            from .backends.sillytavern import SillyTavernBackend
+            from tavern.backends.sillytavern import SillyTavernBackend
 
             self._backend = SillyTavernBackend(
                 self.config.backend.st_base_url,

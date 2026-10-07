@@ -13,8 +13,8 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from astrbot_plugin_tavern.st.cards import CharacterCard  # noqa: E402
-from astrbot_plugin_tavern.st.prompt import (  # noqa: E402
+from tavern.st.cards import CharacterCard  # noqa: E402
+from tavern.st.prompt import (  # noqa: E402
     DEFAULT_MAIN_PROMPT,
     DEFAULT_PROMPT_ORDER,
     InChatTargets,

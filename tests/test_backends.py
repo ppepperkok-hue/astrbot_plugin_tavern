@@ -11,16 +11,16 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from astrbot_plugin_tavern.backends.astrbot_provider import (  # noqa: E402
+from tavern.backends.astrbot_provider import (  # noqa: E402
     AstrBotProviderBackend,
 )
-from astrbot_plugin_tavern.backends.base import (  # noqa: E402
+from tavern.backends.base import (  # noqa: E402
     BackendError,
     GenerationRequest,
     PromptMessage,
     messages_to_openai,
 )
-from astrbot_plugin_tavern.backends.sillytavern import SillyTavernBackend  # noqa: E402
+from tavern.backends.sillytavern import SillyTavernBackend  # noqa: E402
 
 
 def _run(coro: Any) -> Any:

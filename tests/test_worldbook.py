@@ -10,7 +10,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from astrbot_plugin_tavern.st.worldbook import (  # noqa: E402
+from tavern.st.worldbook import (  # noqa: E402
     LOGIC_AND_ALL,
     LOGIC_AND_ANY,
     LOGIC_NOT_ANY,

@@ -32,7 +32,7 @@ import asyncio
 import time
 from typing import Any
 
-from .base import (
+from tavern.backends.base import (
     BackendError,
     GenerationRequest,
     GenerationResult,

@@ -180,10 +180,10 @@ def tavern():
     saved = {name: sys.modules.get(name) for name in stub}
     sys.modules.update(stub)
     for name in list(sys.modules):
-        if name == "astrbot_plugin_tavern.main":
+        if name == "tavern.main":
             del sys.modules[name]
     try:
-        import astrbot_plugin_tavern.main as module
+        import tavern.main as module
     finally:
         pass
     yield module
@@ -192,7 +192,7 @@ def tavern():
             sys.modules.pop(name, None)
         else:
             sys.modules[name] = previous
-    sys.modules.pop("astrbot_plugin_tavern.main", None)
+    sys.modules.pop("tavern.main", None)
 
 
 # ----------------------------------------------------------------------
@@ -272,7 +272,7 @@ class FakeBackend:
         self.requests: list[Any] = []
 
     async def generate(self, request: Any) -> Any:
-        from astrbot_plugin_tavern.backends.base import GenerationResult
+        from tavern.backends.base import GenerationResult
 
         self.requests.append(request)
         index = min(len(self.requests) - 1, len(self.answers) - 1)
@@ -390,7 +390,7 @@ def test_message_flow_skips_when_cooldown_active(tavern, tmp_path: Path) -> None
 
 
 def test_backend_error_is_reported(tavern, tmp_path: Path) -> None:
-    from astrbot_plugin_tavern.backends.base import BackendError
+    from tavern.backends.base import BackendError
 
     class Boom:
         name = "boom"

@@ -11,7 +11,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from astrbot_plugin_tavern.st.chat_store import (  # noqa: E402
+from tavern.st.chat_store import (  # noqa: E402
     ChatMessage,
     ChatMetadata,
     ChatNotFound,

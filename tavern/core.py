@@ -11,7 +11,7 @@ AstrBot installation. The responsibilities are:
 * **rendering** - split the answer for chat platforms and clean it up.
 
 Nothing here imports ``astrbot``; the only framework touch point is the optional
-``StarTools`` lookup inside :mod:`astrbot_plugin_tavern.config`.
+``StarTools`` lookup inside :mod:`tavern.config`.
 """
 
 from __future__ import annotations
@@ -24,11 +24,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .backends.base import GenerationRequest, PromptMessage, messages_to_openai
-from .config import TavernConfig, as_str
-from .st import chat_store, worldbook
-from .st.cards import CharacterCard, card_from_dict, scan_cards
-from .st.prompt import (
+from tavern.backends.base import GenerationRequest, PromptMessage, messages_to_openai
+from tavern.config import TavernConfig, as_str
+from tavern.st import chat_store, worldbook
+from tavern.st.cards import CharacterCard, card_from_dict, scan_cards
+from tavern.st.prompt import (
     BuildResult,
     InChatTargets,
     PresetSpec,
@@ -638,7 +638,7 @@ def _safe_target(directory: Path, filename: str, *, overwrite: bool = False) -> 
 
 
 def _card_from_png_bytes(payload: bytes) -> CharacterCard:
-    from .st.cards import card_from_png
+    from tavern.st.cards import card_from_png
 
     return card_from_png(payload)
 

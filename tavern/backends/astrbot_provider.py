@@ -14,7 +14,12 @@ from __future__ import annotations
 import inspect
 from typing import Any
 
-from .base import BackendError, GenerationRequest, GenerationResult, messages_to_openai
+from tavern.backends.base import (
+    BackendError,
+    GenerationRequest,
+    GenerationResult,
+    messages_to_openai,
+)
 
 _BACKEND_NAME = "astrbot"
 

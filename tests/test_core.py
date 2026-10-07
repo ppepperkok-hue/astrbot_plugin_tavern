@@ -11,8 +11,8 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from astrbot_plugin_tavern.config import TavernConfig  # noqa: E402
-from astrbot_plugin_tavern.core import (  # noqa: E402
+from tavern.config import TavernConfig  # noqa: E402
+from tavern.core import (  # noqa: E402
     PluginCore,
     TavernError,
     apply_regex_rules,

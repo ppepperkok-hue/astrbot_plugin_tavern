@@ -10,7 +10,7 @@ Modules
     Prompt assembly helpers (chat history formatting, token budget).
 """
 
-from .cards import CharacterCard, CharacterCardError, load_card, scan_cards
+from tavern.st.cards import CharacterCard, CharacterCardError, load_card, scan_cards
 
 __all__ = [
     "CharacterCard",
