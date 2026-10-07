@@ -18,12 +18,18 @@
 *.ico binary
 
 # ---------------------------------------------------------------------------
-# Keep the *published plugin archive* small.
+# Keep the *published plugin archive* small and free of development files.
 #
-# AstrBot's plugin market rejects archives above 16 MB, and the research
-# directory (third party documents + raw snapshots + reports) is ~11 MB on its
-# own. `git archive` and tools built on it honour export-ignore, which the
-# marketplace pipeline uses.
+# AstrBot's plugin market rejects archives above 16 MB
+# (https://docs.astrbot.app/dev/star/plugin-publish.html), and the research
+# directory (third party documents + raw snapshots + reports) is ~12.6 MB on its
+# own -- more than half the budget before a single line of plugin code. `git
+# archive` and GitHub's own `/archive/` download both honour export-ignore, which
+# is the mechanism the publish pipeline reads.
+#
+# This is a *budget*, not a dump: the archive measures ~0.2 MB (see
+# `python tools/check_plugin_size.py`), so the choice of what to exclude is about
+# what belongs in a user's plugin folder, not about fitting.
 # ---------------------------------------------------------------------------
 research/ export-ignore
 tests/ export-ignore
@@ -35,3 +41,6 @@ data/ export-ignore
 .tools/ export-ignore
 .uv-cache/ export-ignore
 .acl-recovery/ export-ignore
+# Development handoff notes: addressed to whoever picks the work up next, not to
+# the person installing the plugin. They live in the repository.
+HANDOFF.md export-ignore

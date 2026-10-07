@@ -144,4 +144,4 @@ AstrBot 侧的兼容性已在 **4.28.2** 实测通过（指令组注册链、han
 * 角色卡 V2/V3 规范参考社区文档 `spec_v2.md` / `SPEC_V3.md`；
   世界书字段与默认值参考酒馆源码中的 `convertWorldInfoToCharacterBook()` 与默认预设顺序。
 * 若仓库中开始出现直接复用酒馆代码的文件，会在该文件里保留原始版权声明并标注修改日期，
-  同时在 `research/05-st-embedding-options.md` 记录来源与范围。
+  并登记在 `THIRD_PARTY_LICENSES.md`（这个文件随插件一起分发，见上文的结构说明）。
