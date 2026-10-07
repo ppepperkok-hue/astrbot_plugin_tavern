@@ -19,6 +19,45 @@
 //
 // The generated shim tree provides the real module (copied verbatim by
 // gen_adapter.py). Fix a wrong stub there, never by patching the build tree here.
+//
+// Fixture shape
+// -------------
+// ```json
+// {
+//   "name": "27-convert-claude-messages-image-migration",
+//   "function": "convertClaudeMessages",   // the reference's export, verbatim
+//   "description": "what this pins and why",
+//   "config": { "gemini.thoughtSignatures": false },
+//   "names": { "charName": "Iris", "userName": "User", "groupNames": ["Seraphina"] },
+//   "args": [ [ ...messages... ], "", false, false, "$promptNames" ],
+//   "probe": { "path": "startsWithGroupName", "call": ["Seraphina: hi"], "this_path": "" }
+// }
+// ```
+//
+// * `function` -- looked up on the module by exact name. An unknown name is a
+//   hard error, not a skip.
+// * `config` -- applied before the module is imported, because two of its
+//   constants are read at module scope (`:4`, `:34`).
+// * `args` -- the call's positional arguments. Recorded before and after the call.
+// * `"$promptNames"` -- a sentinel. Any `args` slot holding it is replaced by a
+//   real `PromptNames` object built from `names`. Required **only when the call
+//   can reach the group-name predicate**: that predicate is a function reading
+//   `this.groupNames` (`:54-56`), so it cannot be written in JSON, and an inline
+//   dict would make the reference call a real function while the port sees a
+//   missing key -- a silent divergence. When a fixture only sets scalars
+//   (`charName` / `userName` / `groupNames`) and passes an inline dict, that is
+//   fine and simpler; nothing can consult the predicate there.
+// * `probe` -- `{ path, call, this_path }`. Resolves `path` on the return value
+//   and, when it is a function, calls it. `this_path` rebinds the receiver
+//   (default: the return value), which the one method-shaped predicate needs.
+//
+// Determinism
+// -----------
+// `crypto.randomBytes(32)` (`:846`) hides a media part behind a token while
+// flattening content; the token is unguessable by design, so it is pinned to a
+// fixed byte here and in `run_converters_python.py`. Without the pin any fixture
+// whose media survives the merge could never match. The sha512 path (`:715`) is
+// deterministic already and is not touched.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -52,6 +91,38 @@ if (!fs.existsSync(MODULE)) {
 
 const fixture = JSON.parse(fs.readFileSync(args.fixture, 'utf8'));
 
+//: Byte the media-token generator is pinned to (see the `randomBytes` override
+//: below). Any fixed value works; it must be the same on both sides.
+const PINNED_BYTE = 7;
+
+//: The sentinel a fixture writes in an `args` slot that has to become the
+//: `PromptNames` object. A names object carries a *function*
+//: (`startsWithGroupName`), so it cannot be written in JSON at all -- and a
+//: fixture that passes a plain dict instead makes the two sides take different
+//: paths, because the reference calls the predicate while the port would see a
+//: missing key. Substituting the real object here means a fixture can drive the
+//: group-name branches identically on both sides.
+const PROMPT_NAMES_SENTINEL = '$promptNames';
+
+function resolveArgs(values) {
+    return (values ?? []).map((value) => {
+        if (value !== PROMPT_NAMES_SENTINEL) {
+            return structuredClone(value);
+        }
+        const names = fixture.names ?? {};
+        return {
+            charName: names.charName ?? '',
+            userName: names.userName ?? '',
+            groupNames: Array.isArray(names.groupNames) ? [...names.groupNames] : [],
+            // Method-shaped, like the reference's: it reads `this.groupNames`
+            // (prompt-converters.js:54-56), so a detached call still throws.
+            startsWithGroupName: function startsWithGroupName(message) {
+                return this.groupNames.some((name) => String(message).startsWith(`${name}: `));
+            },
+        };
+    });
+}
+
 // `PROMPT_PLACEHOLDER` and `enableThoughtSignatures` are read from the config at
 // module scope (prompt-converters.js:4 and :34), so the config has to be in place
 // *before* the module is imported. `setConvConfig` is the hook gen_adapter.py
@@ -63,6 +134,23 @@ if (typeof util.setConvConfig === 'function') {
 }
 
 const converters = await import(pathToFileURL(MODULE).href);
+
+// `crypto.randomBytes(32)` (prompt-converters.js:846) hides a media part behind a
+// token while `mergeMessages` flattens content. The token is unguessable by
+// design, so its *value* is not part of the contract -- but it is observable, and
+// two random 44-character base64 strings never match. Pin it so a fixture that
+// mixes media with text can be compared at all. The sha512 path (:715) is
+// deterministic already and is untouched.
+const nodeCrypto = await import('node:crypto');
+try {
+    nodeCrypto.default.randomBytes = (size) => Buffer.alloc(size, PINNED_BYTE);
+} catch {
+    Object.defineProperty(nodeCrypto.default, 'randomBytes', {
+        value: (size) => Buffer.alloc(size, PINNED_BYTE),
+        writable: true,
+        configurable: true,
+    });
+}
 
 const record = {
     fixture: fixture.name ?? path.basename(args.fixture, '.json'),
@@ -141,10 +229,12 @@ if (typeof target !== 'function') {
 }
 
 if (!record.error) {
-    // Deep clone so the assertion is on what the function *did*, not on what the
-    // fixture file still holds after a mutating call.
-    const callArgs = structuredClone(fixture.args ?? []);
-    record.args_in = structuredClone(callArgs);
+    const callArgs = resolveArgs(fixture.args ?? []);
+    // `jsonSafe`, not a bare clone: the names object carries a function-valued
+    // property, and JSON.stringify drops it silently on the JS side while Python
+    // would have recorded a marker -- so the two sides would disagree about a
+    // field neither is testing.
+    record.args_in = jsonSafe(callArgs);
 
     try {
         const returned = await target(...callArgs);

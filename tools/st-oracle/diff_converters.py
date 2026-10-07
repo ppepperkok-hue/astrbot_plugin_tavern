@@ -1,6 +1,14 @@
 """Compare the JS and Python runs of the provider *converter* fixtures.
 
-    python tools/st-oracle/diff_converters.py --all
+    python tools/st-oracle/check_converter_coverage.py   # is every reference export ported at all?
+    python tools/st-oracle/diff_converters.py --all      # then: do the fixture-covered ones agree?
+
+Run the coverage check first. It answers a question this script structurally
+cannot: it parses the reference's export list and fails on any export the port
+does not resolve, while everything below reaches only the exports a *fixture*
+names. A fixture set can therefore read "all match" while an export is missing
+entirely -- an unported function is indistinguishable from one that does not
+exist. See ``check_converter_coverage.py`` and ``STATUS-S4.md``.
 
 The converter fixtures (``fixtures/converters/*.json``) drive
 ``research/_raw/st-src/prompt-converters.js`` -- the server-side logic that

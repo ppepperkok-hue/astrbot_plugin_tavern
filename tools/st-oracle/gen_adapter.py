@@ -65,7 +65,29 @@ PROVIDED_BY_SOURCE: dict[str, frozenset[str]] = {
 ENGINE_EXTRA_EXPORTS: dict[str, tuple[str, ...]] = {
     "public/scripts/openai.js": ("populateChatCompletion",),
 }
+
+#: Module-scope private state an ``ENGINE_EXTRA_CODE`` block closes over, emitted
+#: as a ``const`` declaration instead of an expression. `prompt-converters.js`
+#: exposes `setConvConfig` for the oracle, and that hook has to assign into the
+#: same object `getConfigValue` reads -- a render-time import cannot do it,
+#: because the engine module is copied byte for byte with nothing added to its
+#: import list.
+ENGINE_EXTRA_DECLS: dict[str, dict[str, str]] = {
+    "./util.js": {"_convConfig": "{}"},
+}
 ENGINE_EXTRA_CODE: dict[str, str] = {
+    "public/scripts/prompt-converters.js": """
+// Oracle-only hook (see gen_adapter.py). `prompt-converters.js` reads two config
+// values at module scope -- `promptPlaceholder` (:4) and `gemini.thoughtSignatures`
+// (:34) -- and `mistral.enablePrefix` at call time. The runner has to set them
+// *before* the module is imported, and it cannot do that through `util.js`,
+// because the module's import list is the snapshot's own and does not name this
+// hook. So the hook lives here and assigns into the same `_convConfig` object the
+// `./util.js` override's `getConfigValue` reads.
+export function setConvConfig(values) {
+    Object.assign(_convConfig, values);
+}
+""",
     "public/scripts/openai.js": """
 // Oracle-only hook (see gen_adapter.py): the browser assigns this in setup(),
 // and the assembly tail reads `power_user.pin_examples` -- which is a const
@@ -325,9 +347,13 @@ def generate(verbose: bool = True) -> dict:
         text = source_path.read_text(encoding="utf-8")
         extras = ENGINE_EXTRA_EXPORTS.get(rel, ())
         extra_code = ENGINE_EXTRA_CODE.get(rel, "")
+        extra_decls = ENGINE_EXTRA_DECLS.get(rel, {})
         if extras or extra_code:
             names = ", ".join(extras)
             shim = "\n// Oracle-only shim (see gen_adapter.py).\n"
+            # State the shim closes over, before the code that closes over it.
+            for private_name, private_value in extra_decls.items():
+                shim += f"const {private_name} = {private_value};\n"
             if extra_code:
                 shim += extra_code
             if names:
@@ -363,11 +389,15 @@ def generate(verbose: bool = True) -> dict:
 
         overrides = OVERRIDES.get(spec, {})
         lines = [HEADER.format(runtime=_runtime_relpath(target))]
+        extra_decls = ENGINE_EXTRA_DECLS.get(spec, {})
         # Private module state an override closes over does not appear in the
         # import list, so it has to be emitted explicitly. (`_convConfig` backs
-        # getConfigValue/setConvConfig in the `./util.js` overrides.)
+        # getConfigValue in the `./util.js` overrides; an engine that declares the
+        # same name for itself -- `prompt-converters.js` -- takes it from
+        # `ENGINE_EXTRA_DECLS` instead, because its hook has to assign into the
+        # very object `getConfigValue` reads, not a second copy of it.)
         for private_name, private_value in overrides.items():
-            if private_name.startswith("_"):
+            if private_name.startswith("_") and private_name not in extra_decls:
                 lines.append(f"const {private_name} = {private_value};")
         if spec == "./PromptManager.js":
             lines.append(extract_prompt_manager_source())

@@ -145,6 +145,41 @@ def run_probe(fixture: dict[str, Any], root: Any) -> Any:
         return {"path": spec["path"], "call": call, "error": f"{type(exc).__name__}: {exc}"}
 
 
+#: Byte the media-token generator is pinned to. Must equal `PINNED_BYTE` in
+#: `run_converters.mjs`; the token itself is unguessable by design, so the two
+#: sides agree on the value only because both are pinned.
+PINNED_BYTE = 7
+
+#: The sentinel a fixture writes in an `args` slot that has to become the
+#: `PromptNames` object. A names object carries a *function*
+#: (``startsWithGroupName``), so it cannot be written in JSON at all, and a plain
+#: dict would make the two sides take different paths -- the reference calls the
+#: predicate, the port would see a missing key.
+PROMPT_NAMES_SENTINEL = "$promptNames"
+
+
+def resolve_args(fixture: dict[str, Any], values: Any) -> list[Any]:
+    """Mirror of ``resolveArgs`` in ``run_converters.mjs``."""
+    resolved: list[Any] = []
+    for value in values or []:
+        if value != PROMPT_NAMES_SENTINEL:
+            resolved.append(copy.deepcopy(value))
+            continue
+        names = fixture.get("names") or {}
+        groups = names.get("groupNames")
+        resolved.append(
+            {
+                "charName": names.get("charName") or "",
+                "userName": names.get("userName") or "",
+                "groupNames": [str(name) for name in groups] if isinstance(groups, list) else [],
+                "startsWithGroupName": prompt_converters._GroupNamePredicate(  # noqa: SLF001
+                    [str(name) for name in groups] if isinstance(groups, list) else []
+                ),
+            }
+        )
+    return resolved
+
+
 def run_fixture(fixture: dict[str, Any]) -> dict[str, Any]:
     record: dict[str, Any] = {
         "fixture": fixture.get("name", ""),
@@ -166,8 +201,15 @@ def run_fixture(fixture: dict[str, Any]) -> dict[str, Any]:
     # same way so a fixture cannot pass for the wrong reason.
     prompt_converters.set_config(fixture.get("config") or {})
 
-    call_args = copy.deepcopy(fixture.get("args") or [])
-    record["args_in"] = copy.deepcopy(call_args)
+    # Pin the media-token byte source (mirror of the `randomBytes` override in
+    # `run_converters.mjs`). The reference's token is unguessable by design, so it
+    # is only comparable because both sides are pinned to the same byte.
+    prompt_converters.random_bytes = lambda count: bytes([PINNED_BYTE]) * int(count)
+
+    call_args = resolve_args(fixture, fixture.get("args") or [])
+    # `json_safe`, not a bare copy: the names object carries a function, and
+    # JSON.stringify drops it silently on the JS side, so both sides normalise.
+    record["args_in"] = json_safe(call_args)
 
     try:
         returned = target(*call_args)
