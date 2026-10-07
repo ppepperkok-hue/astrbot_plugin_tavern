@@ -148,7 +148,16 @@ class SillyTavernBackend:
         return self._client
 
     async def _ensure_csrf(self, force: bool = False) -> None:
-        """Fetch ``/csrf-token`` when we do not have a fresh one."""
+        """Fetch ``/csrf-token`` when we do not have a fresh one.
+
+        A non-JSON body means CSRF is disabled on the ST side (``--disableCsrf``),
+        so the empty token is not an error. A *failure* status is: every
+        ``/api/*`` route sits behind the login middleware, so the usual cause is a
+        missing or expired ``st_cookie`` -- but the message reports the actual
+        status and body rather than blaming the cookie, because a 500 or a 502 from
+        a proxy in front of ST is not a credential problem and saying so sends the
+        user to fix the wrong thing.
+        """
         if (
             self._csrf_token
             and not force
@@ -161,9 +170,15 @@ class SillyTavernBackend:
         except Exception as exc:  # noqa: BLE001 - network errors must be readable
             raise BackendError(f"无法连接酒馆 {self.base_url}: {exc}") from exc
         if response.status_code >= 400:
+            detail = ""
+            if response.status_code in (401, 403):
+                detail = "（401/403 通常表示 st_cookie 缺失或已过期，请复制登录后的会话 Cookie）"
+            elif response.status_code >= 500:
+                detail = "（服务端错误，不是凭据问题；请检查酒馆或其反向代理的日志）"
+            body = (getattr(response, "text", "") or "").strip()[:200]
             raise BackendError(
-                f"获取酒馆 CSRF token 失败（HTTP {response.status_code}）。"
-                "请检查 st_cookie 是否为登录后的会话 Cookie。"
+                f"获取酒馆 CSRF token 失败（HTTP {response.status_code}）{detail}"
+                + (f"，响应：{body}" if body else "")
             )
         try:
             payload = response.json()

@@ -164,6 +164,193 @@ def test_st_backend_requires_base_url() -> None:
         SillyTavernBackend("")
 
 
+# ---------------------------------------------------------------------------
+# SillyTavern CSRF / auth behaviour
+#
+# The whole `generate` path used to be untested: only `build_payload` and
+# `parse_response` had coverage, so nothing checked that the CSRF token actually
+# reaches the request or that the 401/403 retry exists. These drive it through a
+# fake client -- no network, no httpx.
+# ---------------------------------------------------------------------------
+
+
+class _FakeResponse:
+    def __init__(self, status_code: int, payload: Any = None, text: str = "") -> None:
+        self.status_code = status_code
+        self._payload = payload
+        self.text = text or (str(payload) if payload is not None else "")
+        self.headers: dict[str, str] = {}
+
+    def json(self) -> Any:
+        if self._payload is None:
+            raise ValueError("not json")
+        return self._payload
+
+
+_UNSET: Any = object()
+
+
+class _FakeStClient:
+    """Minimal stand-in for ``httpx.AsyncClient``.
+
+    ``reject_first_post`` makes the first ``/generate`` answer 401 (or 403) so the
+    refresh-and-retry branch can be exercised; ``reject_all_posts`` makes every
+    one fail so the "do not loop" path can be. ``csrf_status`` controls the token
+    endpoint, and ``csrf_body=_UNSET`` is the default token response -- pass an
+    explicit value (``None``) to model a non-JSON body. Every request is recorded
+    for the assertions.
+    """
+
+    def __init__(
+        self,
+        *,
+        token: str = "tok-1",
+        reject_first_post: int = 0,
+        reject_all_posts: int = 0,
+        csrf_status: int = 200,
+        csrf_body: Any = _UNSET,
+        generate_body: Any = _UNSET,
+    ) -> None:
+        self.headers: dict[str, str] = {}
+        self.calls: list[tuple[str, str, str]] = []
+        self.token = token
+        self.reject_first_post = reject_first_post
+        self.reject_all_posts = reject_all_posts
+        self.csrf_status = csrf_status
+        self.csrf_body = {"token": token} if csrf_body is _UNSET else csrf_body
+        self.generate_body = (
+            {"choices": [{"message": {"content": "hello"}, "finish_reason": "stop"}]}
+            if generate_body is _UNSET
+            else generate_body
+        )
+
+    async def get(self, path: str) -> _FakeResponse:
+        self.calls.append(("GET", path, self.headers.get("x-csrf-token", "")))
+        if self.csrf_status >= 400:
+            return _FakeResponse(self.csrf_status, None, "boom")
+        return _FakeResponse(200, self.csrf_body)
+
+    async def post(self, path: str, json: Any = None) -> _FakeResponse:
+        sent = self.headers.get("x-csrf-token", "")
+        self.calls.append(("POST", path, sent))
+        if self.reject_all_posts:
+            return _FakeResponse(self.reject_all_posts, None, "expired")
+        if self.reject_first_post and sum(1 for c in self.calls if c[0] == "POST") == 1:
+            return _FakeResponse(self.reject_first_post, None, "expired")
+        if isinstance(self.generate_body, _FakeResponse):
+            return self.generate_body
+        return _FakeResponse(200, self.generate_body)
+
+    async def aclose(self) -> None:
+        return None
+
+
+def _st_backend(client: _FakeStClient, **kwargs: Any) -> SillyTavernBackend:
+    backend = SillyTavernBackend("http://127.0.0.1:8000", cookie="session=abc", **kwargs)
+
+    async def fake_get_client() -> _FakeStClient:
+        # Mirror the real `_get_client`'s one observable side effect: the client's
+        # headers carry whatever we hold when the client is built.
+        if not client.headers:
+            client.headers.update(backend._headers())
+        backend._client = client
+        return client
+
+    backend._get_client = fake_get_client  # type: ignore[method-assign]
+    return backend
+
+
+def _st_request() -> GenerationRequest:
+    return GenerationRequest(messages=[PromptMessage(role="user", content="hi")])
+
+
+def test_st_generate_fetches_and_sends_the_csrf_token() -> None:
+    """A request with no token must fetch one first, and send it."""
+    client = _FakeStClient(token="tok-1")
+    backend = _st_backend(client)
+    result = _run(backend.generate(_st_request()))
+
+    assert result.text == "hello"
+    assert [call[0] for call in client.calls] == ["GET", "POST"]
+    assert client.calls[1][2] == "tok-1", "the token the endpoint handed out must be the one sent"
+
+
+def test_st_generate_refreshes_once_on_401_and_retries() -> None:
+    """An expired CSRF token must be refreshed and the request retried, once."""
+    client = _FakeStClient(token="tok-2", reject_first_post=403)
+    backend = _st_backend(client, csrf_token="stale")
+    result = _run(backend.generate(_st_request()))
+
+    assert result.text == "hello"
+    posts = [call for call in client.calls if call[0] == "POST"]
+    assert len(posts) == 2, "the request must be retried exactly once"
+    assert [call[0] for call in client.calls] == ["GET", "POST", "GET", "POST"]
+
+
+def test_st_generate_does_not_loop_when_the_retry_also_fails() -> None:
+    """A second 401 must surface, not retry forever."""
+    client = _FakeStClient(reject_all_posts=401)
+    backend = _st_backend(client, csrf_token="stale")
+    with pytest.raises(BackendError) as info:
+        _run(backend.generate(_st_request()))
+
+    assert "401" in str(info.value)
+    assert len([call for call in client.calls if call[0] == "POST"]) == 2, (
+        "the original attempt plus exactly one retry"
+    )
+
+
+def test_st_csrf_failure_reports_the_status_not_the_cookie() -> None:
+    """A 500 from the token endpoint is a server problem, and must say so.
+
+    The old message asserted the cookie was wrong for *any* failure status, which
+    sends the user to re-copy a credential that was never the issue.
+    """
+    client = _FakeStClient(csrf_status=500)
+    backend = _st_backend(client)
+    with pytest.raises(BackendError) as info:
+        _run(backend.generate(_st_request()))
+
+    message = str(info.value)
+    assert "500" in message
+    assert "cookie" not in message.lower(), "a 5xx is not a credential problem"
+    assert not [call for call in client.calls if call[0] == "POST"], "do not generate blind"
+
+
+def test_st_csrf_401_blames_the_cookie() -> None:
+    """...but a 401/403 from the token endpoint really is the cookie."""
+    client = _FakeStClient(csrf_status=403)
+    backend = _st_backend(client)
+    with pytest.raises(BackendError) as info:
+        _run(backend.generate(_st_request()))
+
+    assert "cookie" in str(info.value).lower()
+
+
+def test_st_csrf_disabled_is_not_an_error() -> None:
+    """``--disableCsrf`` makes ``/csrf-token`` answer non-JSON; generate must proceed."""
+    client = _FakeStClient(csrf_status=200, csrf_body=None)
+    backend = _st_backend(client)
+    result = _run(backend.generate(_st_request()))
+
+    assert result.text == "hello"
+    assert backend._csrf_token == ""
+
+
+def test_st_generate_error_body_is_rendered_readably() -> None:
+    """A provider error in the body must not be shown as a structure."""
+    client = _FakeStClient(
+        generate_body={"error": {"message": "model overloaded", "code": "overloaded"}}
+    )
+    backend = _st_backend(client)
+    with pytest.raises(BackendError) as info:
+        _run(backend.generate(_st_request()))
+
+    message = str(info.value)
+    assert "model overloaded" in message
+    assert "{" not in message and "}" not in message
+
+
 def test_st_backend_payload_shape() -> None:
     backend = SillyTavernBackend(
         "http://127.0.0.1:8000/", cookie="session=abc", chat_completion_source="claude"
