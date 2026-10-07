@@ -23,11 +23,6 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { __stub, mulberry32 } from './runtime.mjs';
-import {
-    INJECTION_POSITION,
-    Prompt,
-    PromptCollection,
-} from './.build/public/scripts/PromptManager.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BUILD = path.join(HERE, '.build');
@@ -71,6 +66,20 @@ const engine = await import(pathToFileURL(ENGINE).href);
 const { ChatCompletion, Message, populateChatCompletion, oracleSetPromptManager } = engine;
 if (!ChatCompletion || !Message || !populateChatCompletion || !oracleSetPromptManager) {
     fail('openai.js is missing ChatCompletion / Message / populateChatCompletion / the oracle hook');
+}
+
+// The prompt classes must come from the *same module instance* the engine gets,
+// or `new PromptCollection(...)` rejects our `Prompt` objects on a class-identity
+// check. A static import of the same file resolved to a second instance on
+// Windows paths, so the stub is reached through one shared promise that keys off
+// the engine's own URL base -- the same base `openai.js` uses for its relative
+// import.
+const promptModule = await import(
+    new URL('PromptManager.js', pathToFileURL(ENGINE)).href
+);
+const { INJECTION_POSITION, Prompt, PromptCollection } = promptModule;
+if (!Prompt || !PromptCollection || !INJECTION_POSITION) {
+    fail('the generated PromptManager.js is missing Prompt / PromptCollection / INJECTION_POSITION');
 }
 
 // `power_user` is a const object in the shim, so the fixture's flags are merged
@@ -134,11 +143,17 @@ function makePrompt(spec) {
 }
 
 function makeCollection(specs) {
-    // The `PromptCollection` constructor validates its arguments, so the prompt
-    // objects have to come from the same module instance as the collection --
-    // which is why the stub is imported statically above.
-    const made = specs.map(makePrompt);
-    return new PromptCollection(...made);
+    // `PromptCollection`'s constructor validates `instanceof Prompt`, and the
+    // check is brittle across module instances. The collection is built the way
+    // `add()` does it instead (PromptManager.js:201-298): append and record the
+    // identifier, so the emitted object is exactly the shape the engine sees.
+    const collection = Object.create(PromptCollection.prototype);
+    collection.collection = [];
+    collection.overriddenPrompts = [];
+    for (const prompt of specs.map(makePrompt)) {
+        collection.collection.push(prompt);
+    }
+    return collection;
 }
 
 // --- pinned token counter ----------------------------------------------------
@@ -156,14 +171,26 @@ function countFor(role, content, name) {
 
 const prompts = makeCollection(fixture.prompts ?? []);
 for (const identifier of fixture.overridden_prompts ?? []) {
-    prompts.override(identifier);
+    // `PromptCollection.override(prompt, position)` takes a *Prompt*, not an
+    // identifier (PromptManager.js:294-297); the fixture names the identifier for
+    // readability, so it is looked up here.
+    const prompt = prompts.get(identifier);
+    if (prompt) {
+        prompts.override(prompt, prompts.index(identifier));
+    }
 }
 oracleSetPromptManager({
     serviceSettings: { names_behavior: namesBehavior(fixture.names_behavior) },
     log: () => {},
     isPromptDisabledForActiveCharacter: (identifier) =>
         (fixture.disabled_prompts ?? []).includes(identifier),
-    preparePrompt: (prompt) => prompt,
+    // The page substitutes macros here. Prompt keeps a chat turn's text in
+    // mes, so that is mapped onto content -- otherwise every history message
+    // is built empty and dropped by insert (openai.js:4047).
+    preparePrompt: (prompt) => ({
+        ...(prompt ?? {}),
+        content: prompt?.content ?? prompt?.mes ?? '',
+    }),
     isValidName: (name) => typeof name === 'string' && /^[\w' -]+$/.test(name),
     sanitizeName: (name) => String(name ?? '').replace(/[^\w' -]+/g, '_'),
     getPromptCollection: () => prompts,
@@ -223,6 +250,16 @@ try {
     });
 } catch (error) {
     record.error = `the reference itself failed: ${error?.name ?? error}: ${error?.message ?? ''}`;
+}
+
+if (fixture.dump_internals) {
+    record.internals = {
+        promptCount: prompts.collection.length,
+        hasChatHistory: prompts.has('chatHistory'),
+        hasDialogueExamples: prompts.has('dialogueExamples'),
+        chatHistoryIndex: prompts.index('chatHistory'),
+        identifiers: prompts.collection.map((item) => item.identifier),
+    };
 }
 
 await snapshot('final');

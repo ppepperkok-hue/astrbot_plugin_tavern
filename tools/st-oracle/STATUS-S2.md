@@ -1,34 +1,51 @@
 # S2 status — prompt assembly
 
-> ## Repair in progress: the assembly oracle does not run right now
+> ## Repair state of the assembly oracle
 >
-> The assembly harness was **lost and only partially rebuilt**. What happened,
-> honestly: the working `run_assembly.mjs` and `gen_adapter.py` were uncommitted,
-> and I overwrote both with `git checkout -- <file>` while backing out an
-> experiment of my own. The experiment was mine; the loss was avoidable and it is
-> on me.
+> The assembly harness was lost (an uncommitted `run_assembly.mjs` plus the
+> `gen_adapter.py` additions were overwritten by a `git checkout` of mine) and is
+> being rebuilt. The port itself was never affected.
 >
-> * **Not affected:** every ported file. `tavern/st/chat_completion.py`,
->   `tavern/st/prompt_build.py` and `tests/test_prompt_build.py` are exactly as
->   the porter left them — `458 passed, 1 skipped`, ruff clean.
-> * **Not affected:** the S1 oracle (`diff.py --all` → 14 fixtures, 11 match,
->   0 diverged, 3 not-comparable) and the message-model oracle
->   (`diff_prompt.py --all` → PASS).
-> * **Broken:** `diff_assembly.py --all` reports `node-error` for all eight
->   fixtures. The rebuilt `gen_adapter.py` emits the real `Prompt` /
->   `PromptCollection` / `INJECTION_POSITION` (class bodies brace-matched out of
->   the vendored snapshot) plus the `getExtensionPrompt*` overrides, and the
->   rebuilt `run_assembly.mjs` no longer patches the build tree. The remaining
->   failure is a module-identity problem: `new PromptCollection(...)` rejects the
->   prompts `makePrompt` created, i.e. the `Prompt` class the collection closes
->   over is not the one the harness imported — most likely because the static
->   import of the generated `PromptManager.js` and the dynamic import `openai.js`
->   performs resolve to two module instances on Windows paths. Fixing it means
->   routing both through one specifier, or relaxing the class-identity check.
-> * The eight fixtures and their recorded expectations are still on disk, and the
->   port needs no rework: the **8 match / 0 diverged** result in §1 was produced
->   by the pre-loss harness against the real `openai.js`. It is recorded as
->   history and must be **re-derived** before it can be quoted as current.
+> **What runs again now.** `python tools/st-oracle/gen_adapter.py` emits the real
+> `Prompt` / `PromptCollection` / `INJECTION_POSITION` (class bodies brace-matched
+> out of the vendored snapshot, plus the two `DEFAULT_*` constants they read) and
+> real `getExtensionPrompt` / `getExtensionPromptMaxDepth` values, all through
+> `PROVIDED_BY_SOURCE` / `OVERRIDES`. `run_assembly.mjs` no longer patches the
+> build tree, and it reaches the engine end to end: `node
+> tools/st-oracle/run_assembly.mjs fixtures/prompt/assembly-01-order.json` writes
+> a result file with `error: null`.
+>
+> Three reference-side defects were found and fixed on the way:
+> 1. The generator rendered `PromptManager.js` as a permissive stub, so
+>    `new Prompt(chatPrompt)` produced a proxy and every chat turn lost its role
+>    and content. (Real classes now.)
+> 2. `PromptCollection.override(prompt, position)` takes a **Prompt**, not an
+>    identifier (`PromptManager.js:294-297`); passing the fixture's identifier
+>    string tripped the class check inside `set`.
+> 3. `Prompt` keeps a chat turn's text in `mes`, and `openai.js:955` builds the
+>    message through `promptManager.preparePrompt(prompt)`, so a `preparePrompt`
+>    stub that returns the prompt unchanged yields empty content and `insert`
+>    (`openai.js:4047`) silently drops the message.
+>
+> **What still does not match.** With all three fixed, the reference run still
+> ends with only `main` in the completion: `prompts` holds all 16 identifiers
+> (`hasChatHistory: true`, `chatHistoryIndex: 15`) yet `getChat()` returns one
+> message, so `populateChatHistory` and the example block do not reach the
+> collection. The port fills the history, the examples, the injection depths and
+> the continue nudge, so every fixture reports `diverged` on the chat contents.
+> The next diagnostic is to dump the top-level collection and the `chatHistory`
+> group right after the call, which tells the two remaining candidates apart:
+> either `chatCompletion.add` never runs for them (an early return or a budget
+> refusal inside `populateChatHistory`), or it runs and a later slot assignment
+> overwrites the group.
+>
+> **Do not quote the old "8 match" as current.** The result in §1 was produced by
+> the pre-loss harness. It must be re-derived before it counts again.
+>
+> **Not affected:** `tavern/st/chat_completion.py`, `tavern/st/prompt_build.py`,
+> `tests/test_prompt_build.py` (`458 passed, 1 skipped`, ruff clean); the S1
+> oracle (`diff.py --all` → 14 fixtures, 11 match, 0 diverged, 3 not-comparable);
+> the message-model oracle (`diff_prompt.py --all` → PASS).
 
 Source of truth: `research/_raw/st-src/openai.js` +
 `research/_raw/st-src/PromptManager.js` (SillyTavern 1.19.0, commit
@@ -36,7 +53,7 @@ Source of truth: `research/_raw/st-src/openai.js` +
 and source map: `research/08-s2-prompt-brief.md`. Line numbers below are measured
 against the snapshot in this repo, not copied from the brief.
 
-## 1. What the pre-loss harness verified
+## 1. What the pre-loss harness verified (must be re-derived)
 
 | Command | Result |
 |---|---|
@@ -114,8 +131,8 @@ and the real tokenizer.
 
 ## 5. Still open (honest list)
 
-1. **The assembly harness does not run** (see the box at the top). Everything in
-   §1 must be re-derived once it does.
+1. **The assembly harness must be finished** (see the box at the top). Everything
+   in §1 has to be re-derived once it runs.
 2. Group chats: `selected_group` is bound to the generated `group-chats.js` stub
    and is always truthy, so the `groupNudge` branch (900-903, 1082-1085) has no
    assembly fixture. It does have offline unit tests. `setOpenAIMessages`'
@@ -141,7 +158,7 @@ and the real tokenizer.
 python tools/st-oracle/gen_adapter.py     # build the Node shim tree
 python tools/st-oracle/diff.py --all      # S1: world info engine   -> PASS
 python tools/st-oracle/diff_prompt.py --all   # S2: message model   -> PASS
-python tools/st-oracle/diff_assembly.py --all # S2: assembly order  -> BROKEN, being repaired
+python tools/st-oracle/diff_assembly.py --all # S2: assembly order  -> FAIL, harness being repaired
 python -m pytest tests -q                 # 458 passed, 1 skipped
 ```
 
