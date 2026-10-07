@@ -27,28 +27,32 @@
 > other end, since a fixture-less export stays unmeasured after it is ported. That
 > section is informational — the exit code depends on resolution only.
 >
-> **Current numbers**, observed `2026-10-07 20:36` while the three S4 port tasks
-> (task-2/3/4) were still landing — they move as those tasks land, so treat this
-> table as a snapshot and the reproduce block as the live answer:
+> **Current numbers** (the reproduce block at the end is the live answer):
 >
 > | command | result |
 > | --- | --- |
-> | `check_converter_coverage.py` | 21 exports: **19 resolved, 2 missing, 0 non-callable** → FAIL (missing: `cachingAtDepthForOpenRouterClaude`, `cachingSystemPromptForOpenRouter`, both task-3's) |
-> | fixture coverage (same run) | 17/21 exports named by a fixture's `function` field |
-> | `diff_converters.py --all` | fixtures 49, match 39, **10 diverged, 12 divergences** → FAIL (the port tasks are still landing) |
-> | `python -m pytest tests` | **458 passed, 1 skipped** |
-> | `python -m ruff check .` | **red at observation time, never in this task's files**: the root-level throwaway `.tmp_map_dump.py` (F401) and `tools/st-oracle/gen_port_map.py`, both being edited by other workers. `check_converter_coverage.py` and `diff_converters.py` are clean |
-> | `python -m ruff format --check tavern tests tools main.py` | red: would reformat `tavern/st/prompt_converters.py` (mid-flight port work) and `tools/st-oracle/gen_port_map.py`; this task's two scripts are already formatted |
+> | `check_converter_coverage.py` | 21 exports: **21 resolved, 0 missing, 0 non-callable** → PASS |
+> | fixture coverage (same run) | 20/21 exports named by a fixture's `function` field; the one left is `PROMPT_PROCESSING_TYPE`, a value export, exercised transitively by `postProcessPrompt`'s fixtures |
+> | `diff_converters.py --all` | fixtures **121, match 121, 0 diverged** → PASS |
+> | `python tools/check.py` | **ALL CHECKS PASSED** |
+> | `python -m pytest tests` | **492 passed, 1 skipped** |
+> | `python -m ruff check .` / `ruff format --check tavern tests tools main.py` | clean / formatted |
+>
+> The three port tasks (task-2/3/4) have landed, so every row is now the finished
+> state. The historical snapshot they replaced — 19/21 resolved with the port tasks
+> mid-flight — is not quoted anywhere deliberately: it was only ever a progress
+> reading, and it is what the reproduce block will contradict if anyone reposts it.
 >
 > **One trap when reading the diff.** `diff_converters.py` scores every status except
 > `match` as "diverged", including `node-error`, so a broken `.build/` tree reads as a
-> wall of divergences with a *zero* divergence count. That happened during this review
-> (34 of 44 rows, 0 divergences) because `gen_adapter.py --check` regenerates
-> `.build/` **in place** — `generate()` opens with `shutil.rmtree(BUILD)` — while
-> another worker was running it. Every non-`match` row carrying 0 divergences is an
-> infrastructure failure, not a port difference. The coverage guard never reads
-> `.build/`, so its numbers are the stable ones; run the diff when nobody is
-> regenerating the adapter.
+> wall of divergences with a *zero* divergence count. That happened twice during this
+> work because `gen_adapter.py` regenerates `.build/` **in place** — `generate()`
+> opens with `shutil.rmtree(BUILD)` — while another worker was running it. Every
+> non-`match` row carrying 0 divergences is an infrastructure failure, not a port
+> difference. `diff_converters.py` now reports that shape as
+> `ENVIRONMENT FAILURE, not a port verdict` and exits 2, so it can no longer be
+> mistaken for a port failure; the coverage guard never reads `.build/` and is the
+> stable reading. Still: do not overlap a diff run with a `gen_adapter.py --check`.
 
 ## 1. It has been proven to fire, per name
 
@@ -138,15 +142,54 @@ cd E:\astrbot_plugin
 python tools/st-oracle/check_converter_coverage.py             # exports: resolved / missing / non-callable
 python tools/st-oracle/check_converter_coverage.py --verbose   # + which fixtures cover each resolved export
 python tools/st-oracle/diff_converters.py --all                # behaviour, per fixture
+python tools/st-oracle/check_module_wiring.py                  # which S1 mirror modules nothing imports
 python -m ruff check .
 python -m ruff format --check tavern tests tools main.py
 python -m pytest tests
+python tools/check.py                                          # the one-shot gate
 ```
 
 Run the coverage check **first**: it answers the question the diff structurally
 cannot, and it needs no `.build/` tree. Do not overlap these with another worker's
 `gen_adapter.py --check`, which rebuilds `.build/` in place and turns every fixture
 into `node-error` for the duration.
+
+## 6. Appendix: what the native timed-effect path actually does
+
+Not S4, but it belongs next to the same "the code is not the call graph" warning,
+and it cost three rounds to settle. The S1 layer has two timed-effect
+implementations and only one runs:
+
+| module | production importer | role |
+| --- | --- | --- |
+| `wi_buffer.py` | `worldbook.py` | the buffer, and the **real** keyword matcher (`wi_buffer.py:330`, called at `worldbook.py:855`) |
+| `wi_decorators.py` | `worldbook.py` | `@@` decorators |
+| `wi_keywords.py` | **none** | a second keyword matcher, correct but unreachable |
+| `wi_scan_state.py` | **none** | the scan state machine, unreachable |
+| `wi_timed.py` | **none** | the literal `WorldInfoTimedEffects`, unreachable |
+
+So the engine is `worldbook.ActivationState` (native, turn-counted) plus the inline
+scan loop. Two things this appendix exists to stop someone re-deriving:
+
+1. **`worldbook._whole_word_match` is not the production matcher.** It accepts `C++`
+  inside `abcC++def` where the reference refuses, which reads like a bug report;
+  the live path goes through `wi_buffer.WorldInfoBuffer.match_keys`, which carries
+  the reference's multi-word-vs-single-token rule and `re.ASCII`. The unreachable
+  function is simply not called.
+2. **The native timed effects agree with the literal port where it counts.** Driving
+  `worldbook.activate` over ten turns gives the reference's pattern:
+  `cooldown=3, sticky=0` → `A..A..A..A`, `cooldown=3, sticky=2` → `AA.AA.AA.A`,
+  `cooldown=1` → every turn. The native `on_activate` writes the cooldown window
+  unconditionally while the literal port's `#setTimedEffectOfType` is
+  first-writer-wins, which looks like a divergence until you notice the gate:
+  `is_blocked` refuses an entry while its window is open, so a second registration
+  can only happen after the first has elapsed, and the later write is a no-op. The
+  two formulations compute the same end.
+
+`check_module_wiring.py` reports the table above and exits 0. It is deliberately not
+in `tools/check.py`: three modules are in this state today, and the thing to do about
+them is a decision (`KNOWN_UNWIRED` is where a deliberate "kept as a reference
+implementation" gets recorded), not a red gate that blocks unrelated work.
 
 Source of truth: `research/_raw/st-src/prompt-converters.js` (SillyTavern 1.19.0,
 commit `06bde939fb1e9c4c8d8641d810f0a9165bce127`, byte identical to tag `1.19.0`).
