@@ -52,6 +52,12 @@ EXPECTED = "酒馆角色扮演 · 指令"
 #: the market pulls from GitHub, so verifying only the local git state leaves one
 #: assumption in the loop, and that is exactly the kind of assumption this project has
 #: been burned by.
+#:
+#: KNOWN-ISSUE: 5 -- this is layer 2 of 4. Layers 3 and 4 (`--source <clone>`, and
+#: `tools/gh_archive_check.py` for the archive GitHub itself serves) exist because
+#: every "verified" claim in this project's history that turned out wrong rested on an
+#: assumption a test had made on the host's behalf. When tempted to add a fifth
+#: assertion here, ask which assumption it removes instead.
 GIT_SOURCE = REPO_ROOT
 
 

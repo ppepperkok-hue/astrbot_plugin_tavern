@@ -154,7 +154,44 @@ star_map=["tavern.main='tavern.main'",
 
 ---
 
-## 5. 有意为之的取舍（不是 bug，但容易被当成 bug 报）
+## 5. 三次"验证通过"其实都建立在一个假设上 —— 已加第四层验证
+
+这条不是 bug，是**方法**上的坑，值得单独记，因为它比任何单个 bug 都更容易复发。
+
+这个项目历史上每一次"我验过了"翻车，形式都一样：**测试替真宿主做了一个假设**。
+
+- 条目 1：测试用 fixture 隔离了实例，恰好掩盖了产品的共享状态问题。
+- 条目 2：`verify_cmd_params.py` **自己构造** `functools.partial` 模拟绑定，
+  而生产里那个绑定**根本没发生**。
+- 条目 4：`astrbot_e2e.py` 直接调 `on_message`，绕过了指令分发。
+
+发布前又差点重演第四次。前后做了四层，每一层都比上一层少一个假设：
+
+| 层 | 做法 | 还剩下什么假设 |
+|---|---|---|
+| 1 | `tools/check.py` 全绿 | 跑的是工作区，`tests/`/`tools/`/junction 都在 |
+| 2 | `release_check.py` —— `git archive` 出发布包，解到全新 AstrBot 里跑 | 用的是**本地 git** |
+| 3 | 同上，`--source` 指向 `git clone` 下来的仓库 | 仍然经过本地 git |
+| 4 | `gh_archive_check.py` —— 直接下载 **GitHub 实际提供的那个 zip** | 无（只有公开 URL） |
+
+第 4 层的关键是它**完全不用 git**：`codeload.github.com/.../zip/refs/heads/main`，
+正是 GitHub「Download ZIP」按钮和 AstrBot 安装器解析到的同一个 endpoint。
+
+**第 4 层故意没有进门禁**：它依赖网络，而且仓库**被推送之后**它才有意义——
+一个离线跑不动、或者在你还没推的时候报绿的检查，会训练人忽略它。
+所以它是**发布前手动跑的最后一步**：
+
+```powershell
+.tools\uv-tools\astrbot\Scripts\python.exe tools/gh_archive_check.py
+```
+
+**推广：** 当一件事"已经验证过"却仍然可能错时，问的不是"再测一遍"，
+而是**"我的测试替谁做了假设"**。把那个假设去掉，比多写十个断言有用。
+
+
+---
+
+## 6. 有意为之的取舍（不是 bug，但容易被当成 bug 报）
 
 | 事项 | 为什么这样 |
 |---|---|

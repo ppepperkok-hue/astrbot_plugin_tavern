@@ -37,7 +37,7 @@ MARKER = re.compile(r"KNOWN-ISSUE:\s*([0-9]+)")
 
 #: Entries that are policy rather than a code-level trap, so no marker is expected.
 #: Keyed by the heading number in the register.
-POLICY_ONLY = {"5"}
+POLICY_ONLY = {"6"}
 
 
 def register_entries() -> dict[str, str]:

@@ -290,6 +290,14 @@ messages (first 12):
 
 判定机之外还有几条护栏：导出覆盖检查（从快照解析清单，防止漏移植）、模块接线检查（报告有测试但没人调用的模块）、管理面板路由检查、指令参数检查、以及**发布包检查**——它会 `git archive` 出真正要发的那份 zip，解到一个**全新 AstrBot 根目录**里跑起来，因为工作区里有 `tests/`/`tools/` 和 `data/plugins/` 的联结，而发布包里**一个都没有**。这些和单元测试一起由 `python tools/check.py` 一键跑完（15 步）。
 
+发布前还有一步**不在门禁里**：直接验 GitHub 提供的那份 zip（市场与安装器都走这个 endpoint）。
+
+```powershell
+.tools\uv-tools\astrbot\Scripts\python.exe tools/gh_archive_check.py
+```
+
+它故意不进门禁——依赖网络，而且**要等推送之后才有意义**。一个在你还没推的时候就报绿的检查，只会训练人忽略它。分层理由见 [docs/known-issues.md](docs/known-issues.md) 第 5 条。
+
 真酒馆当裁判的价值在于它会推翻你的直觉。举两个真实例子：
 
 - 整词匹配下 `C++` **会**匹配 `abcC++def`，因为两侧是 `\W` 而不是单词字符——我们一开始断言的是相反，是判定机纠正了预期。
