@@ -8,6 +8,7 @@ message handler end to end, without starting a bot.
 
 from __future__ import annotations
 
+import json
 import sys
 import types
 from pathlib import Path
@@ -225,9 +226,29 @@ class At:
         self.qq = qq
 
 
+class FakeFile:
+    """Stand-in for ``astrbot``'s ``File`` message segment."""
+
+    def __init__(self, name: str, payload: bytes) -> None:
+        self.name = name
+        self.file_ = ""
+        self.url = ""
+        self.payload = payload
+
+    async def get_file(self) -> bytes:
+        return self.payload
+
+
 class FakeMessage:
-    def __init__(self, text: str, self_id: str = "10000", at: bool = False) -> None:
+    def __init__(
+        self,
+        text: str,
+        self_id: str = "10000",
+        at: bool = False,
+        files: list[FakeFile] | None = None,
+    ) -> None:
         self.message = [At(self_id)] if at else []
+        self.message.extend(files or [])
         self.message_str = text
         self.self_id = self_id
 
@@ -247,10 +268,11 @@ class FakeEvent:
         at: bool = False,
         admin: bool = False,
         sender: str = "小明",
+        files: list[FakeFile] | None = None,
     ) -> None:
         self.message_str = text
         self.unified_msg_origin = umo
-        self.message_obj = FakeMessage(text, at=at)
+        self.message_obj = FakeMessage(text, at=at, files=files)
         self._private = private
         self._admin = admin
         self._sender = sender
@@ -452,6 +474,95 @@ def test_render_splits_long_answer(tavern, tmp_path: Path) -> None:
     assert len(answers) >= 3
     assert all(len(answer) <= 10 for answer in answers)
     assert "".join(answers) == long_answer
+
+
+def test_plain_text_message_is_unchanged_by_the_file_path(tavern, tmp_path: Path) -> None:
+    """A message without a file segment must never hit the import branch."""
+    plugin = _make_plugin(tavern, tmp_path)
+    _seed(plugin)
+    event = FakeEvent("你好", at=True)
+    assert tavern._incoming_files(event) == []
+    assert tavern._file_name(event.message_obj.message[0]) == ""
+
+
+def test_uploaded_card_is_imported_and_answered(tavern, tmp_path: Path) -> None:
+    plugin = _make_plugin(tavern, tmp_path)
+    plugin._backend = FakeBackend(["不该被调用"])
+    payload = (FIXTURES / "cards" / "iris.json").read_bytes()
+    event = FakeEvent(
+        "",
+        at=True,
+        admin=True,
+        files=[FakeFile("新卡.json", payload)],
+    )
+
+    sent = _run(_collect(plugin.handle_message(event)))
+    texts = [item.text for item in sent]
+    assert any("导入成功" in text for text in texts)
+    assert any("Iris" in text for text in texts)
+    # the import took over the message: no model call, no role play reply
+    assert plugin._backend.requests == []
+    assert event.stopped is True
+    assert "Iris" in plugin.core.card_ids()
+
+
+def test_uploaded_lorebook_is_detected_by_content(tavern, tmp_path: Path) -> None:
+    """A ``.json`` upload may be a world book even though cards share the suffix."""
+    plugin = _make_plugin(tavern, tmp_path)
+    book = {
+        "spec": "lorebook_v3",
+        "data": {
+            "name": "Harbour Notes",
+            "scan_depth": 3,
+            "entries": [
+                {"id": 0, "keys": ["harbour"], "content": "Tar and gulls.", "enabled": True}
+            ],
+        },
+    }
+    event = FakeEvent(
+        "",
+        at=True,
+        admin=True,
+        files=[FakeFile("notes.json", json.dumps(book, ensure_ascii=False).encode("utf-8"))],
+    )
+
+    sent = _run(_collect(plugin.handle_message(event)))
+    texts = [item.text for item in sent]
+    assert any("Harbour Notes" in text for text in texts)
+    assert "Harbour Notes" in plugin.core.book_ids()
+    assert plugin.core._books["Harbour Notes"].scan_depth == 3
+
+
+def test_uploaded_junk_file_reports_a_readable_error(tavern, tmp_path: Path) -> None:
+    plugin = _make_plugin(tavern, tmp_path)
+    event = FakeEvent(
+        "",
+        at=True,
+        admin=True,
+        files=[FakeFile("mystery.json", b'{"nothing": 1}')],
+    )
+
+    sent = _run(_collect(plugin.handle_message(event)))
+    texts = [item.text for item in sent]
+    assert any("导入失败" in text for text in texts)
+    assert any("无法识别" in text for text in texts)
+    assert event.stopped is True
+
+
+def test_import_permission_blocks_non_admin(tavern, tmp_path: Path) -> None:
+    plugin = _make_plugin(tavern, tmp_path, {"permissions": {"import_requires_admin": True}})
+    event = FakeEvent(
+        "",
+        at=True,
+        admin=False,
+        files=[FakeFile("新卡.json", (FIXTURES / "cards" / "iris.json").read_bytes())],
+    )
+
+    sent = _run(_collect(plugin.handle_message(event)))
+    texts = [item.text for item in sent]
+    assert len(texts) == 1
+    assert "只有管理员" in texts[0]
+    assert plugin.core.card_ids() == []
 
 
 def _run(coro: Any) -> Any:

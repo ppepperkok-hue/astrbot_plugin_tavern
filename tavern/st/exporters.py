@@ -65,33 +65,90 @@ from tavern.st.importers import (
     RUNTIME_DEFAULTS,
     RUNTIME_TO_V2_EXTENSIONS,
     SPEC_LOREBOOK_V3,
+    V2_EXTENSION_COLUMNS,
     number_to_v2_position,
 )
 from tavern.st.worldbook import WorldBook, WorldInfoEntry
 
 logger = logging.getLogger(__name__)
 
-#: V2 ``Lorebook`` book level fields (``SPEC_V2.md``, ``Lorebook`` interface) that
-#: this exporter can rebuild from the runtime model. ``entries`` is always rebuilt
-#: too, but from :class:`WorldInfoEntry` objects rather than from a field.
-V2_BOOK_FIELDS: tuple[str, ...] = (
-    "name",
-    "description",
-    "scan_depth",
-    "token_budget",
-    "recursive_scanning",
-    "extensions",
+
+#: The 28 runtime field names whose V2 home is ``extensions.*``, in the order
+#: ``convertWorldInfoToCharacterBook`` writes them (``endpoints_characters.js:682``).
+#: ``position`` is added by the entry exporter itself (it always writes the full
+#: 0..7 enum), so it is not repeated here.
+_EXTENSION_FIELD_ORDER: tuple[str, ...] = (
+    "excludeRecursion",
+    "preventRecursion",
+    "displayIndex",
+    "probability",
+    "useProbability",
+    "depth",
+    "selectiveLogic",
+    "outletName",
+    "group",
+    "groupOverride",
+    "groupWeight",
+    "delayUntilRecursion",
+    "scanDepth",
+    "matchWholeWords",
+    "useGroupScoring",
+    "caseSensitive",
+    "automationId",
+    "role",
+    "vectorized",
+    "sticky",
+    "cooldown",
+    "delay",
+    "matchPersonaDescription",
+    "matchCharacterDescription",
+    "matchCharacterPersonality",
+    "matchCharacterDepthPrompt",
+    "matchScenario",
+    "matchCreatorNotes",
+    "triggers",
+    "ignoreBudget",
 )
 
-#: ``extensions`` keys the reverse converter understands, in the order
-#: ``convertWorldInfoToCharacterBook`` writes them (``endpoints_characters.js:682``).
-#: ``selectiveLogic`` is the one key that is not snake_cased upstream, so it is
-#: appended last instead of being sorted in place.
-_V2_EXTENSION_FIELDS: tuple[str, ...] = tuple(
-    field
-    for field in RUNTIME_TO_V2_EXTENSIONS
-    if RUNTIME_TO_V2_EXTENSIONS[field] != "selectiveLogic"
-) + ("selectiveLogic",)
+
+def _column_for(runtime_field: str) -> str:
+    """``extensions`` key for a native field: the reverse map, else snake_case.
+
+    ``group`` and ``outletName`` are extension-only in the runtime model, so they
+    are absent from :data:`~tavern.st.importers.RUNTIME_TO_V2_EXTENSIONS` and are
+    resolved with the same ``[A-Z] -> _lower`` rule ST uses for its paths
+    (``world-info.js:3237``).
+    """
+    mapped = RUNTIME_TO_V2_EXTENSIONS.get(runtime_field)
+    if mapped:
+        return mapped
+    return "".join(f"_{char.lower()}" if char.isupper() else char for char in runtime_field)
+
+
+#: ``(runtime field, extensions key)`` pairs, in upstream order.
+_V2_EXTENSION_FIELDS: tuple[tuple[str, str], ...] = tuple(
+    (name, _column_for(name)) for name in _EXTENSION_FIELD_ORDER
+)
+
+
+def _check_extension_columns() -> None:
+    """Import-time guard: the exporter must cover every ``extensions`` column.
+
+    ``V2_EXTENSION_COLUMNS`` is owned by ``importers.py`` (one entry per
+    ``extensions.*`` row of ``FIELD_MAPPING``); this module owns the runtime names.
+    Keeping the two in step is what makes ``convertWorldInfoToCharacterBook`` and
+    ``convertCharacterBook`` mirror images, so a drift is a hard failure rather
+    than a silently dropped field.
+    """
+    wanted = set(V2_EXTENSION_COLUMNS) - {"position"}
+    exported = {column for _field, column in _V2_EXTENSION_FIELDS}
+    if wanted != exported:
+        missing = sorted(wanted - exported)
+        extra = sorted(exported - wanted)
+        raise ExportError(f"extension column drift: missing={missing} unexpected={extra}")
+
+
+_check_extension_columns()
 
 
 class ExportError(ValueError):
@@ -213,12 +270,10 @@ def export_character_book_entry(
         # ``...entry.extensions`` spread first: unknown vendor keys survive.
         for key, value in (original.get("extensions") or {}).items():
             extensions[key] = value
-    for field in _V2_EXTENSION_FIELDS:
-        key = RUNTIME_TO_V2_EXTENSIONS[field]
-        if key == "position":
-            # ``extensions.position`` is the full 0..7 enum and always written.
-            extensions[key] = entry.position
-            continue
+    # ``extensions.position`` is the full 0..7 enum and is always written; ST
+    # writes it first (``endpoints_characters.js:684``).
+    extensions["position"] = entry.position
+    for field, key in _V2_EXTENSION_FIELDS:
         value = _export_extension_value(entry, field, original)
         if value is not None:
             extensions[key] = value

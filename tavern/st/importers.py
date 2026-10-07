@@ -170,9 +170,50 @@ RUNTIME_DEFAULTS: dict[str, Any] = {
     "triggers": [],
 }
 
-#: ``originalWIDataKeyMap`` (``world-info.js:2687-2724``): camelCase runtime field
-#: -> ``extensions.`` path inside the V2 entry. This is the reverse direction of
-#: the ``extensions`` half of :data:`FIELD_MAPPING`.
+#: The 31 ``extensions.*`` columns ``convertWorldInfoToCharacterBook`` writes
+#: (``endpoints_characters.js:682-715``), in upstream order. ``position`` is the
+#: duplicate: V2 carries it both as a two-value string and inside ``extensions``
+#: as the full 0..7 enum. 11 core rows + 31 extension rows + the ``entries``
+#: container row make up the 42 rows of :data:`FIELD_MAPPING`.
+V2_EXTENSION_COLUMNS: tuple[str, ...] = (
+    "position",
+    "exclude_recursion",
+    "display_index",
+    "probability",
+    "useProbability",
+    "depth",
+    "selectiveLogic",
+    "outlet_name",
+    "group",
+    "group_override",
+    "group_weight",
+    "prevent_recursion",
+    "delay_until_recursion",
+    "scan_depth",
+    "match_whole_words",
+    "use_group_scoring",
+    "case_sensitive",
+    "automation_id",
+    "role",
+    "vectorized",
+    "sticky",
+    "cooldown",
+    "delay",
+    "match_persona_description",
+    "match_character_description",
+    "match_character_personality",
+    "match_character_depth_prompt",
+    "match_scenario",
+    "match_creator_notes",
+    "triggers",
+    "ignore_budget",
+)
+
+#: ``originalWIDataKeyMap`` (``world-info.js:2687-2724``) read backwards:
+#: ``extensions.<snake_case>`` -> camelCase runtime field. Only the 27 rows the
+#: upstream map itself carries; ``group`` and ``outlet_name`` are extension-only
+#: fields in the runtime model (``WorldInfoEntry`` has no attribute for them), so
+#: they are absent here on purpose and are read straight out of ``extensions``.
 RUNTIME_TO_V2_EXTENSIONS: dict[str, str] = {
     "excludeRecursion": "exclude_recursion",
     "preventRecursion": "prevent_recursion",
@@ -211,7 +252,9 @@ RUNTIME_TO_V2_EXTENSIONS: dict[str, str] = {
 
 #: Every native camelCase row key that maps onto a :class:`WorldInfoEntry`
 #: attribute: the 41 rows of :data:`FIELD_MAPPING` whose ``runtime`` column names a
-#: native field (``entries`` names the container, not a field), minus ``uid``.
+#: native field (``entries`` names the container, not a field), minus ``uid`` and
+#: plus ``addMemo`` / ``key_vector``, which upstream writes but this plugin's entry
+#: model has no attribute for.
 RUNTIME_CORE_FIELDS: tuple[str, ...] = (
     "key",
     "keysecondary",
@@ -428,18 +471,6 @@ def _int_or(value: Any, default: int) -> int:
         return default
 
 
-def _float_or(value: Any, default: float) -> float:
-    """``Number(value)`` as a float with the same tolerance as :func:`_int_or`."""
-    if value is None or isinstance(value, bool) or value == "":
-        return default
-    if _is_number(value):
-        return float(value)
-    try:
-        return float(str(value).strip())
-    except (TypeError, ValueError):
-        return default
-
-
 def _bool_or(value: Any, default: bool) -> bool:
     """JS truthiness for the values that actually show up in lorebook JSON.
 
@@ -569,13 +600,6 @@ def number_to_v2_position(position: Any) -> str:
     )
 
 
-def _role_from_v2(value: Any) -> int | None:
-    """``entry.extensions.role ?? 0``, but ``null`` survives as ``None``."""
-    if value is None:
-        return None
-    return _int_or(value, ROLE_SYSTEM)
-
-
 # ---------------------------------------------------------------------------
 # convertCharacterBook -- V2 character book entry -> runtime entry
 # ---------------------------------------------------------------------------
@@ -609,12 +633,6 @@ def convert_character_book_entry(
     # copies; keep it out of ``extensions`` so an export cannot echo it back.
     runtime.extensions.pop("addMemo", None)
     return runtime
-
-
-#: Transient fields that the runtime model carries but a native ST entry does not.
-_RUNTIME_ONLY_FIELDS: frozenset[str] = frozenset(
-    {"uid", "extensions", "key_vector", "book", "addMemo"}
-)
 
 
 def _normalise_entries(raw_entries: Any) -> list[dict[str, Any]]:
@@ -764,70 +782,6 @@ _MATCH_FLAG_FIELDS: tuple[str, ...] = (
 #: writes all of them) but that ``WorldInfoEntry`` has no attribute for. They are
 #: still mirrored into ``extensions`` so the exporter can put them back untouched.
 _EXTENSION_ONLY_FIELDS: tuple[str, ...] = ("outletName", "addMemo", "key_vector")
-
-#: ``extensions`` keys that ``WorldInfoBuffer`` reads with their camelCase names
-#: (``_buffer_view`` in ``worldbook.py``). Imported card books are written with
-#: this exact set inside ``WorldInfoEntry.extensions`` so per-entry scan flags
-#: survive a V2 import instead of silently resetting to their defaults.
-_BUFFER_EXTENSION_KEYS: tuple[str, ...] = (
-    "selectiveLogic",
-    "excludeRecursion",
-    "preventRecursion",
-    "delayUntilRecursion",
-    "displayIndex",
-    "depth",
-    "probability",
-    "useProbability",
-    "position",
-    "role",
-    "outletName",
-    "group",
-    "groupOverride",
-    "groupWeight",
-    "scanDepth",
-    "caseSensitive",
-    "matchWholeWords",
-    "useGroupScoring",
-    "automationId",
-    "vectorized",
-    "sticky",
-    "cooldown",
-    "delay",
-    "triggers",
-    "ignoreBudget",
-) + _MATCH_FLAG_FIELDS
-
-#: ``extensions`` keys that ``WorldInfoBuffer`` reads with their camelCase names
-#: (``_buffer_view`` in ``worldbook.py``). Imported card books are written with
-#: this exact set inside ``WorldInfoEntry.extensions`` so per-entry scan flags
-#: survive a V2 import instead of silently resetting to their defaults.
-_BUFFER_EXTENSION_KEYS: tuple[str, ...] = (
-    "selectiveLogic",
-    "excludeRecursion",
-    "preventRecursion",
-    "delayUntilRecursion",
-    "displayIndex",
-    "depth",
-    "probability",
-    "useProbability",
-    "position",
-    "role",
-    "outletName",
-    "group",
-    "groupOverride",
-    "groupWeight",
-    "scanDepth",
-    "caseSensitive",
-    "matchWholeWords",
-    "useGroupScoring",
-    "automationId",
-    "vectorized",
-    "sticky",
-    "cooldown",
-    "delay",
-    "triggers",
-    "ignoreBudget",
-) + _MATCH_FLAG_FIELDS
 
 
 def _runtime_row_v2(entry: Mapping[str, Any], index: int, where: int) -> dict[str, Any]:
@@ -1040,10 +994,27 @@ def _entry_is_native(entry: Any) -> bool:
 
 
 def _entry_is_v2(entry: Any) -> bool:
-    """True when a dict uses the V2 snake_case spelling (``keys``/``insertion_order``)."""
+    """True when a dict uses the V2 snake_case spelling or its ``extensions`` escape hatch.
+
+    Three signals, in this order of reliability:
+
+    * the V2-only field names (``keys`` / ``secondary_keys`` / ``insertion_order``);
+    * a **string** ``position`` (``before_char`` / ``after_char``) -- no native entry
+      ever has that, and a library card may omit every other V2 field;
+    * an ``extensions`` mapping carrying the numeric ``position`` enum.
+
+    A native camelCase row always wins when both spellings are mixed into one dict,
+    matching the documented precedence.
+    """
     if not isinstance(entry, Mapping):
         return False
-    return "keys" in entry or "insertion_order" in entry or "secondary_keys" in entry
+    if "keys" in entry or "insertion_order" in entry or "secondary_keys" in entry:
+        return True
+    if _entry_is_native(entry):
+        return False
+    if isinstance(entry.get("position"), str):
+        return True
+    return isinstance(_as_mapping(entry.get("extensions")).get("position"), int)
 
 
 def _entries_to_native(raw_entries: Any) -> dict[str | int, dict[str, Any]]:
@@ -1061,12 +1032,6 @@ def _entries_to_native(raw_entries: Any) -> dict[str | int, dict[str, Any]]:
             row = _runtime_row_v2(entry, index, index)
         elif _entry_is_native(entry):
             row = dict(entry)
-        elif isinstance(_as_mapping(entry.get("extensions")).get("position"), int):
-            # A V2 envelope whose snake_case keys are all missing but which still
-            # carries the ``extensions`` escape hatch: the only dialect marker left.
-            runtime = convert_character_book_entry(entry, index, index=index)
-            row = _runtime_row_native(runtime)
-            row["uid"] = runtime.uid
         else:
             row = dict(entry)
         uid = _int_or(row.get("uid", row.get("id", index)), index)
@@ -1309,8 +1274,16 @@ def _looks_like_v2_book(payload: Mapping[str, Any]) -> bool:
 
 
 def _looks_like_bare_entries(payload: Mapping[str, Any]) -> bool:
-    """A bare ``{"entries": ...}`` wrapper or a raw ``{"0": {...}}`` uid map."""
-    if "entries" in payload:
+    """A bare ``{"entries": ...}`` wrapper, a raw ``{"0": {...}}`` uid map or one entry.
+
+    Deliberately **not** satisfied by a lone empty ``{"entries": []}``: a payload
+    that carries no book level field and no entry at all is reported as
+    unrecognised instead of importing as an empty book.
+    """
+    entries = payload.get("entries")
+    if entries is not None:
+        return bool(entries)
+    if _entry_is_v2(payload) or _entry_is_native(payload):
         return True
     return any(isinstance(value, Mapping) for value in payload.values())
 
@@ -1687,10 +1660,10 @@ def _finish_card(
 
 
 def import_character_card(
-    payload: bytes | dict | str,
+    payload: bytes | dict | str | Path,
     filename: str = "",
 ) -> CharacterCard:
-    """Import a character card from bytes, a dict, or text.
+    """Import a character card from bytes, a dict, text or a path.
 
     Parameters
     ----------
@@ -1699,10 +1672,10 @@ def import_character_card(
           ``chara``; the rule itself lives in :func:`tavern.st.cards.card_from_png`)
           or UTF-8 ``.json`` / ``.yaml`` content;
         * ``dict`` -- an already decoded V1 / V2 / V3 card object;
-        * ``str`` -- a **path** to an existing ``.json`` / ``.png`` / ``.yaml``
-          file (delegated to :func:`tavern.st.cards.load_card`), otherwise the
-          card's JSON text (JSON syntax beats the file name: content starting
-          with ``{`` or ``[`` is always parsed as JSON).
+        * ``str`` / ``pathlib.Path`` -- a **path** to an existing ``.json`` /
+          ``.png`` / ``.yaml`` file (delegated to :func:`tavern.st.cards.load_card`),
+          otherwise the card's JSON text (JSON syntax beats the file name: content
+          starting with ``{`` or ``[`` is always parsed as JSON).
     filename:
         Used for error messages and, when ``payload`` is ``bytes`` or ``str``, for
         picking the parser (``.yaml`` selects YAML; ``.png`` is detected by magic
@@ -1723,6 +1696,16 @@ def import_character_card(
     OptionalDependencyError
         A YAML card was given and PyYAML is missing.
     """
+    if isinstance(payload, Path):
+        target = payload
+        label = filename or str(target)
+        if not target.is_file():
+            raise CharacterCardImportError(f"找不到角色卡文件：{target}。")
+        try:
+            return load_card(target)
+        except CharacterCardError as exc:
+            raise CharacterCardImportError(f"角色卡「{label}」读不了：{exc}") from exc
+
     suffix = Path(filename).suffix.lower()
 
     if isinstance(payload, (bytes, bytearray, memoryview)):
@@ -2026,6 +2009,7 @@ __all__ = [
     "SPEC_V2",
     "SPEC_V3",
     "SOURCE_PNG_KEY",
+    "V2_EXTENSION_COLUMNS",
     "CharacterBookImportError",
     "CharacterCardImportError",
     "FieldMapping",

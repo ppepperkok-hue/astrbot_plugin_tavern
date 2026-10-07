@@ -17,6 +17,7 @@ Nothing here imports ``astrbot``; the only framework touch point is the optional
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import time
@@ -26,7 +27,7 @@ from typing import Any
 
 from tavern.backends.base import GenerationRequest, PromptMessage, messages_to_openai
 from tavern.config import TavernConfig, as_str
-from tavern.st import chat_store, worldbook
+from tavern.st import chat_store, exporters, importers, worldbook
 from tavern.st.cards import CharacterCard, card_from_dict, scan_cards
 from tavern.st.prompt import (
     BuildResult,
@@ -37,6 +38,8 @@ from tavern.st.prompt import (
     default_preset,
     preset_from_dict,
 )
+
+logger = logging.getLogger(__name__)
 
 #: Bumped whenever the on-disk state layout changes.
 STATE_VERSION = 1
@@ -153,6 +156,9 @@ class PluginCore:
         self._card_files: dict[str, str] = {}
         self._book_files: dict[str, str] = {}
         self._store: chat_store.ChatStore | None = None
+        #: Human readable summary of the most recent import (see
+        #: :meth:`last_import_summary`).
+        self._last_import: str = ""
 
     # ------------------------------------------------------------------
     # persistence
@@ -278,44 +284,158 @@ class PluginCore:
     # import
     # ------------------------------------------------------------------
     def import_card_bytes(self, filename: str, payload: bytes, *, overwrite: bool = False) -> str:
-        """Persist a card file (``.png``/``.json``/``.yaml``) into the library."""
+        """Persist a card file (``.png``/``.json``/``.yaml``) into the library.
+
+        The bytes go through the SillyTavern importer, so an embedded
+        ``character_book`` is also extracted into a real world book beside the
+        card. :meth:`last_import_summary` carries the human readable summary.
+        """
         suffix = Path(filename).suffix.lower()
         if suffix not in (".png", ".json", ".yaml", ".yml"):
             raise TavernError(
                 f"\u4e0d\u652f\u6301\u7684\u5361\u7247\u683c\u5f0f\u300c{suffix or filename}\u300d\uff0c\u8bf7\u7528 .png/.json/.yaml\u3002"
             )
-        target = _safe_target(self.config.cards_dir, filename, overwrite=overwrite)
-        if suffix == ".png":
-            card = _card_from_png_bytes(payload)
-        elif suffix in (".yaml", ".yml"):
-            card = _card_from_yaml_bytes(payload)
-        else:
-            card = card_from_dict(json.loads(payload.decode("utf-8")))
+        try:
+            card = importers.import_character_card(payload, filename)
+        except importers.ImportError as exc:
+            raise TavernError(str(exc)) from exc
         if not card.name:
             raise TavernError(
                 "\u8fd9\u5f20\u89d2\u8272\u5361\u6ca1\u6709\u540d\u5b57\uff0c\u65e0\u6cd5\u5bfc\u5165\u3002"
             )
+        target = _safe_target(self.config.cards_dir, filename, overwrite=overwrite)
         target.write_bytes(payload)
         card.source_path = str(target)
         card_id = self._unique_id(card.name, self._cards)
         self._cards[card_id] = card
         self._card_files[card_id] = str(target)
+        summary = importers.describe_import(card)
+        book_id = self._extract_embedded_book(card, card_id)
+        if book_id:
+            summary = f"{summary}\uff1b{importers.describe_import(self._books[book_id])}"
+        self._last_import = summary
         self.save_state()
         return card_id
+
+    def _extract_embedded_book(self, card: CharacterCard, card_id: str) -> str:
+        """Write a card's embedded ``character_book`` out as a standalone book."""
+        if not importers.character_book_from_card(card):
+            return ""
+        try:
+            book = importers.import_character_book(card)
+        except importers.ImportError as exc:
+            logger.warning("card %s has an unreadable character_book: %s", card_id, exc)
+            return ""
+        target = _safe_target(self.config.worldbooks_dir, f"{card_id}.json", overwrite=True)
+        target.write_text(
+            json.dumps(exporters.export_lorebook(book), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        book_id = self._unique_id(book.name or card_id, self._books)
+        # Re-read from disk so the library holds exactly what a rescan will see.
+        self._books[book_id] = worldbook.load_world_book(target)
+        self._book_files[book_id] = str(target)
+        return book_id
+
+    def last_import_summary(self) -> str:
+        """Human readable summary of the most recent import."""
+        return self._last_import
+
+    def import_uploaded_file(self, filename: str, payload: bytes) -> str:
+        """Route one user supplied file to the matching importer.
+
+        Character cards (``.png``/``.json``/``.yaml``) go to the card importer,
+        lorebooks (``.json``/``.yaml``) to the world book importer; the file's
+        *content* breaks the tie when the name is ambiguous. Returns the summary
+        of what was imported.
+        """
+        name = filename or ""
+        suffix = Path(name).suffix.lower()
+        if suffix not in (".png", ".json", ".yaml", ".yml", ".charx"):
+            raise TavernError(
+                f"\u4e0d\u8ba4\u8bc6\u7684\u6587\u4ef6\u540d\u300c{name}\u300d\uff0c"
+                "\u89d2\u8272\u5361\u8bf7\u7528 .png/.json/.yaml\uff0c\u4e16\u754c\u4e66\u7528 .json/.yaml\u3002"
+            )
+        if suffix == ".png":
+            self.import_card_bytes(name, payload)
+            return self.last_import_summary()
+        if suffix == ".charx":
+            raise TavernError(
+                "CHARX \u5305\u6682\u4e0d\u652f\u6301\uff0c\u8bf7\u5bfc\u51fa\u6210 PNG \u6216 JSON \u518d\u4f20\u3002"
+            )
+        # A JSON/YAML payload can be either; look at what the file actually holds.
+        if self._looks_like_card(payload):
+            self.import_card_bytes(name, payload)
+            return self.last_import_summary()
+        self.import_worldbook_bytes(name, payload)
+        return self.last_import_summary()
+
+    @staticmethod
+    def _looks_like_card(payload: bytes) -> bool:
+        """True when the payload carries card fields rather than lorebook rows."""
+        try:
+            text = payload.decode("utf-8-sig")
+            probe = json.loads(text) if text.lstrip().startswith(("{", "[")) else None
+        except (UnicodeDecodeError, ValueError):
+            return False
+        if not isinstance(probe, dict):
+            return False
+        spec = str(probe.get("spec", ""))
+        # A V2/V3 card always names itself; a standalone lorebook envelope carries
+        # its rows under ``data.entries`` instead and must not be mistaken for one.
+        if spec.startswith("chara_card"):
+            return True
+        data = probe.get("data")
+        if isinstance(data, dict):
+            if "character_book" in data and "entries" not in data:
+                return True
+            return bool(data.get("name")) and "entries" not in data
+        if "entries" in probe:
+            return False
+        # V1 flat cards carry the persona fields at the top level.
+        return any(key in probe for key in ("name", "description", "personality", "first_mes"))
 
     def import_worldbook_bytes(
         self, filename: str, payload: bytes, *, overwrite: bool = False
     ) -> str:
-        """Persist a world book file into the library."""
+        """Persist a world book file into the library.
+
+        Accepts every lorebook shape the SillyTavern importer recognises
+        (``lorebook_v3``, the V2 export, AgnAI, Risu, NovelAI) instead of only the
+        V2 container this used to require.
+        """
         suffix = Path(filename).suffix.lower()
         if suffix not in (".json", ".yaml", ".yml"):
             raise TavernError("\u4e16\u754c\u4e66\u8bf7\u7528 .json\uff08\u6216 .yaml\uff09\u3002")
+        try:
+            text = payload.decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise TavernError(
+                f"\u4e16\u754c\u4e66\u4e0d\u662f UTF-8 \u6587\u672c\uff1a{exc}"
+            ) from exc
+        try:
+            if text.lstrip().startswith(("{", "[")):
+                probe = json.loads(text)
+            else:
+                try:
+                    import yaml  # type: ignore[import-not-found]
+                except ImportError as exc:  # pragma: no cover - optional dependency
+                    raise TavernError(
+                        "\u8fd9\u4efd\u4e16\u754c\u4e66\u662f YAML\uff0c\u9700\u8981\u5148\u88c5 PyYAML\u3002"
+                    ) from exc
+                probe = yaml.safe_load(text)
+            book = importers.import_lorebook(probe)
+        except (ValueError, KeyError, TypeError) as exc:
+            raise TavernError(
+                f"\u4e16\u754c\u4e66\u5185\u5bb9\u8bfb\u4e0d\u4e86\uff1a{exc}"
+            ) from exc
         target = _safe_target(self.config.worldbooks_dir, filename, overwrite=overwrite)
         target.write_bytes(payload)
-        book = worldbook.load_world_book(target)
+        book.source_path = str(target)
         book_id = self._unique_id(book.name or target.stem, self._books)
         self._books[book_id] = book
         self._book_files[book_id] = str(target)
+        self._last_import = importers.describe_import(book)
         self.save_state()
         return book_id
 

@@ -254,8 +254,83 @@ def _current_plugin() -> TavernPlugin | None:
     return plugin
 
 
+def _file_name(component: Any) -> str:
+    """Best effort file name of a message component (empty when it is not one)."""
+    name = getattr(component, "name", None)
+    if not isinstance(name, str) or not name:
+        return ""
+    if hasattr(component, "file_") or hasattr(component, "file"):
+        return name
+    return ""
+
+
+def _incoming_files(event: Any) -> list[str]:
+    """File names carried by ``event`` (empty when there is no file segment)."""
+    message = getattr(event, "message_obj", None)
+    components = getattr(message, "message", None) or []
+    names: list[str] = []
+    for component in components:
+        name = _file_name(component)
+        if name:
+            names.append(name)
+    return names
+
+
+async def _fetch_file(component: Any) -> bytes:
+    """Read a ``File`` segment as bytes, preferring the async accessor."""
+    getter = getattr(component, "get_file", None)
+    if callable(getter):
+        try:
+            blob = await getter()
+        except TypeError:
+            blob = getter()
+        if isinstance(blob, (bytes, bytearray)):
+            return bytes(blob)
+    path = getattr(component, "file_", "") or ""
+    if path and "://" not in str(path) and Path(str(path)).is_file():
+        return Path(str(path)).read_bytes()
+    raise TavernError(
+        f"\u62ff\u4e0d\u5230\u6587\u4ef6\u300c{getattr(component, 'name', '')}\u300d\u7684\u5185\u5bb9\u3002"
+    )
+
+
+async def _handle_incoming_files(plugin: TavernPlugin, event: Any) -> list[str]:
+    """Import every file attached to ``event`` and return the reply texts."""
+    if plugin.config.permissions.import_requires_admin and not _is_admin(event):
+        return ["\u53ea\u6709\u7ba1\u7406\u5458\u53ef\u4ee5\u5bfc\u5165\u6587\u4ef6\u3002"]
+    message = getattr(event, "message_obj", None)
+    components = getattr(message, "message", None) or []
+    replies: list[str] = []
+    for component in components:
+        name = _file_name(component)
+        if not name:
+            continue
+        try:
+            payload = await _fetch_file(component)
+        except TavernError as exc:
+            replies.append(str(exc))
+            continue
+        try:
+            summary = plugin.core.import_uploaded_file(name, payload)
+        except TavernError as exc:
+            replies.append(f"\u5bfc\u5165\u5931\u8d25\uff1a{exc}")
+            continue
+        replies.append(f"\u5bfc\u5165\u6210\u529fdesuwa\u3002{summary}")
+    return replies
+
+
 async def _handle_message(plugin: TavernPlugin, event: Any):
     """The actual message pipeline, independent of how it was invoked."""
+    # Files are handled before the trigger rules: a card upload carries no text,
+    # so ``is_triggered`` would drop it before the import could run.
+    if _incoming_files(event):
+        if not plugin.config.enabled:
+            return
+        event.stop_event()
+        for text in await _handle_incoming_files(plugin, event):
+            yield plugin._result(event, text)
+        return
+
     if not plugin.is_triggered(event):
         return
     scope = event.unified_msg_origin
@@ -573,7 +648,9 @@ def _register_commands(plugin_cls: Any) -> bool:
             return
         yield plugin._result(
             event,
-            "请把文件放进对应目录后执行 /tavern reload：\n"
+            "把文件直接发给机器人就能导入：角色卡用 .png/.json/.yaml，"
+            "世界书用 .json/.yaml（V2/V3/Agnai/Risu 都认）。\n"
+            "也可以自己放进目录后执行 /tavern reload：\n"
             f"角色卡: {plugin.config.cards_dir}\n"
             f"世界书: {plugin.config.worldbooks_dir}\n"
             f"预设: {plugin.config.presets_dir}",

@@ -43,6 +43,9 @@ from tavern.st.worldbook import POSITION_AT_DEPTH, WorldBook, entry_from_dict  #
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "imports"
 
 #: The 41 native camelCase names the two upstream converters touch, by hand.
+#: ``addMemo`` (``!!entry.comment``) and ``key_vector`` are written by upstream but
+#: have no counterpart in this plugin's ``WorldInfoEntry``, so the 42-row mapping
+#: table documents them in its docstring instead of giving them a column.
 EXPECTED_NATIVE_FIELDS: frozenset[str] = frozenset(
     {
         "key",
@@ -89,11 +92,19 @@ EXPECTED_NATIVE_FIELDS: frozenset[str] = frozenset(
     }
 )
 
-#: The 28 ``extensions.*`` columns ``convertWorldInfoToCharacterBook`` writes.
+#: Native fields that have no row in :data:`FIELD_MAPPING` at all: ``addMemo``
+#: (upstream writes ``!!entry.comment``) and the vector-index name.
+UNMAPPED_NATIVE_FIELDS: frozenset[str] = frozenset({"addMemo", "key_vector"})
+
+#: The 31 ``extensions.*`` columns the two upstream converters carry: 30 distinct
+#: keys, with ``position`` appearing both as a V2 core *string* and inside
+#: ``extensions`` as the full numeric enum.
 EXPECTED_V2_EXTENSION_KEYS: frozenset[str] = frozenset(
     {
         "position",
         "exclude_recursion",
+        "prevent_recursion",
+        "delay_until_recursion",
         "display_index",
         "probability",
         "useProbability",
@@ -103,8 +114,6 @@ EXPECTED_V2_EXTENSION_KEYS: frozenset[str] = frozenset(
         "group",
         "group_override",
         "group_weight",
-        "prevent_recursion",
-        "delay_until_recursion",
         "scan_depth",
         "match_whole_words",
         "use_group_scoring",
@@ -169,9 +178,16 @@ def test_field_mapping_table_covers_every_upstream_field() -> None:
     assert len(FIELD_MAPPING) == 42
 
     runtime_fields = {mapping.runtime for mapping in FIELD_MAPPING}
-    assert runtime_fields == EXPECTED_NATIVE_FIELDS
-    # ``entries`` is the container row: it names the book, not an entry field.
-    assert "entries" in runtime_fields
+    # 41 per-entry columns plus the ``entries`` container row, nothing else...
+    assert runtime_fields == (EXPECTED_NATIVE_FIELDS | {"key_vector"}) - UNMAPPED_NATIVE_FIELDS | {
+        "entries"
+    }
+    # ...and together with the two unmapped names that is every native field.
+    assert runtime_fields | UNMAPPED_NATIVE_FIELDS == EXPECTED_NATIVE_FIELDS | {
+        "entries",
+        "key_vector",
+    }
+    assert len(EXPECTED_NATIVE_FIELDS) == 41
 
     extension_columns = {
         mapping.v2.split(".", 1)[1]
@@ -183,22 +199,39 @@ def test_field_mapping_table_covers_every_upstream_field() -> None:
     core_columns = {
         mapping.v2 for mapping in FIELD_MAPPING if mapping.kind == "core" and mapping.v2 != "(none)"
     }
-    assert core_columns == EXPECTED_V2_CORE_FIELDS
+    # Three V2 core keys have no runtime counterpart row: the container itself,
+    # the spread ``extensions`` object and the constant ``use_regex`` flag.
+    assert core_columns == EXPECTED_V2_CORE_FIELDS - {"entries", "extensions", "use_regex"}
+    assert core_columns | {"entries", "extensions", "use_regex"} == EXPECTED_V2_CORE_FIELDS
 
-    # Every ``extensions.*`` row must also exist in the reverse key map, and the
-    # only field that is not snake_cased upstream is ``selectiveLogic``.
+    # Every ``extensions.*`` row must also exist in the reverse key map. Two
+    # runtime names are deliberately absent from that map because
+    # ``WorldInfoEntry`` keeps them only inside ``extensions``: ``group`` and
+    # ``outletName``.
+    assert "outletName" not in RUNTIME_TO_V2_EXTENSIONS
+    assert "group" not in RUNTIME_TO_V2_EXTENSIONS
     for mapping in FIELD_MAPPING:
         if mapping.kind != "extension" or mapping.v2 == "(none)":
             continue
         column = mapping.v2.split(".", 1)[1]
+        if mapping.runtime in ("group", "outletName"):
+            continue
         assert RUNTIME_TO_V2_EXTENSIONS[mapping.runtime] == column
     assert RUNTIME_TO_V2_EXTENSIONS["selectiveLogic"] == "selectiveLogic"
+    # The reverse map covers exactly the columns it can name.
+    assert set(RUNTIME_TO_V2_EXTENSIONS.values()) == EXPECTED_V2_EXTENSION_KEYS - {
+        "group",
+        "outlet_name",
+    }
 
 
 def test_native_row_fields_match_the_mapping_table() -> None:
     """``RUNTIME_CORE_FIELDS`` is the row key list; it must not drift from the table."""
     assert len(RUNTIME_CORE_FIELDS) == 41
-    assert set(RUNTIME_CORE_FIELDS) == EXPECTED_NATIVE_FIELDS - {"uid"}
+    # ``uid`` is the id column, not a row key; the two unmapped native names are
+    # still listed so an export cannot silently forget them.
+    assert set(RUNTIME_CORE_FIELDS) == (EXPECTED_NATIVE_FIELDS - {"uid"}) | {"key_vector"}
+    assert {"addMemo", "key_vector"} <= set(RUNTIME_CORE_FIELDS)
 
 
 # ---------------------------------------------------------------------------
@@ -479,12 +512,16 @@ def test_risu_lorebook_fixture() -> None:
 
 
 def test_bare_entry_map_and_single_entry() -> None:
-    """The catch-all: a raw ``{"0": {...}}`` map and a lone native entry."""
+    """The catch-all: a raw ``{"0": {...}}`` map, a V2 wrapper and a lone entry."""
     raw = {"0": {"key": ["a"], "content": "one", "order": 5}, "1": {"key": ["b"], "content": "two"}}
     assert detect_lorebook_format(raw) == "entries"
     book = import_lorebook(raw)
     assert [entry.content for entry in book.entries] == ["one", "two"]
     assert book.entries[0].insertion_order == 5
+
+    # A bare ``entries`` wrapper with no book level fields at all.
+    wrapped = import_lorebook({"entries": {"0": {"keys": ["w"], "content": "wrapped"}}})
+    assert wrapped.entries[0].keys == ["w"]
 
     single = import_lorebook({"key": ["solo"], "content": "only"})
     assert len(single) == 1
@@ -594,25 +631,37 @@ def test_import_chat_jsonl_skips_broken_lines_and_keeps_extras() -> None:
     good = json.dumps({"name": "C", "mes": "kept", "is_user": False, "extra": {"x": 1}})
     text = "\n".join([header, "{not json", "42", json.dumps({"foo": "bar"}), good])
     rows = import_chat_jsonl(text)
-    assert [row.get("mes") for row in rows[1:]] == ["kept"]
+    # The unparsable line and the bare number are dropped; the unknown *object*
+    # is kept verbatim (dropping unknown fields would lose data).
+    assert rows[-1]["mes"] == "kept"
+    assert {"foo": "bar"} in rows[1:]
+    assert len(rows) == 3
 
     # A stray second header is folded in instead of becoming a message.
-    rows = import_chat_jsonl("\n".join([header, json.dumps({"note_prompt": "hi"}), good]))
+    rows = import_chat_jsonl(
+        "\n".join([header, json.dumps({"user_name": "U2", "note_prompt": "hi"}), good])
+    )
     assert len(rows) == 2
     assert rows[0]["note_prompt"] == "hi"
+    assert rows[0]["user_name"] == "U"  # never overwritten by the stray header
 
 
 def test_import_chat_jsonl_normalises_header_for_chat_store() -> None:
-    """The header must already have the three keys ``chat_store`` reads."""
+    """The header must already carry the three keys ``chat_store`` reads."""
     rows = import_chat_jsonl(json.dumps({"note_prompt": "p", "note_interval": 3}))
     assert rows[0]["user_name"] == ""
     assert rows[0]["character_name"] == ""
-    assert rows[0]["chat_metadata"] == {}
-    assert rows[0]["note_prompt"] == "p"
+    # Inline note fields are collected into ``chat_metadata`` (where SillyTavern
+    # keeps them) rather than left at the top level of the header.
+    assert rows[0]["chat_metadata"] == {"note_prompt": "p", "note_interval": 3}
 
     # ``metadata`` (the older spelling) is moved into ``chat_metadata``.
     rows = import_chat_jsonl(json.dumps({"metadata": {"integrity": "abc"}}))
     assert rows[0]["chat_metadata"] == {"integrity": "abc"}
+
+    # ``name`` on a header line becomes the character name.
+    rows = import_chat_jsonl(json.dumps({"name": "Iris", "chat_metadata": {}}))
+    assert rows[0]["character_name"] == "Iris"
 
 
 def test_import_chat_jsonl_feeds_chat_store() -> None:
@@ -707,8 +756,8 @@ def test_import_character_card_from_png_prefers_ccv3() -> None:
     blob = (
         b"\x89PNG\r\n\x1a\n"
         + chunk(b"IHDR", ihdr)
-        + card_chunk(b"chara", v2)
-        + card_chunk(b"ccv3", v3)
+        + card_chunk("chara", v2)
+        + card_chunk("ccv3", v3)
         + chunk(b"IDAT", zlib.compress(b"\x00\x00\x00\x00"))
         + chunk(b"IEND", b"")
     )
