@@ -38,16 +38,14 @@ important ones are repeated here:
 
 from __future__ import annotations
 
-import logging
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, tzinfo
 from typing import Any, Protocol
 
+from tavern.log import logger
 from tavern.st.cards import CharacterCard
-
-logger = logging.getLogger(__name__)
 
 __all__ = [
     "DEFAULT_DISABLED_BLOCKS",

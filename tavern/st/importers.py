@@ -69,13 +69,13 @@ Only the standard library is used. ``PyYAML`` is optional and only needed when a
 from __future__ import annotations
 
 import json
-import logging
 import struct
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from tavern.log import logger
 from tavern.st.cards import (
     CharacterCard,
     CharacterCardError,
@@ -90,8 +90,6 @@ from tavern.st.worldbook import (
     WorldBook,
     WorldInfoEntry,
 )
-
-logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Spec constants

@@ -53,7 +53,6 @@ with real image data so image hosts do not reject it.
 from __future__ import annotations
 
 import json
-import logging
 import struct
 import zlib
 from collections.abc import Mapping
@@ -69,9 +68,6 @@ from tavern.st.importers import (
     number_to_v2_position,
 )
 from tavern.st.worldbook import WorldBook, WorldInfoEntry
-
-logger = logging.getLogger(__name__)
-
 
 #: The 28 runtime field names whose V2 home is ``extensions.*``, in the order
 #: ``convertWorldInfoToCharacterBook`` writes them (``endpoints_characters.js:682``).

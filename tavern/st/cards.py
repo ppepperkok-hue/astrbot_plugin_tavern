@@ -11,13 +11,12 @@ from __future__ import annotations
 import base64
 import binascii
 import json
-import logging
 import struct
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from tavern.log import logger
 
 #: PNG keywords used by SillyTavern to store the base64 encoded card JSON.
 #: Character Card V3 says an application that finds both chunks SHOULD prefer

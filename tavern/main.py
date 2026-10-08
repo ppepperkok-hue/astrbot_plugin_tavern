@@ -49,21 +49,21 @@ from tavern.core import (  # noqa: E402
     request_preview,
     split_message,
 )
+from tavern.log import logger  # noqa: E402
 
 PLUGIN_NAME = "astrbot_plugin_tavern"
-PLUGIN_VERSION = "0.1.0"
+PLUGIN_VERSION = "0.1.1"
 PLUGIN_AUTHOR = "ppepperkok-hue"
 PLUGIN_DESC = "酒馆风格角色扮演（角色卡 / 世界书 / 聊天记录）"
 
 #: Guarded imports: present inside AstrBot, tolerated in a plain checkout.
 try:  # pragma: no cover - exercised inside AstrBot
     import astrbot.api.message_components as Comp
-    from astrbot.api import AstrBotConfig, logger
+    from astrbot.api import AstrBotConfig
     from astrbot.api.event import AstrMessageEvent, MessageChain, filter
     from astrbot.api.star import Context, Star, register
 except Exception:  # noqa: BLE001 - tests import this module without AstrBot
     AstrBotConfig = Any  # type: ignore[assignment,misc]
-    logger = None  # type: ignore[assignment]
     Star = object  # type: ignore[assignment,misc]
     Context = Any  # type: ignore[assignment,misc]
     Comp = None  # type: ignore[assignment]
@@ -83,9 +83,12 @@ except Exception:  # noqa: BLE001 - tests import this module without AstrBot
 
 
 def _log(level: str, message: str) -> None:
-    """Log through AstrBot's logger when available, otherwise stay silent."""
-    if logger is None:
-        return
+    """Log through AstrBot's logger, or discard the line when standing alone.
+
+    ``logger`` is the object re-exported by :mod:`tavern.log`. An attribute access
+    *here* is what AstrBot's proxy resolves the caller from, so these lines are
+    attributed to this module and reach the plugin's own logger.
+    """
     getattr(logger, level, logger.info)(f"[tavern] {message}")
 
 
@@ -375,7 +378,7 @@ async def _handle_incoming_files(plugin: TavernPlugin, event: Any) -> list[str]:
         except TavernError as exc:
             replies.append(f"\u5bfc\u5165\u5931\u8d25\uff1a{exc}")
             continue
-        replies.append(f"\u5bfc\u5165\u6210\u529fdesuwa\u3002{summary}")
+        replies.append(f"\u5bfc\u5165\u6210\u529f\u3002{summary}")
     return replies
 
 

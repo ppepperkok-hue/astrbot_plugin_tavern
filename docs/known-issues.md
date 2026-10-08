@@ -200,3 +200,52 @@ star_map=["tavern.main='tavern.main'",
 | `backend.max_context_tokens` 默认 `0`（不裁剪） | 插件无法得知模型的真实上下文长度，猜错会静默删掉对话。填上才生效。 |
 | 外部酒馆**只读** | 酒馆也暴露 `/delete`、`/edit`。从运行中的酒馆**导入**是便利；**删掉用户自己的资料库**是在一个为聊天而装的插件里做的破坏性操作。有测试解析请求路由，出现写路由就红。 |
 | 回退默认关闭 | 回退意味着回答来自**另一个模型**。静默换模型比报错更糟，所以默认关，开启后在回复里明说。 |
+
+---
+
+## 7. 十三个模块用了 Python 内置 `logging`，市场因此拒收 —— 已修
+
+**症状：** 上架审核被驳回。不是因为行为，而是因为规范：插件必须且只能
+`from astrbot.api import logger`，严禁使用内置 `logging`。审核意见逐条点名了
+`logging.getLogger(__name__)` 出现的十三个文件。
+
+**为什么一直没被发现：日志照样打出来了。** 内置 `logging` 的调用会被 AstrBot 的
+root bridge 接住并正常输出，所以从终端上看一切正常——只是这些行**不属于插件自己的
+logger**，而是掉进了全局的。后果不显眼但真实：用户无法单独调这个插件的日志级别，
+因为它的日志和 AstrBot 核心混在同一个 logger 下。
+
+这和第 1 条、第 4 条是同一种病：**"看起来在工作"**。前两次是测试替宿主做了假设，
+这一次是"有输出"被当成了"输出到了正确的地方"。
+
+**修法：** 新增 `tavern/log.py` 作为**唯一**的日志出口，其余模块一律
+`from tavern.log import logger`。
+
+这里有一个不显眼但必须尊重的机制：`astrbot.api.logger` 不是 logger，而是一个代理
+（`astrbot/api/__init__.py:60` 的 `_PluginContextLogger`），它靠
+`sys._getframe(1)` 取**调用方模块名**，据此路由到该插件专属的 logger。
+
+**这排除了看起来最自然的那种重构。** 如果在 `tavern/log.py` 里包一层
+`def debug(msg, *a)`，那么调用方就永远是 `tavern.log`，所有日志都会被记到这个模块名下。
+正确做法是**把这个代理对象原样再导出**：`__getattr__` 在**属性访问那一刻**执行，
+所以谁写 `logger.debug(...)` 就算谁。
+
+**守住它的两道检查：**
+
+- `tools/check_logging.py`（门禁内）：纯文本规则——插件代码里不许出现 `import logging`
+  或 `logging.getLogger`，且只有 `tavern/log.py` 允许导入 `astrbot.api.logger`。
+  规则是文本层面的，就用文本检查守；靠人读十三个文件建立起来的规范，会在第十四个文件上失守。
+- `tools/verify_logging.py`（门禁内，需真 AstrBot）：**静态检查看不到归属。** 包一层函数
+  能通过上面每一条规则，同时把所有日志送进全局 `[Core]` logger。所以这一条真的起一个
+  AstrBot，故意放一个解析不了的角色卡让 `tavern/st/cards.py` 报 warning，然后要求那行
+  带着 `[astrbot_plugin_tavern]` 标签出来（AstrBot 用 logger 名去掉 `astrbot.plugin.`
+  前缀作为标签，掉进全局 logger 就会显示 `[Core]`）。
+
+实测输出：
+
+```
+[astrbot_plugin_tavern] [WARN] [st.cards:308]: skip character card broken.json: ...
+```
+
+**教训：** 一条规范如果只在被人指出来之后才被满足，那它下一次还会被违反。
+把它变成一条会红的检查，才算真的解决。
+

@@ -26,7 +26,7 @@ desc: |
   格式与行为语义来自 SillyTavern（AGPL-3.0）：本项目采用同一许可，
   以兼容其数据格式，并在需要时可直接复用其实现；相关来源与版权声明见
   仓库的 THIRD_PARTY_LICENSES.md 与 LICENSE。
-version: 0.1.0
+version: 0.1.1
 author: ppepperkok-hue
 repo: https://github.com/ppepperkok-hue/astrbot_plugin_tavern
 astrbot_version: ">=4.17,<5"

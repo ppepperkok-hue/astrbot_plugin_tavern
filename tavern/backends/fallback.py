@@ -32,6 +32,7 @@ from tavern.backends.base import (
     GenerationRequest,
     GenerationResult,
 )
+from tavern.log import logger
 
 __all__ = ["FallbackBackend", "FALLBACK_NOTE_TEMPLATE", "annotate", "build_fallback"]
 
@@ -67,7 +68,7 @@ class FallbackBackend:
             reason = str(exc)
             request.extra[MARKER] = True
             request.extra[REASON] = reason
-            _log_warning(f"外部酒馆失败，回退到 AstrBot 模型：{reason}")
+            logger.warning("外部酒馆失败，回退到 AstrBot 模型：%s", reason)
             return await self.secondary.generate(request)
 
     async def close(self) -> None:
@@ -76,7 +77,7 @@ class FallbackBackend:
             try:
                 await backend.close()
             except Exception as exc:  # noqa: BLE001 - shutdown must not raise
-                _log_warning(f"closing {getattr(backend, 'name', backend)} failed: {exc}")
+                logger.warning("closing %s failed: %s", getattr(backend, "name", backend), exc)
 
 
 def annotate(text: str, reason: str, *, notice: bool) -> str:
@@ -133,22 +134,6 @@ class _LazyBackend:
         if self._backend is not None:
             await self._backend.close()
             self._backend = None
-
-
-def _log_warning(message: str) -> None:
-    """Log through astrbot when present, ``logging`` otherwise.
-
-    The backend layer is importable outside AstrBot (the whole ``st`` layer is), so
-    this cannot assume the host.
-    """
-    try:
-        from astrbot.api import logger  # type: ignore[import-not-found]
-    except Exception:  # noqa: BLE001 - no astrbot: fall back to stdlib
-        import logging
-
-        logging.getLogger(__name__).warning(message)
-        return
-    logger.warning(message)
 
 
 def _shorten(reason: str, limit: int = 120) -> str:

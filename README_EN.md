@@ -9,7 +9,7 @@
 ![License](https://img.shields.io/badge/license-AGPL--3.0-7c6cf0)
 ![Python](https://img.shields.io/badge/python-3.10%2B-3776ab)
 ![AstrBot](https://img.shields.io/badge/AstrBot-%3E%3D4.17-4b8bf5)
-![Version](https://img.shields.io/badge/version-0.1.0-d6aa60)
+![Version](https://img.shields.io/badge/version-0.1.1-d6aa60)
 
 [简体中文](README.md) · **English**
 

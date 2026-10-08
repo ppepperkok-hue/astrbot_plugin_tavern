@@ -66,12 +66,11 @@ caller: :meth:`check_timed_effects` at the start of a scan (:4747) and
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, NamedTuple
 
-logger = logging.getLogger(__name__)
+from tavern.log import logger
 
 __all__ = [
     "EFFECT_TYPES",

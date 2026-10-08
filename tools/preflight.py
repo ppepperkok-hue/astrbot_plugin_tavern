@@ -56,6 +56,30 @@ PLACEHOLDER_VALUES = ("your_", "xxx", "placeholder", "example", "changeme", "tod
 
 PLACEHOLDER_WORDS = ("TODO", "FIXME", "XXX", "TBD", "WIP", "待补", "待写", "占位")
 
+#: Voice that belongs to *working on* this project, not to the project. These are
+#: sentence-final tics from the development conversation, and one of them shipped: a
+#: user-facing string in `tavern/main.py` read "导入成功desuwa。" -- visible to every user
+#: who imported a card, and invisible to every test, because the tests assert on the
+#: data the reply carries, not on how it reads.
+#:
+#: Escaped kana are included because the source writes some Chinese as `\uXXXX`, which
+#: hides the text from a reader and from a naive search alike.
+VOICE_LEAKS = (
+    r"desuwa",
+    r"masuwa",
+    r"mashitawa",
+    r"desuno",
+    r"\\u3067\\u3059",  # です
+    r"\\u307e\\u3059",  # ます
+    r"\\u308f",  # わ
+    r"\\u3066\\u3088",  # てよ
+)
+
+#: Files exempt from the voice scan because they *define* the patterns; scanning this
+#: file would only flag its own token list. Kept to one entry on purpose -- an exception
+#: list that grows stops being an exception.
+VOICE_SCAN_EXEMPT = {"tools/preflight.py"}
+
 
 def tracked_files() -> list[str]:
     out = subprocess.run(
@@ -100,6 +124,11 @@ def versions() -> dict[str, str]:
     readme_en = (REPO / "README_EN.md").read_text(encoding="utf-8")
     badges_en = set(re.findall(r"badge/version-([0-9][^-]*)-", readme_en))
     found["README_EN.md badge"] = ", ".join(sorted(badges_en)) or "?"
+    # The dev project's own version. It drifted one release behind the plugin's the
+    # first time the plugin was bumped, which is exactly how a fifth place hides.
+    pyproject = (REPO / "pyproject.toml").read_text(encoding="utf-8")
+    match = re.search(r'^version\s*=\s*"([^"]+)"', pyproject, re.M)
+    found["pyproject.toml"] = match.group(1) if match else "?"
     return found
 
 
@@ -214,6 +243,34 @@ def main(argv: list[str] | None = None) -> int:
             for match in re.finditer(rf"\b{word}\b", text):
                 line = text[: match.start()].count("\n") + 1
                 problems.append(f"{name}:{line} ships a placeholder ({word})")
+
+    # 5. development voice in anything a user can read
+    for name in files:
+        path = REPO / name
+        if name in VOICE_SCAN_EXEMPT:
+            continue
+        if path.suffix.lower() not in {
+            ".py",
+            ".md",
+            ".js",
+            ".html",
+            ".css",
+            ".json",
+            ".yaml",
+            ".yml",
+        }:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for pattern in VOICE_LEAKS:
+            for match in re.finditer(pattern, text):
+                line = text[: match.start()].count("\n") + 1
+                problems.append(
+                    f"{name}:{line} contains working-voice text ({match.group(0)!r}) "
+                    "that would ship to users"
+                )
 
     print()
     if problems:

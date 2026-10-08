@@ -77,13 +77,12 @@ numeric ``delayUntilRecursion`` level (see ``tools/st-oracle/STATUS.md`` finding
 
 from __future__ import annotations
 
-import logging
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from tavern.log import logger
 
 #: JS ``KNOWN_DECORATORS`` (world-info.js:100), verbatim. Prefix-matched with
 #: ``startsWith``, see the module docstring.

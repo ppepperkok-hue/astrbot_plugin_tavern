@@ -44,12 +44,11 @@ by the fact that this module is a dependency-free leaf):
 
 from __future__ import annotations
 
-import logging
 import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from tavern.log import logger
 
 __all__ = [
     "JOINER",

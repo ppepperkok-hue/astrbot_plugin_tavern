@@ -100,11 +100,10 @@ Deliberate divergences from the JavaScript
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any, Literal, NamedTuple
 
-logger = logging.getLogger(__name__)
+from tavern.log import logger
 
 __all__ = [
     "SCAN_STATE_INITIAL",

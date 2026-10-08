@@ -28,11 +28,10 @@ Deliberate differences from the browser code (see ``research/08-s2-prompt-brief.
 from __future__ import annotations
 
 import json
-import logging
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from tavern.log import logger
 
 __all__ = [
     "ChatCompletion",

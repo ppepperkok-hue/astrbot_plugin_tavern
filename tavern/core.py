@@ -17,7 +17,6 @@ Nothing here imports ``astrbot``; the only framework touch point is the optional
 from __future__ import annotations
 
 import json
-import logging
 import os
 import re
 import time
@@ -27,6 +26,7 @@ from typing import Any
 
 from tavern.backends.base import GenerationRequest, PromptMessage, messages_to_openai
 from tavern.config import TavernConfig, as_str
+from tavern.log import logger
 from tavern.st import chat_store, exporters, importers, worldbook
 from tavern.st.cards import CharacterCard, card_from_dict, scan_cards
 from tavern.st.prompt import (
@@ -40,8 +40,6 @@ from tavern.st.prompt import (
     preset_from_dict,
     trim_history,
 )
-
-logger = logging.getLogger(__name__)
 
 #: Bumped whenever the on-disk state layout changes.
 STATE_VERSION = 1

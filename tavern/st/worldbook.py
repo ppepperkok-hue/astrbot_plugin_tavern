@@ -31,7 +31,6 @@ layer lives in the parser so that unknown exporter variants keep working.
 from __future__ import annotations
 
 import json
-import logging
 import math
 import random
 import re
@@ -43,14 +42,13 @@ from typing import Any
 # The scan itself (``\x01``-joined haystack, global scan fields, recursion
 # buffer) lives in the mirror port of ``WorldInfoBuffer``; this module keeps the
 # book/entry model and the activation pipeline on top of it.
+from tavern.log import logger
 from tavern.st.wi_buffer import (
     SCAN_STATE_INITIAL,
     WorldInfoBuffer,
     WorldInfoBufferConfig,
 )
 from tavern.st.wi_decorators import apply_decorators
-
-logger = logging.getLogger(__name__)
 
 # --- Insertion positions (SillyTavern ``position`` field) --------------------
 POSITION_BEFORE_CHAR = 0

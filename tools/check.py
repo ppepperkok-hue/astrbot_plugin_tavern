@@ -92,6 +92,12 @@ def main() -> int:
     # "transparency" is a drawn checkerboard, violates that silently -- the file still
     # exists, so nothing else complains.
     results.append(run("logo", [sys.executable, "tools/check_logo.py"]))
+    # The marketplace rule: log through `astrbot.api.logger`, never stdlib `logging`.
+    # v0.1.0 was rejected for exactly this, in thirteen files, so the rule gets a check
+    # that fails the moment a fourteenth module reaches for `logging` again. A rule
+    # verified only by a human reading thirteen files is violated again by the
+    # fourteenth.
+    results.append(run("logging rule", [sys.executable, "tools/check_logging.py", "--quiet"]))
     # A README pointing at a file that does not exist reads as carelessness and is
     # invisible to anyone who does not click it. Cheap enough to always check.
     results.append(run("readme links", [sys.executable, "tools/check_readme_links.py", "--quiet"]))
@@ -169,6 +175,12 @@ def main() -> int:
         # arguments -- so the end-to-end script, which calls `on_message` directly,
         # cannot see it. This drives the real `CommandFilter`.
         results.append(run("command params", [str(interpreter), "tools/verify_cmd_params.py"]))
+        # `astrbot.api.logger` is a proxy that resolves the *calling module* to route each
+        # line to the plugin's own logger. Wrapping it in a helper satisfies every textual
+        # rule while sending everything to the global `[Core]` logger, so the static
+        # `logging rule` check cannot see it. This runs a real AstrBot, makes a port
+        # module log, and requires the line to come out tagged with the plugin's name.
+        results.append(run("logging routing", [str(interpreter), "tools/verify_logging.py"]))
         # The release gate: unpack the *published archive* into a clean AstrBot root and
         # run the plugin from there. Every other check runs against the working tree,
         # where `tests/`, `tools/` and a `data/plugins/` junction are all importable;

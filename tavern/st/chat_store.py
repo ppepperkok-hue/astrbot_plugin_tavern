@@ -64,7 +64,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import logging
 import os
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
@@ -72,9 +71,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from tavern.log import logger
 from tavern.st.worldbook import greedy_token_count
-
-logger = logging.getLogger(__name__)
 
 #: Characters Windows forbids in a file name.
 ILLEGAL_FILENAME_CHARS: tuple[str, ...] = ("\\", "/", ":", "*", "?", '"', "<", ">", "|")
