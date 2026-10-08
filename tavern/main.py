@@ -52,7 +52,7 @@ from tavern.core import (  # noqa: E402
 from tavern.log import logger  # noqa: E402
 
 PLUGIN_NAME = "astrbot_plugin_tavern"
-PLUGIN_VERSION = "0.1.1"
+PLUGIN_VERSION = "0.1.2"
 PLUGIN_AUTHOR = "ppepperkok-hue"
 PLUGIN_DESC = "酒馆风格角色扮演（角色卡 / 世界书 / 聊天记录）"
 
