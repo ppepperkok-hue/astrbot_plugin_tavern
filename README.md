@@ -4,6 +4,13 @@
 
 # astrbot_plugin_tavern · 酒馆角色扮演
 
+<!-- moe-counter:start -->
+<p align="center">
+  <a href="https://github.com/journey-ad/Moe-Counter"><img src="https://count.getloli.com/get/@ppepperkok-hue.astrbot_plugin_tavern?theme=asoul" alt="README views" width="360" /></a>
+  <br /><sub>README views · Image requests, not unique visitors.</sub>
+</p>
+<!-- moe-counter:end -->
+
 *把 SillyTavern 的角色卡、世界书与聊天体验带进 AstrBot，在 QQ / 微信里玩角色扮演。*
 
 ![License](https://img.shields.io/badge/license-AGPL--3.0-7c6cf0)
