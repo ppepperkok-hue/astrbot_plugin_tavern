@@ -5,10 +5,8 @@
 # astrbot_plugin_tavern · 酒馆角色扮演
 
 <!-- moe-counter:start -->
-<p align="center">
-  <a href="https://github.com/journey-ad/Moe-Counter"><img src="https://count.getloli.com/get/@ppepperkok-hue.astrbot_plugin_tavern?theme=asoul" alt="README views" width="360" /></a>
-  <br /><sub>README views · Image requests, not unique visitors.</sub>
-</p>
+<a href="https://github.com/journey-ad/Moe-Counter"><img src="https://count.getloli.com/get/@ppepperkok-hue.astrbot-tavern?theme=asoul" alt="README views" width="360" /></a>
+<br /><sub>README 阅读 · 按图片请求计数</sub>
 <!-- moe-counter:end -->
 
 *把 SillyTavern 的角色卡、世界书与聊天体验带进 AstrBot，在 QQ / 微信里玩角色扮演。*
