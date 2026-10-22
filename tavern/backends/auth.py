@@ -113,7 +113,12 @@ class SillyTavernSession:
         self.base_url = base_url.rstrip("/")
         self.cookie = cookie.strip()
         self._csrf_token = csrf_token.strip()
-        self._csrf_fetched_at = 0.0
+        # ``None`` means "we hold a token, but not one we fetched ourselves", so
+        # its age is unknown. A numeric timestamp is only ever written after a
+        # real ``GET /csrf-token``. Using ``0.0`` here made "never fetched" look
+        # like a fetch that happened at boot, which is indistinguishable from a
+        # recent fetch while ``time.monotonic()`` is still smaller than the TTL.
+        self._csrf_fetched_at: float | None = None
         self.verify_ssl = verify_ssl
         self.timeout = timeout
         self._client: Any = None
@@ -143,6 +148,12 @@ class SillyTavernSession:
     async def _ensure_csrf(self, force: bool = False) -> None:
         """Fetch ``/csrf-token`` when we do not have a fresh one.
 
+        "Fresh" means *we* fetched it less than :data:`CSRF_TTL_SECONDS` ago. A
+        token handed to the constructor may be arbitrarily old, so its age is
+        unknown and it is revalidated against ``/csrf-token`` before the first
+        ``POST``; the server's answer, not host uptime, decides whether it is
+        usable.
+
         A non-JSON body means CSRF is disabled on the ST side (``--disableCsrf``),
         so the empty token is not an error. A *failure* status is: every ``/api/*``
         route sits behind the login middleware, so the usual cause is a missing or
@@ -151,10 +162,12 @@ class SillyTavernSession:
         front of ST is not a credential problem and saying so sends the user to fix
         the wrong thing.
         """
+        fetched_at = self._csrf_fetched_at
         if (
             self._csrf_token
             and not force
-            and (time.monotonic() - self._csrf_fetched_at) < CSRF_TTL_SECONDS
+            and fetched_at is not None
+            and (time.monotonic() - fetched_at) < CSRF_TTL_SECONDS
         ):
             return
         client = await self._get_client()

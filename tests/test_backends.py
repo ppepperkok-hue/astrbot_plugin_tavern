@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -285,6 +286,50 @@ def test_st_generate_refreshes_once_on_401_and_retries() -> None:
     posts = [call for call in client.calls if call[0] == "POST"]
     assert len(posts) == 2, "the request must be retried exactly once"
     assert [call[0] for call in client.calls] == ["GET", "POST", "GET", "POST"]
+
+
+@pytest.mark.parametrize("start", [0.0, 100.0])
+def test_st_csrf_ttl_ignores_small_monotonic_uptime(
+    monkeypatch: pytest.MonkeyPatch, start: float
+) -> None:
+    """A configured token's age is unknown, not "fetched at boot".
+
+    ``time.monotonic()`` is host uptime, which on a fresh runner is smaller than
+    ``CSRF_TTL_SECONDS``. The old ``0.0`` sentinel made "never fetched" look like a
+    fetch seconds ago, so the first call skipped ``/csrf-token`` and the sequence
+    became POST, GET, POST. ``0.0`` and ``100.0`` pin both ends of that window
+    (the latter is the CI reproducer).
+    """
+    import tavern.backends.auth as auth
+
+    clock = {"now": start}
+    monkeypatch.setattr(auth, "time", SimpleNamespace(monotonic=lambda: clock["now"]))
+
+    client = _FakeStClient(token="tok-2", reject_first_post=403)
+    backend = _st_backend(client, csrf_token="stale")
+    assert backend._csrf_fetched_at is None, "a supplied token has no known fetch time"
+
+    assert _run(backend.generate(_st_request())).text == "hello"
+    assert [call[0] for call in client.calls] == ["GET", "POST", "GET", "POST"]
+    assert client.calls[0][2] == "stale", "the client is built with the configured token"
+    assert client.calls[1][2] == "tok-2", "the server token replaces it before the POST"
+    assert client.calls[3][2] == "tok-2", "the retry must use the refreshed token"
+    assert backend._csrf_token == "tok-2"
+    assert backend._csrf_fetched_at == start
+    client.reject_first_post = 0  # the one forced 403 is spent
+
+    # Inside the TTL the fetched token is reused without another GET.
+    clock["now"] = start + 299.0
+    client.calls.clear()
+    assert _run(backend.generate(_st_request())).text == "hello"
+    assert [call[0] for call in client.calls] == ["POST"]
+    assert client.calls[0][2] == "tok-2"
+
+    # At the TTL boundary it is fetched again, once, before the POST.
+    clock["now"] = start + 300.0
+    client.calls.clear()
+    assert _run(backend.generate(_st_request())).text == "hello"
+    assert [call[0] for call in client.calls] == ["GET", "POST"]
 
 
 def test_st_generate_does_not_loop_when_the_retry_also_fails() -> None:
