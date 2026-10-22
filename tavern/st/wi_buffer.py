@@ -20,8 +20,8 @@ Faithful details that look like accidents but are on purpose:
 * ``MIN_ACTIVATIONS`` passes deliberately skip the recursion buffer
   (``world-info.js:322-325``).
 
-Deliberate divergences from the JavaScript (all forced by the host language or
-by the fact that this module is a dependency-free leaf):
+Deliberate divergences from the JavaScript (forced by the host language, plus the
+bounded-regex wrapper):
 
 * The class is *not* exported from ``tavern/st/__init__.py``; import the module
   directly.
@@ -34,12 +34,16 @@ by the fact that this module is a dependency-free leaf):
 * The globals ``world_info_depth`` and ``world_info_case_sensitive`` are read
   from :class:`WorldInfoBufferConfig` instead of module-level variables.
 * ``parseRegexFromString`` / ``escapeRegex`` (``world-info.js:2901``) are
-  reimplemented here so the module stays import-free. The Python flag set cannot
-  express ``g`` / ``y`` (JS-only), so those are accepted silently while ``u``
-  and ``s`` keep their Python meaning.
-* ``re.error`` replaces ``RegExp`` construction failures; Python rejects a few
-  patterns JavaScript accepts (e.g. ``a{2,1}``) and vice versa (e.g. ``(?<name>)``
-  is a lookbehind in JavaScript and a group name in Python).
+  reimplemented here. The Python flag set cannot express ``g`` / ``y``
+  (JS-only), so those are accepted silently while ``u`` and ``s`` keep their
+  Python meaning.
+* Regex keys are compiled and searched through
+  :mod:`tavern.st.regex_safety`, which puts a hard wall-clock timeout on every
+  match. An imported ``/(a+)+$/`` key must not be able to stall the turn loop.
+* ``regex.error`` replaces ``RegExp`` construction failures; Python rejects a
+  few patterns JavaScript accepts (e.g. ``a{2,1}``) and vice versa (e.g.
+  ``(?<name>)`` is a lookbehind in JavaScript and a group name in Python).
+  The accepted syntax is otherwise unchanged by the timeout wrapper.
 """
 
 from __future__ import annotations
@@ -49,6 +53,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from tavern.log import logger
+from tavern.st.regex_safety import compile_bounded, search_bounded
 
 __all__ = [
     "JOINER",
@@ -136,12 +141,13 @@ def escape_regex(text: str) -> str:
     return _REGEX_SPECIALS.sub(r"\\\g<0>", str(text))
 
 
-def parse_regex_from_string(text: str) -> re.Pattern[str] | None:
+def parse_regex_from_string(text: str) -> Any | None:
     """Port of ``parseRegexFromString`` (``world-info.js:2901-2926``).
 
     Returns ``None`` for anything that is not a valid ``/pattern/flags`` key,
     including patterns carrying an unescaped ``/`` delimiter
-    (``world-info.js:2913``).
+    (``world-info.js:2913``). The compiled pattern is timeout-aware; see
+    :mod:`tavern.st.regex_safety`.
     """
     match = _REGEX_KEY.match(str(text))
     if not match:
@@ -163,10 +169,7 @@ def parse_regex_from_string(text: str) -> re.Pattern[str] | None:
         elif letter not in _REGEX_FLAGS_IGNORED:
             return None
 
-    try:
-        return re.compile(pattern, compiled)
-    except re.error:
-        return None
+    return compile_bounded(pattern, compiled)
 
 
 def build_scan_data(global_scan_data: Mapping[str, Any] | None = None) -> dict[str, str]:
@@ -332,7 +335,7 @@ class WorldInfoBuffer:
         # the other options
         key_regex = parse_regex_from_string(needle)
         if key_regex:
-            return key_regex.search(haystack) is not None
+            return search_bounded(key_regex, haystack)
 
         # Otherwise we do normal matching of plaintext with the chosen entry settings
         haystack = self._transform_string(haystack, entry)

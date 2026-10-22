@@ -62,6 +62,8 @@ import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
 
+from tavern.st.regex_safety import compile_bounded, search_bounded
+
 #: JS ``world_info_case_sensitive`` (world-info.js:77).
 world_info_case_sensitive: bool = False
 #: JS ``world_info_match_whole_words`` (world-info.js:78).
@@ -113,13 +115,17 @@ def escape_regex(value: Any) -> str:
     return _REGEX_META.sub(r"\\\g<0>", "" if value is None else str(value))
 
 
-def parse_regex_from_string(input: str) -> re.Pattern[str] | None:
+def parse_regex_from_string(input: str) -> Any | None:
     """JS ``parseRegexFromString`` (world-info.js:2901-2926).
 
     Returns the compiled regex, or ``None`` for each ``return null`` branch:
     a string that is not delimited, a pattern holding an unescaped ``/``, a
     pattern Python cannot compile, or repeated flags (JS's ``RegExp`` constructor
     throws on ``'ii'`` and the ``catch`` returns ``null``).
+
+    Compilation goes through :func:`tavern.st.regex_safety.compile_bounded`, so
+    the result carries the ``regex`` package's per-search timeout. The accepted
+    syntax and flags are unchanged.
     """
     # Extracting the regex pattern and flags
     match = _REGEX_DELIMITED.match(input)
@@ -142,10 +148,7 @@ def parse_regex_from_string(input: str) -> re.Pattern[str] | None:
     python_flags = 0
     for flag in flags:
         python_flags |= _PY_REGEX_FLAGS[flag]
-    try:
-        return re.compile(pattern, python_flags)
-    except re.error:
-        return None
+    return compile_bounded(pattern, python_flags)
 
 
 def is_valid_regex(input: str) -> bool:
@@ -288,7 +291,7 @@ def match_keys(
     # other options. JS builds the RegExp on every call, so a ``g`` flag is inert.
     key_regex = parse_regex_from_string(needle)
     if key_regex is not None:
-        return key_regex.search(haystack) is not None
+        return search_bounded(key_regex, haystack)
 
     # Otherwise we do normal matching of plaintext with the chosen entry settings
     haystack = transform_string(haystack, entry, case_sensitive=case_sensitive)

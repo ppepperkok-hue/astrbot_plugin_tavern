@@ -8,7 +8,12 @@ version = "0.1.2"
 description = "SillyTavern-style character roleplay (cards, world info, chats) for AstrBot"
 license = "AGPL-3.0-or-later"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+  # Per-search wall-clock timeout for imported world-book regex keys. The
+  # stdlib `re` engine cannot be interrupted, so a hostile `/(a+)+$/` key could
+  # stall the turn loop (see tavern/st/regex_safety.py).
+  "regex>=2023.1.1",
+]
 
 [project.optional-dependencies]
 # Optional: PNG image cards only need Pillow for the *image* side; the card

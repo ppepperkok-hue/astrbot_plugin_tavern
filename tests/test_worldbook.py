@@ -131,7 +131,10 @@ def test_disabled_and_zero_probability_entries_never_fire(book) -> None:
 
 def test_probability_can_suppress_entries(book) -> None:
     settings = WorldBookSettings()
-    settings.rng.randint = lambda a, b: 100  # type: ignore[method-assign]
+    # The engine rolls with ``rng.random()`` (world-info.js:4922 uses
+    # ``Math.random()``), not ``rng.randint``. Patching the unused method made
+    # this test pass 99% of the time by accident.
+    settings.rng.random = lambda: 0.99  # type: ignore[method-assign]
     book.entries[1].probability = 1
     result = activate([book], ["the shipwreck of the Sundered"], settings=settings)
     assert 1 not in ids(result)

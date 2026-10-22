@@ -43,6 +43,7 @@ from typing import Any
 # buffer) lives in the mirror port of ``WorldInfoBuffer``; this module keeps the
 # book/entry model and the activation pipeline on top of it.
 from tavern.log import logger
+from tavern.st.regex_safety import compile_bounded, search_bounded
 from tavern.st.wi_buffer import (
     SCAN_STATE_INITIAL,
     WorldInfoBuffer,
@@ -395,8 +396,14 @@ def is_regex_key(key: str) -> bool:
     return bool(match) and "/" in key.strip()[1:]
 
 
-def compile_key(key: str, case_sensitive: bool) -> re.Pattern[str] | None:
-    """Compile one key into a regex; regex keys keep their own flags."""
+def compile_key(key: str, case_sensitive: bool) -> Any | None:
+    """Compile one key into a regex; regex keys keep their own flags.
+
+    Plain-text keys stay on stdlib ``re`` (their pattern is escaped, so it
+    cannot backtrack catastrophically). ``/pattern/flags`` keys go through
+    :mod:`tavern.st.regex_safety`, which enforces a wall-clock timeout at
+    search time.
+    """
     flags = 0 if case_sensitive else re.IGNORECASE
     stripped = key.strip()
     match = _REGEX_KEY.match(stripped)
@@ -410,11 +417,10 @@ def compile_key(key: str, case_sensitive: bool) -> re.Pattern[str] | None:
         ):
             if letter in flag_letters:
                 flags |= flag
-        try:
-            return re.compile(pattern, flags)
-        except re.error as exc:
-            logger.warning("invalid world info regex %r: %s", key, exc)
-            return None
+        compiled = compile_bounded(pattern, flags)
+        if compiled is None:
+            logger.warning("invalid world info regex %r", key)
+        return compiled
     try:
         return re.compile(re.escape(stripped), flags)
     except re.error:
@@ -445,7 +451,7 @@ def key_matches(
             continue
         if is_regex_key(key):
             pattern = compile_key(key, case_sensitive)
-            if pattern is not None and pattern.search(haystack):
+            if pattern is not None and search_bounded(pattern, haystack):
                 return True
         elif whole_words:
             if _whole_word_match(haystack, key, case_sensitive):

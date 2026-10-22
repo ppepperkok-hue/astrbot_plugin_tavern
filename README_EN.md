@@ -50,6 +50,9 @@ plugin i https://github.com/ppepperkok-hue/astrbot_plugin_tavern
 
 Then open *Plugins → 酒馆角色扮演 → Actions → Plugin configuration*. The defaults work as-is.
 
+> [!NOTE]
+> World-book regex keys require the `regex` package: it is the only engine that can interrupt a catastrophic match (for example `/(a+)+$/`). Without it those keys are disabled; ordinary keyword matching keeps working.
+
 > [!IMPORTANT]
 > Keep your data out of the plugin directory: installs and updates overwrite it. Cards, world books, presets and chats belong under the AstrBot data directory (see the Chinese README's *Data and directories* section).
 

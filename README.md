@@ -75,7 +75,7 @@ plugin i https://github.com/ppepperkok-hue/astrbot_plugin_tavern
 3. 群聊需要 @机器人，或以唤醒词开头（默认 `酒馆`）。
 
 > [!NOTE]
-> 依赖只有 `httpx`（调用外部酒馆时）以及可选的 `pillow`（读写 PNG 角色卡）与 `pyyaml`（导入 `.yaml` 卡）。都不装也能跑，只是对应功能不可用。
+> 依赖只有 `regex`（世界书正则键必须用它，才能在恶意或灾难性回溯的模式上设硬超时；不装则正则键停用）、`httpx`（调用外部酒馆时）以及可选的 `pillow`（读写 PNG 角色卡）与 `pyyaml`（导入 `.yaml` 卡）。后三者不装也能跑，只是对应功能不可用。
 
 ## 📖 指令
 
