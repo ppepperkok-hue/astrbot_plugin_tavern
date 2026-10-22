@@ -1,34 +1,70 @@
-name: Python Package using Conda
+# Offline CI for the Tavern plugin.
+#
+# Why this path: `.github/workflows/python-package-conda.yml` is the workflow file this
+# repository already has, and the path is what identifies a workflow on GitHub, so that
+# file is reused instead of adding a second one. Only the body is replaced; the display
+# name is `CI` now, because nothing here uses Conda. The template body it replaces could
+# not run at all: its first install step reads `environment.yml`, a file this repository
+# has never had, so run 39810599278 died with
+# "EnvironmentFileNotFound: .../environment.yml file not found".
+#
+# These are the gates already used locally, minus everything that needs a live
+# AstrBot host: tools/astrbot_smoke.py, tools/astrbot_e2e.py, tools/verify_panel.py,
+# tools/verify_cmd_params.py, tools/verify_logging.py and tools/release_check.py are
+# NOT run here. tools/check.py prints that block as "SKIPPED (no interpreter)", so this
+# job proves the static gates and the offline suite only -- it is not integration
+# coverage, and it makes no claim about a real AstrBot instance.
+name: CI
 
-on: [push]
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build-linux:
+  checks:
+    name: static gates and tests (Python 3.11)
     runs-on: ubuntu-latest
-    strategy:
-      max-parallel: 5
-
+    timeout-minutes: 20
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v3
-      with:
-        python-version: '3.10'
-    - name: Add conda to system path
-      run: |
-        # $CONDA is an environment variable pointing to the root of the miniconda directory
-        echo $CONDA/bin >> $GITHUB_PATH
-    - name: Install dependencies
-      run: |
-        conda env update --file environment.yml --name base
-    - name: Lint with flake8
-      run: |
-        conda install flake8
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Test with pytest
-      run: |
-        conda install pytest
-        pytest
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      # Deliberately *not* `pip install -e .`: pyproject.toml declares no explicit
+      # package layout, so an editable install would run flat-layout discovery across
+      # several top-level directories. The tests import `tavern` straight from the
+      # checkout. Ruff is pinned to the version the local gate was verified with, so a
+      # new release cannot turn the lint job red on its own; regex/PyYAML/Pillow are the
+      # runtime dependency plus the two extras the check scripts import.
+      - name: Install test and static-analysis dependencies
+        run: |
+          python -m pip install --disable-pip-version-check \
+            "regex>=2023.1.1" "PyYAML>=6" "pillow>=10" "pytest>=8" "ruff==0.14.14"
+
+      # One entry point for: manifest, published-archive size (git archive of HEAD),
+      # logo, logging rule, README links, README render, preflight, panel assets, known
+      # issues, module wiring, `ruff check .` and `ruff format --check`.
+      # `--skip-tests` leaves pytest to its own step so a failure names one cause.
+      - name: Static gates (tools/check.py --skip-tests)
+        run: python tools/check.py --skip-tests
+
+      # pytest exits 5 when it collects nothing, so an empty run cannot pass; the grep
+      # additionally refuses a run where every test was skipped. `-ra` lists skip
+      # reasons (the timezone-database skip is environment-dependent, not a failure).
+      - name: Unit tests (pytest)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest tests -ra | tee pytest-summary.txt
+          grep -Eq '[0-9]+ passed' pytest-summary.txt
