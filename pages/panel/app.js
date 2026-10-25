@@ -1,10 +1,10 @@
 /*
  * Tavern management console.
  *
- * Everything the plugin serves goes through one place: `PLUGIN_ID` below must equal
- * `metadata.yaml`'s `name`. AstrBot matches the route against
- * `/<metadata.name>/<endpoint>`, and a mismatch is answered with "未找到该路由" and
- * nothing else -- no hint that the prefix is the problem. So it is spelled once.
+ * Bridge endpoints are plugin-local: the dashboard prepends the plugin name and
+ * builds `/api/v1/plugins/extensions/<name>/<endpoint>`. Do not add the plugin name
+ * again here, and do not put a query string in the endpoint -- `apiGet` takes the
+ * query values as its second argument.
  *
  * No framework and no build step, and deliberately a *single* file. AstrBot serves
  * plugin page assets with a short-lived (60s) token bound to plugin+page, so a page
@@ -12,6 +12,8 @@
  * page, cannot. `styles.css` is safe because the entry HTML requests it immediately.
  */
 
+// Kept in sync with metadata.yaml by tools/check_panel_assets.py. It documents the
+// plugin this page belongs to; the dashboard, not the page, puts it in the URL.
 const PLUGIN_ID = "astrbot_plugin_tavern";
 const bridge = window.AstrBotPluginPage;
 
@@ -21,8 +23,7 @@ const bridge = window.AstrBotPluginPage;
 
 /** GET a panel endpoint. Throws with the server's message on `{ok:false}`. */
 async function apiGet(endpoint, params) {
-  const query = params ? "?" + new URLSearchParams(params).toString() : "";
-  const payload = await bridge.apiGet(`${PLUGIN_ID}/${endpoint}${query}`);
+  const payload = await bridge.apiGet(endpoint, params || {});
   if (payload && payload.ok === false) throw new Error(payload.error || "请求失败");
   return payload && Object.prototype.hasOwnProperty.call(payload, "data")
     ? payload.data
@@ -31,7 +32,7 @@ async function apiGet(endpoint, params) {
 
 /** POST a panel action. Returns the whole envelope so `message` survives. */
 async function apiPost(endpoint, body) {
-  const payload = await bridge.apiPost(`${PLUGIN_ID}/${endpoint}`, body);
+  const payload = await bridge.apiPost(endpoint, body);
   if (payload && payload.ok === false) throw new Error(payload.error || "操作失败");
   return payload || {};
 }

@@ -42,8 +42,8 @@
 
     <!--
       A module script on purpose: modules are deferred, so the bridge SDK that
-      AstrBot injects before `</body>` is guaranteed to have run by the time this
-      executes. An inline synchronous script would race it.
+      AstrBot injects just before the closing body tag is guaranteed to have run
+      by the time this executes. An inline synchronous script would race it.
     -->
     <script type="module" src="./app.js"></script>
   </body>

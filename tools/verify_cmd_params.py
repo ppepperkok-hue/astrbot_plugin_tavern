@@ -79,6 +79,10 @@ def make_filter(plugin_cls: type, name: str, command: str, *, bound: bool) -> Co
     ``StarHandlerMetadata``. Do not hold the handler in a ``type()`` class dict: a
     ``functools.partial`` stored as a class attribute is bound as a method on access,
     consuming a second parameter, and every parse then comes back empty.
+
+    AstrBot builds ``handler_params`` when the command is registered, *before*
+    ``star_manager`` adds the instance partial. The authoritative shape is therefore
+    the bare function; the bound shape is printed for context but is not asserted.
     """
     raw = getattr(plugin_cls, name)
     handler = functools.partial(raw, plugin_cls) if bound else raw
@@ -117,24 +121,22 @@ def main() -> int:
         return 1
 
     print("AstrBot calls a handler as `handler(event, *args, **kwargs)`")
-    print("(`context_utils.py:37`), and whether the plugin instance is bound on first")
-    print("depends on the loader. Both shapes are printed; the **unbound** one is what")
-    print("this plugin actually runs under in a real AstrBot process, and it is the one")
-    print("asserted here -- `tools/qq_commands_live.py` is the end-to-end proof of it.")
+    print("(`context_utils.py:37`) and reads parameters from the registration-time")
+    print("signature, before the loader binds the plugin instance. The bare shape is")
+    print("therefore the authoritative one and is asserted here; the bound shape is")
+    print("printed only as context. `tools/qq_commands_live.py` remains the end-to-end")
+    print("proof on a real host.")
     print()
 
-    # The unbound shape is the supported, verified one.
     for bound in (False, True):
-        label = "bound" if bound else "unbound (production)"
+        label = "registration time (authoritative)" if not bound else "post binding (context)"
         handler = functools.partial(raw, plugin_cls) if bound else raw
         params = make_filter(plugin_cls, "cmd_st", "st", bound=bound).handler_params
         print(f"--- {label}: signature {inspect.signature(handler)}")
         print(f"    handler_params: {params}")
         if bound:
-            print("    (informational: the offset differs when the loader bound the")
-            print("     instance, which does not happen for this plugin -- the module is")
-            print("     loaded under two names, so `star_manager`'s lookup finds")
-            print("     nothing. See docs/known-issues.md entry 4.)")
+            print("    (informational: AstrBot does not rebuild handler_params after")
+            print("     binding; see docs/known-issues.md entry 4.)")
             print()
             continue
 

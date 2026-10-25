@@ -33,6 +33,7 @@ REGISTER = REPO / "docs" / "known-issues.md"
 #: Where markers may appear. `docs/` itself is excluded -- the register describes the
 #: issues, so it would trivially satisfy the reverse check for every id.
 SEARCH_DIRS = ("tavern", "tools", "tests", "pages")
+SEARCH_FILES = ("main.py",)
 MARKER = re.compile(r"KNOWN-ISSUE:\s*([0-9]+)")
 
 #: Entries that are policy rather than a code-level trap, so no marker is expected.
@@ -54,22 +55,21 @@ def register_entries() -> dict[str, str]:
 def code_markers() -> dict[str, list[str]]:
     """``{id: ["path:line", ...]}`` for every marker in the source tree."""
     found: dict[str, list[str]] = {}
+    paths = [REPO / name for name in SEARCH_FILES]
     for directory in SEARCH_DIRS:
         root = REPO / directory
-        if not root.is_dir():
+        if root.is_dir():
+            paths.extend(root.rglob("*"))
+    for path in sorted({path for path in paths if path.is_file()}):
+        if path.suffix not in (".py", ".js", ".html", ".css"):
             continue
-        for path in sorted(root.rglob("*")):
-            if path.suffix not in (".py", ".js", ".html", ".css") or not path.is_file():
-                continue
-            try:
-                lines = path.read_text(encoding="utf-8").splitlines()
-            except OSError:
-                continue
-            for number, line in enumerate(lines, start=1):
-                for match in MARKER.finditer(line):
-                    found.setdefault(match.group(1), []).append(
-                        f"{path.relative_to(REPO)}:{number}"
-                    )
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for number, line in enumerate(lines, start=1):
+            for match in MARKER.finditer(line):
+                found.setdefault(match.group(1), []).append(f"{path.relative_to(REPO)}:{number}")
     return found
 
 

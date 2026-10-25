@@ -92,7 +92,7 @@ padding 参数。位置没有选择余地：插在 `plugin` 之前不合法（`S
 
 ---
 
-## 4. 真 AstrBot 里所有 `/tavern` 指令都不回话 —— 已修
+## 4. 真 AstrBot 里所有 `/tavern` 指令都不回话，且插件被重复注册 —— 已修
 
 **标记它的是什么：** `tools/qq_commands_live.py`（为实测而新写的）在真 AstrBot 进程里发
 `/tavern help`，得到的是**一片空白**，日志里写着 `cmd_help was called without an event`。
@@ -142,15 +142,22 @@ star_map=["tavern.main='tavern.main'",
    的就是事件），不再假设位置；
 2. 发布签名给**所有前导参数加默认值**：AstrBot 用签名决定参数，而一个必需且标注
    `Any` 的参数会让它去**调用** `Any`，也就是
-   `TypeError: Any cannot be instantiated`。
+   `TypeError: Any cannot be instantiated`；
+3. 把 `TavernPlugin` 和所有 handler 定义移到根 `main.py`。AstrBot 导入的真实模块名是
+   `data.plugins.<dir>.main`，而 `Star.__init_subclass__` 与
+   `handler.__module__` 都以定义处的模块名为键；类放在这里之后，两边天然一致，
+   `star_manager` 会正常绑定实例，也不会走 legacy 分支再建一条没有
+   `root_dir_name` 的 Star。`tavern/main.py` 只保留一个指向同一模块对象的兼容入口，
+   避免历史调用把根文件再执行一遍。
 
-**守它的测试：** `tools/qq_commands_live.py`——真 AstrBot 进程 + 假 OneBot 客户端，
-发 10 条真实指令并断言每条的回执。
+**守它的测试：** `tests/test_host_module_identity.py` 用 AstrBot 4.29.1 的
+`Star` 注册语义和真实加载器路径断言：一个 Star、12 个 `/tavern` 子指令 handler
+全在 `data.plugins.<dir>.main`，且 `tavern.main` 指向同一对象。
+`tools/qq_commands_live.py` 仍是真主机进程的最终证明。
 
-**仍未解决（诚实记录）：** 那两份模块对象还在，所以 `star_manager` 依然不绑定实例，
-插件走的是"未绑定"形态。这已经**验证可用**，但它是脆的：发布签名目前是按未绑定形态定的。
-真要根治得让 handler 注册在加载器期望的模块名下（或把 `tavern/` 改成相对导入），
-那是一次有风险的重构，不该在这轮顺手做。
+**验证边界：** 本轮没有可用的 AstrBot 4.29.1 实时进程；上述身份/绑定用官方 tag
+`v4.29.1`（commit `dffe922`）的 `Star`/loader 行为复现，仍需在真实主机上跑一次
+`tools/qq_commands_live.py` 再关闭问题。
 
 ---
 

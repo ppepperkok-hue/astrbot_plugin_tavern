@@ -97,14 +97,17 @@ def _build_stub() -> dict[str, Any]:
         def _record(self, level: str, message: str) -> None:
             self.records.append((level, message))
 
-        def info(self, message: str) -> None:
-            self._record("info", message)
+        def debug(self, message: str, *args: Any) -> None:
+            self._record("debug", message % args if args else message)
 
-        def warning(self, message: str) -> None:
-            self._record("warning", message)
+        def info(self, message: str, *args: Any) -> None:
+            self._record("info", message % args if args else message)
 
-        def error(self, message: str) -> None:
-            self._record("error", message)
+        def warning(self, message: str, *args: Any) -> None:
+            self._record("warning", message % args if args else message)
+
+        def error(self, message: str, *args: Any) -> None:
+            self._record("error", message % args if args else message)
 
     class AstrBotConfig(dict):
         pass
@@ -434,6 +437,28 @@ def test_message_flow_sends_greeting_then_answer(tavern, tmp_path: Path) -> None
     assert any("小明" in line for line in preview)
     assert event.stopped is True
     assert plugin._inflight[event.unified_msg_origin] == 0
+
+
+def test_bound_message_handler_accepts_the_plugin_prepended(tavern, tmp_path: Path) -> None:
+    """AstrBot's loader calls partial(on_message, instance)(event)."""
+    import functools
+
+    plugin = _make_plugin(tavern, tmp_path, {"enabled": False})
+    bound = functools.partial(tavern.TavernPlugin.on_message, plugin)
+    event = FakeEvent("你好", at=True)
+
+    assert _run(_collect(bound(event))) == []
+
+
+def test_bound_command_handler_answers_from_the_live_plugin(tavern, tmp_path: Path) -> None:
+    """The same call shape for a registered subcommand: partial(cmd_help, plugin)."""
+    import functools
+
+    plugin = _make_plugin(tavern, tmp_path, {"enabled": False})
+    bound = functools.partial(tavern.TavernPlugin.cmd_help, plugin)
+    sent = _run(_collect(bound(FakeEvent("/tavern help", at=True))))
+
+    assert sent and "酒馆角色扮演 · 指令" in sent[0].text
 
 
 def test_message_flow_skips_when_cooldown_active(tavern, tmp_path: Path) -> None:
